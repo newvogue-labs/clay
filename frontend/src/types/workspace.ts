@@ -35,6 +35,9 @@ export interface WorkspaceSignalSummary {
   state: string
   confidence: number
   ranking_score: number
+  confidence_penalty: number
+  response_action: string
+  strategy_mode: string
   setup_summary: string
   last_updated_at: string
 }
@@ -68,8 +71,12 @@ export interface ReasoningSnapshot {
 export interface RiskSnapshot {
   risk_posture: string
   confidence_label: string
+  confidence_penalty: number
+  response_action: string
+  strategy_mode: string
   risk_reward_hint: string
   action_guidance: string
+  active_triggers: string[]
 }
 
 export interface NewsContextItem {

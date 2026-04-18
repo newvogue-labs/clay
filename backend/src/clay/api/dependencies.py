@@ -11,6 +11,7 @@ from clay.bootstrap import (
     ingestion_session_factory,
     ingestion_settings,
     market_ingestion_service,
+    signal_engine_service,
     workspace_service,
 )
 from clay.ai_control.service import AIControlService
@@ -19,6 +20,7 @@ from clay.events.bus import EventBus
 from clay.ingestion.context.manager import ContextConnectorManager
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
+from clay.signal_engine.service import SignalEngineService
 from clay.settings.ingestion import IngestionSettings
 from clay.workspace.service import WorkspaceService
 
@@ -62,3 +64,7 @@ def get_workspace_service() -> WorkspaceService:
 
 def get_ai_control_service() -> AIControlService:
     return ai_control_service
+
+
+def get_signal_engine_service() -> SignalEngineService:
+    return signal_engine_service

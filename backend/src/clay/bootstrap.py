@@ -16,6 +16,7 @@ from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
+from clay.signal_engine.service import SignalEngineService
 from clay.settings.ingestion import IngestionSettings
 from clay.workspace.service import WorkspaceService
 
@@ -84,15 +85,22 @@ control_center_service = ControlCenterService(
     config_loader=config_loader,
     audit_writer=audit_writer,
 )
-workspace_service = WorkspaceService(
-    runtime_manager=runtime_manager,
-    preflight_service=preflight_service,
-    registry=registry,
-)
 ai_control_service = AIControlService(
     runtime_manager=runtime_manager,
     preflight_service=preflight_service,
     config_loader=config_loader,
     audit_writer=audit_writer,
     event_bus=event_bus,
+)
+signal_engine_service = SignalEngineService(
+    runtime_manager=runtime_manager,
+    preflight_service=preflight_service,
+    config_loader=config_loader,
+    ai_control_service=ai_control_service,
+)
+workspace_service = WorkspaceService(
+    runtime_manager=runtime_manager,
+    preflight_service=preflight_service,
+    registry=registry,
+    signal_engine_service=signal_engine_service,
 )

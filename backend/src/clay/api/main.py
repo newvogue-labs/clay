@@ -12,6 +12,7 @@ from clay.api.routes.ingestion import router as ingestion_router
 from clay.api.routes.market_data import router as market_data_router
 from clay.api.routes.preflight import router as preflight_router
 from clay.api.routes.runtime import router as runtime_router
+from clay.api.routes.signals import router as signals_router
 from clay.api.routes.shortlist import router as shortlist_router
 from clay.api.routes.services import router as services_router
 from clay.api.routes.workspace import router as workspace_router
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(market_data_router)
     app.include_router(preflight_router)
     app.include_router(runtime_router)
+    app.include_router(signals_router)
     app.include_router(shortlist_router)
     app.include_router(services_router)
     app.include_router(workspace_router)

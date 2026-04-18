@@ -249,6 +249,9 @@ describe('App', () => {
           state: 'active',
           confidence: 0.83,
           ranking_score: 0.88,
+          confidence_penalty: 0.0,
+          response_action: 'warning_only',
+          strategy_mode: 'momentum',
           setup_summary: 'Bullish continuation with high liquidity and active conviction.',
           last_updated_at: '2026-04-18T12:00:00Z',
         },
@@ -292,8 +295,12 @@ describe('App', () => {
       risk: {
         risk_posture: 'normal',
         confidence_label: 'high',
+        confidence_penalty: 0.0,
+        response_action: 'warning_only',
+        strategy_mode: 'momentum',
         risk_reward_hint: 'Bullish setup supports a structured asymmetric plan.',
         action_guidance: 'Open Binance in parallel and validate the execution context manually.',
+        active_triggers: [],
       },
       news: [
         {

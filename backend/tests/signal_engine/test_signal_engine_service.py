@@ -1,28 +1,21 @@
-import asyncio
 from datetime import UTC, datetime, timedelta
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
-from clay.api.routes.workspace import (
-    get_trading_focus,
-    get_trading_workspace_snapshot,
-    set_focus_pair,
-)
+from clay.events.bus import EventBus
+from clay.preflight.service import PreflightService
+from clay.runtime.manager import RuntimeManager
+from clay.runtime.states import RuntimeState
+from clay.services.models import ServiceCriticality, ServiceStatus
+from clay.services.registry import ServiceRegistry
+from clay.signal_engine.service import SignalEngineService
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
-from clay.events.bus import EventBus
-from clay.workspace.models import FocusCommand
-from clay.workspace.service import WorkspaceService
-from clay.runtime.manager import RuntimeManager
-from clay.services.models import ServiceCriticality, ServiceStatus
-from clay.services.registry import ServiceRegistry
-from clay.preflight.service import PreflightService
-from clay.signal_engine.service import SignalEngineService
 
 
-def build_workspace_service() -> WorkspaceService:
+def build_signal_engine() -> SignalEngineService:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",
@@ -41,47 +34,36 @@ def build_workspace_service() -> WorkspaceService:
         audit_writer=AuditWriter(config_loader.paths.state_dir),
         event_bus=EventBus(),
     )
-    return WorkspaceService(
+    return SignalEngineService(
         runtime_manager=RuntimeManager(registry=registry),
         preflight_service=PreflightService(registry),
-        registry=registry,
-        signal_engine_service=SignalEngineService(
-            runtime_manager=RuntimeManager(registry=registry),
-            preflight_service=PreflightService(registry),
-            config_loader=config_loader,
-            ai_control_service=ai_control_service,
-        ),
+        config_loader=config_loader,
+        ai_control_service=ai_control_service,
     )
 
 
-def seed_workspace_data(session) -> None:
+def seed_signal_data(session) -> None:
     now = datetime.now(UTC)
     market_repository = MarketRepository(session)
     context_repository = ContextRepository(session)
     ops_repository = OpsRepository(session)
-
-    bars = [
-        ("BTCUSDT", 70200.0, 70620.0, 70020.0, 70540.0, 260.0),
-        ("ETHUSDT", 3600.0, 3625.0, 3580.0, 3612.0, 150.0),
-        ("SOLUSDT", 178.0, 180.0, 177.2, 179.1, 95.0),
-    ]
-    for symbol, open_price, high, low, close, volume in bars:
+    for symbol, close, volume in [("BTCUSDT", 70540.0, 260.0), ("SOLUSDT", 179.1, 95.0)]:
         market_repository.upsert_market_bars(
             [
                 {
                     "symbol": symbol,
                     "timeframe": "15m",
-                    "open": open_price,
-                    "high": high,
-                    "low": low,
+                    "open": close * 0.99,
+                    "high": close * 1.01,
+                    "low": close * 0.985,
                     "close": close,
                     "volume": volume,
                     "quote_volume": close * volume,
                     "source": "binance_spot",
                     "bar_open_time": now - timedelta(minutes=15),
                     "bar_close_time": now - timedelta(minutes=1),
-                },
-            ],
+                }
+            ]
         )
         market_repository.upsert_freshness_status(
             symbol=symbol,
@@ -96,12 +78,12 @@ def seed_workspace_data(session) -> None:
             {
                 "source_name": "demo_news_feed",
                 "headline": "BTC keeps leadership",
-                "summary": "Momentum stays constructive on intraday pullbacks.",
-                "published_at": now - timedelta(minutes=30),
+                "summary": "Momentum stays constructive.",
+                "published_at": now - timedelta(minutes=25),
                 "symbol": "BTCUSDT",
                 "source_url": "https://example.invalid/news/btc",
-            },
-        ],
+            }
+        ]
     )
     context_repository.store_sentiment_snapshots(
         [
@@ -109,17 +91,10 @@ def seed_workspace_data(session) -> None:
                 "source_name": "demo_sentiment_feed",
                 "symbol": "BTCUSDT",
                 "sentiment_label": "bullish",
-                "sentiment_score": 0.76,
-                "captured_at": now - timedelta(minutes=20),
-            },
-            {
-                "source_name": "demo_sentiment_feed",
-                "symbol": "SOLUSDT",
-                "sentiment_label": "bullish",
                 "sentiment_score": 0.81,
-                "captured_at": now - timedelta(minutes=20),
-            },
-        ],
+                "captured_at": now - timedelta(minutes=10),
+            }
+        ]
     )
     ops_repository.record_connector_status(
         connector_id="demo-news",
@@ -130,29 +105,27 @@ def seed_workspace_data(session) -> None:
     session.commit()
 
 
-def test_workspace_snapshot_route_returns_focus_pair_and_state(db_session) -> None:
-    seed_workspace_data(db_session)
-    payload = asyncio.run(get_trading_workspace_snapshot(db_session, build_workspace_service()))
+def test_signal_engine_applies_context_penalties_and_risk_actions(db_session) -> None:
+    engine = build_signal_engine()
+    seed_signal_data(db_session)
 
-    assert payload["focus_pair"]["symbol"] == "BTCUSDT"
-    assert payload["workspace_state"]["runtime_state"] == "background_monitoring"
-    assert payload["signals"]
-    assert payload["monitoring_pool"]
+    snapshot = engine.build_snapshot(db_session)
+
+    assert snapshot.signals
+    btc = next(signal for signal in snapshot.signals if signal.symbol == "BTCUSDT")
+    sol = next(signal for signal in snapshot.signals if signal.symbol == "SOLUSDT")
+    assert btc.ranking_score >= sol.ranking_score
+    assert sol.response_action in {"lower_confidence", "block_signal", "warning_only"}
+    assert any(trigger.title == "Low context quality" for trigger in sol.risk_triggers)
 
 
-def test_workspace_focus_routes_return_current_focus_snapshot(db_session) -> None:
-    service = build_workspace_service()
-    seed_workspace_data(db_session)
+def test_signal_engine_switches_to_defensive_when_runtime_is_degraded(db_session) -> None:
+    engine = build_signal_engine()
+    seed_signal_data(db_session)
+    engine.runtime_manager.enter_degraded()
 
-    before = asyncio.run(get_trading_focus(db_session, service))
-    after = asyncio.run(
-        set_focus_pair(
-            FocusCommand(symbol="SOLUSDT", focus_source="monitoring_click"),
-            db_session,
-            service,
-        ),
-    )
+    snapshot = engine.build_snapshot(db_session)
 
-    assert before["focus_pair"]["focus_source"] == "system_recommendation"
-    assert after["focus_pair"]["symbol"] == "SOLUSDT"
-    assert after["focus_pair"]["focus_source"] == "monitoring_click"
+    assert snapshot.workspace_posture == "restricted_by_degraded"
+    assert snapshot.strategy_mode_proposal == "defensive"
+    assert any(signal.response_action == "switch_to_defensive" for signal in snapshot.signals)

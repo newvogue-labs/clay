@@ -12,6 +12,7 @@ from clay.events.bus import EventBus
 router = APIRouter(prefix="/workspace/trading", tags=["workspace"])
 
 RELEVANT_EVENTS = {
+    "ai.updated",
     "config.updated",
     "control.ready",
     "ingestion.updated",

@@ -32,6 +32,9 @@ class WorkspaceSignalSummary(BaseModel):
     state: str
     confidence: float
     ranking_score: float
+    confidence_penalty: float
+    response_action: str
+    strategy_mode: str
     setup_summary: str
     last_updated_at: str
 
@@ -65,8 +68,12 @@ class ReasoningSnapshot(BaseModel):
 class RiskSnapshot(BaseModel):
     risk_posture: str
     confidence_label: str
+    confidence_penalty: float
+    response_action: str
+    strategy_mode: str
     risk_reward_hint: str
     action_guidance: str
+    active_triggers: list[str]
 
 
 class NewsContextItem(BaseModel):

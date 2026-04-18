@@ -16,6 +16,7 @@ At the moment:
 - `E3` trading workspace and live signal surface
 - `E4` control center and runtime operations
 - `E5` AI roles, orchestration, and model assignment
+- `E6` signal lifecycle, ranking, and risk-control
 
 ## E1 Progress
 
@@ -73,6 +74,16 @@ The current `E5` slice already includes:
 - `GET /ai-control/stream` for live refresh triggers over `SSE`;
 - a frontend `AI Control` surface with assignment review, conflict visibility, fallback status, and explicit apply flow;
 - audit/event publication for reviewed model assignment changes instead of silent switching.
+
+## E6 Progress
+
+The current `E6` slice already includes:
+
+- a backend `signal_engine` domain for lifecycle, ranking, confidence penalties, response actions, and strategy-mode proposals;
+- `GET /signals/overview` for the current evaluated signal bundle;
+- risk triggers for stale data, thin context, AI conflicts, runtime degradation, and expired decision windows;
+- `Trading Workspace` wired to signal-engine truth instead of inline heuristic ranking;
+- frontend risk/signal panels that now expose confidence penalties, response actions, strategy mode, and visible triggers.
 
 ## Repository Layout
 
@@ -158,3 +169,10 @@ Copy `.env.example` if you want to override defaults for local development.
   - `POST /ai-control/assignments/apply`
   - `GET /ai-control/stream`
 - assignment changes require an explicit review/apply flow; silent switching is intentionally blocked by design.
+
+## E6 Notes
+
+- `signal_engine` is the source of truth for signal state, ranking, and risk semantics.
+- Current `E6` routes:
+  - `GET /signals/overview`
+- `Trading Workspace` consumes evaluated signal truth from the backend instead of inventing ranking/risk behavior in the UI layer.

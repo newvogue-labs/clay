@@ -1,11 +1,16 @@
 from datetime import UTC, datetime, timedelta
 
+from clay.ai_control.service import AIControlService
+from clay.audit.writer import AuditWriter
+from clay.config.loader import ConfigLoader
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
+from clay.events.bus import EventBus
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
+from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
 from clay.preflight.service import PreflightService
 
@@ -19,10 +24,26 @@ def build_workspace_service() -> WorkspaceService:
         startup_policy="always-on",
     )
     registry.update_status("control-api", ServiceStatus.HEALTHY)
+    config_loader = ConfigLoader()
+    config_loader.ensure_default_configs()
+    config_loader.load_all()
+    ai_control_service = AIControlService(
+        runtime_manager=RuntimeManager(registry=registry),
+        preflight_service=PreflightService(registry),
+        config_loader=config_loader,
+        audit_writer=AuditWriter(config_loader.paths.state_dir),
+        event_bus=EventBus(),
+    )
     return WorkspaceService(
         runtime_manager=RuntimeManager(registry=registry),
         preflight_service=PreflightService(registry),
         registry=registry,
+        signal_engine_service=SignalEngineService(
+            runtime_manager=RuntimeManager(registry=registry),
+            preflight_service=PreflightService(registry),
+            config_loader=config_loader,
+            ai_control_service=ai_control_service,
+        ),
     )
 
 

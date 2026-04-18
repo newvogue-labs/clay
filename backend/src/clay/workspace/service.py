@@ -10,7 +10,7 @@ from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.runtime.states import RuntimeState
 from clay.services.registry import ServiceRegistry
-from clay.shortlist.read_models import build_shortlist_metrics
+from clay.signal_engine.service import SignalEngineService
 from clay.workspace.models import (
     FocusPairSnapshot,
     FocusSelectionSnapshot,
@@ -25,13 +25,6 @@ from clay.workspace.models import (
     WorkspaceSnapshot,
     WorkspaceStateSnapshot,
 )
-
-
-TIMEFRAME_PRIORITY = {
-    "15m": 0,
-    "5m": 1,
-    "1h": 2,
-}
 
 
 @dataclass(slots=True)
@@ -50,12 +43,16 @@ class PairContext:
     active_signal_state: str
     active_signal_id: str | None
     confidence: float
+    confidence_penalty: float
+    response_action: str
+    strategy_mode: str
     technical_context: list[str]
     execution_notes: list[str]
     risk_posture: str
     confidence_label: str
     risk_reward_hint: str
     action_guidance: str
+    active_triggers: list[str]
     situation_bias: str
     entry_hint: str
     target_hint: str
@@ -72,10 +69,12 @@ class WorkspaceService:
         runtime_manager: RuntimeManager,
         preflight_service: PreflightService,
         registry: ServiceRegistry,
+        signal_engine_service: SignalEngineService,
     ) -> None:
         self.runtime_manager = runtime_manager
         self.preflight_service = preflight_service
         self.registry = registry
+        self.signal_engine_service = signal_engine_service
         self._focus_symbol: str | None = None
         self._focus_source: str = "system_recommendation"
         self._selected_signal_id: str | None = None
@@ -93,9 +92,7 @@ class WorkspaceService:
 
     def build_snapshot(self, session: Session) -> WorkspaceSnapshot:
         now = datetime.now(UTC)
-        workspace_state, market_status, context_status, last_ingestion_at = (
-            self._build_workspace_state(session)
-        )
+        workspace_state, market_status, context_status, last_ingestion_at = self._build_workspace_state(session)
         pair_contexts = self._build_pair_contexts(session)
         if not pair_contexts:
             return self._build_empty_snapshot(
@@ -115,9 +112,8 @@ class WorkspaceService:
             focused_signal_state=focus_context.active_signal_state,
         )
 
-        focus_pair = self._build_focus_pair(focus_context)
         return WorkspaceSnapshot(
-            focus_pair=focus_pair,
+            focus_pair=self._build_focus_pair(focus_context),
             workspace_state=workspace_state,
             signals=self._build_signal_summaries(pair_contexts),
             monitoring_pool=self._build_monitoring_pool(pair_contexts, focus_context.symbol),
@@ -136,8 +132,12 @@ class WorkspaceService:
             risk=RiskSnapshot(
                 risk_posture=focus_context.risk_posture,
                 confidence_label=focus_context.confidence_label,
+                confidence_penalty=focus_context.confidence_penalty,
+                response_action=focus_context.response_action,
+                strategy_mode=focus_context.strategy_mode,
                 risk_reward_hint=focus_context.risk_reward_hint,
                 action_guidance=focus_context.action_guidance,
+                active_triggers=focus_context.active_triggers,
             ),
             news=focus_context.news,
             sentiment=focus_context.sentiment,
@@ -195,10 +195,7 @@ class WorkspaceService:
 
         last_ingestion_at = None
         if connector_statuses:
-            last_ingestion_at = max(
-                row.observed_at.isoformat()
-                for row in connector_statuses
-            )
+            last_ingestion_at = max(row.observed_at.isoformat() for row in connector_statuses)
 
         return (
             WorkspaceStateSnapshot(
@@ -225,7 +222,7 @@ class WorkspaceService:
         if focused_signal_state == "absent" and posture == "normal":
             posture = "monitoring_only"
             can_log_decision = False
-        elif focused_signal_state == "invalidated" and posture == "normal":
+        elif focused_signal_state in {"invalidated", "expired"} and posture == "normal":
             posture = "defensive"
             can_log_decision = False
 
@@ -239,12 +236,10 @@ class WorkspaceService:
         )
 
     def _build_pair_contexts(self, session: Session) -> list[PairContext]:
-        market_repo = MarketRepository(session)
         context_repo = ContextRepository(session)
+        market_repo = MarketRepository(session)
+        signal_snapshot = self.signal_engine_service.build_snapshot(session)
         bars = market_repo.list_latest_bars(limit=50)
-        freshness_rows = market_repo.list_freshness_statuses()
-        preferred_bars = self._pick_preferred_bars(bars)
-        shortlist_rows = build_shortlist_metrics(preferred_bars, freshness_rows)
         news_rows = context_repo.latest_news(limit=20)
         sentiment_rows = context_repo.latest_sentiment(limit=20)
 
@@ -259,7 +254,7 @@ class WorkspaceService:
                     source_name=row.source_name,
                     published_at=row.published_at.isoformat(),
                     source_url=row.source_url,
-                ),
+                )
             )
 
         sentiment_by_symbol: dict[str, list[SentimentContextItem]] = {}
@@ -270,93 +265,52 @@ class WorkspaceService:
                     sentiment_label=row.sentiment_label,
                     sentiment_score=row.sentiment_score,
                     captured_at=row.captured_at.isoformat(),
-                ),
+                )
             )
 
         pair_contexts: list[PairContext] = []
-        for index, row in enumerate(shortlist_rows):
-            bar = next((candidate for candidate in preferred_bars if candidate.symbol == row.symbol), None)
+        for index, signal in enumerate(signal_snapshot.signals):
+            bar = next((candidate for candidate in bars if candidate.symbol == signal.symbol), None)
             if bar is None:
                 continue
 
             pct_change = round(((bar.close - bar.open) / bar.open) * 100, 2) if bar.open else 0.0
-            direction = self._resolve_direction(
-                symbol=row.symbol,
-                bar_open=bar.open,
-                bar_close=bar.close,
-                sentiment_items=sentiment_by_symbol.get(row.symbol, []),
-            )
-            ranking_score = round(
-                (row.rolling_volume_score * 0.55) + (row.rolling_volatility_score * 0.45),
-                4,
-            )
-            signal_state = self._resolve_signal_state(
-                availability_status=row.availability_status,
-                ranking_score=ranking_score,
-            )
-            confidence = self._resolve_confidence(
-                ranking_score=ranking_score,
-                sentiment_items=sentiment_by_symbol.get(row.symbol, []),
-                availability_status=row.availability_status,
-            )
-            active_signal_id = None
-            if signal_state in {"active", "weakening", "invalidated"}:
-                active_signal_id = f"sig-{row.symbol.lower()}"
-
             role = "primary" if index == 0 else "backup" if index < 3 else "watch"
             pair_contexts.append(
                 PairContext(
-                    symbol=row.symbol,
-                    display_name=self._display_name(row.symbol),
+                    symbol=signal.symbol,
+                    display_name=signal.display_name,
                     role=role,
-                    availability_status=row.availability_status,
+                    availability_status=signal_snapshot.market_status,
                     last_price=round(bar.close, 4),
                     pct_change_24h=pct_change,
-                    volatility=row.rolling_volatility_score,
-                    last_scan_at=bar.bar_close_time.isoformat(),
-                    ranking_score=ranking_score,
-                    direction=direction,
-                    setup_summary=self._build_setup_summary(
-                        direction=direction,
-                        signal_state=signal_state,
-                        liquidity=row.liquidity_summary,
-                        symbol=row.symbol,
-                    ),
-                    active_signal_state=signal_state,
-                    active_signal_id=active_signal_id,
-                    confidence=confidence,
-                    technical_context=[
-                        f"Liquidity {row.liquidity_summary}",
-                        f"Volatility score {row.rolling_volatility_score:.2f}",
-                        f"Availability {row.availability_status}",
-                    ],
-                    execution_notes=self._build_execution_notes(
-                        signal_state=signal_state,
-                        direction=direction,
-                        availability_status=row.availability_status,
-                    ),
-                    risk_posture=self._build_risk_posture(signal_state),
-                    confidence_label=self._confidence_label(confidence),
-                    risk_reward_hint=self._build_risk_reward_hint(
-                        direction=direction,
-                        ranking_score=ranking_score,
-                    ),
-                    action_guidance=self._build_action_guidance(signal_state),
-                    situation_bias=direction,
-                    entry_hint=self._price_hint(bar.close, direction, mode="entry"),
-                    target_hint=self._price_hint(bar.close, direction, mode="target"),
-                    invalidation_hint=self._price_hint(bar.close, direction, mode="invalidation"),
-                    analyst_note=self._build_analyst_note(
-                        symbol=row.symbol,
-                        signal_state=signal_state,
-                        ranking_score=ranking_score,
-                    ),
-                    news=news_by_symbol.get(row.symbol, [])[:3],
-                    sentiment=sentiment_by_symbol.get(row.symbol, [])[:3],
-                ),
+                    volatility=round(min(max(bar.volume / 200, 0.05), 1.0), 2),
+                    last_scan_at=signal.last_updated_at,
+                    ranking_score=signal.ranking_score,
+                    direction=signal.direction,
+                    setup_summary=signal.setup_summary,
+                    active_signal_state=signal.state,
+                    active_signal_id=signal.signal_id if signal.state != "absent" else None,
+                    confidence=signal.confidence,
+                    confidence_penalty=signal.confidence_penalty,
+                    response_action=signal.response_action,
+                    strategy_mode=signal.strategy_mode,
+                    technical_context=signal.technical_context,
+                    execution_notes=signal.execution_notes,
+                    risk_posture=signal.risk_posture,
+                    confidence_label=self._confidence_label(signal.confidence),
+                    risk_reward_hint=signal.risk_reward_hint,
+                    action_guidance=signal.action_guidance,
+                    active_triggers=[trigger.title for trigger in signal.risk_triggers],
+                    situation_bias=signal.directional_bias,
+                    entry_hint=signal.entry_hint,
+                    target_hint=signal.target_hint,
+                    invalidation_hint=signal.invalidation_hint,
+                    analyst_note=signal.analyst_note,
+                    news=news_by_symbol.get(signal.symbol, [])[:3],
+                    sentiment=sentiment_by_symbol.get(signal.symbol, [])[:3],
+                )
             )
-
-        pair_contexts.sort(key=lambda item: item.ranking_score, reverse=True)
         return pair_contexts[:5]
 
     def _pick_focus_context(self, pair_contexts: list[PairContext]) -> PairContext:
@@ -366,20 +320,13 @@ class WorkspaceService:
 
         if self._selected_signal_id is not None:
             selected = next(
-                (
-                    item
-                    for item in pair_contexts
-                    if item.active_signal_id == self._selected_signal_id
-                ),
+                (item for item in pair_contexts if item.active_signal_id == self._selected_signal_id),
                 None,
             )
             if selected is not None:
                 return selected
 
-        active = next(
-            (item for item in pair_contexts if item.active_signal_state == "active"),
-            None,
-        )
+        active = next((item for item in pair_contexts if item.active_signal_state == "active"), None)
         if active is not None:
             self._focus_source = "system_recommendation"
             return active
@@ -401,11 +348,8 @@ class WorkspaceService:
             focus_source=self._focus_source,
         )
 
-    def _build_signal_summaries(
-        self,
-        pair_contexts: list[PairContext],
-    ) -> list[WorkspaceSignalSummary]:
-        items = [
+    def _build_signal_summaries(self, pair_contexts: list[PairContext]) -> list[WorkspaceSignalSummary]:
+        return [
             WorkspaceSignalSummary(
                 signal_id=item.active_signal_id or f"watch-{item.symbol.lower()}",
                 pair=item.symbol,
@@ -413,13 +357,15 @@ class WorkspaceService:
                 state=item.active_signal_state,
                 confidence=item.confidence,
                 ranking_score=item.ranking_score,
+                confidence_penalty=item.confidence_penalty,
+                response_action=item.response_action,
+                strategy_mode=item.strategy_mode,
                 setup_summary=item.setup_summary,
                 last_updated_at=item.last_scan_at,
             )
             for item in pair_contexts
-            if item.active_signal_state in {"active", "weakening", "invalidated"}
+            if item.active_signal_state in {"active", "weakening", "invalidated", "expired"}
         ]
-        return items
 
     def _build_monitoring_pool(
         self,
@@ -462,10 +408,7 @@ class WorkspaceService:
             active_signal_id=None,
             focus_source="system_recommendation",
         )
-        refined_state = self._refine_workspace_state(
-            base_state=workspace_state,
-            focused_signal_state="absent",
-        )
+        refined_state = self._refine_workspace_state(base_state=workspace_state, focused_signal_state="absent")
         return WorkspaceSnapshot(
             focus_pair=focus_pair,
             workspace_state=refined_state,
@@ -486,8 +429,12 @@ class WorkspaceService:
             risk=RiskSnapshot(
                 risk_posture="monitoring_only",
                 confidence_label="low",
+                confidence_penalty=0.0,
+                response_action="warning_only",
+                strategy_mode="defensive",
                 risk_reward_hint="No risk framing available yet.",
                 action_guidance="Stay in monitoring mode until data arrives.",
+                active_triggers=[],
             ),
             news=[],
             sentiment=[],
@@ -499,161 +446,9 @@ class WorkspaceService:
             ),
         )
 
-    def _pick_preferred_bars(self, bars: list[object]) -> list[object]:
-        by_symbol: dict[str, object] = {}
-        for bar in bars:
-            current = by_symbol.get(bar.symbol)
-            if current is None:
-                by_symbol[bar.symbol] = bar
-                continue
-            current_priority = TIMEFRAME_PRIORITY.get(current.timeframe, 99)
-            next_priority = TIMEFRAME_PRIORITY.get(bar.timeframe, 99)
-            if next_priority < current_priority:
-                by_symbol[bar.symbol] = bar
-        return list(by_symbol.values())
-
-    def _resolve_direction(
-        self,
-        *,
-        symbol: str,
-        bar_open: float,
-        bar_close: float,
-        sentiment_items: list[SentimentContextItem],
-    ) -> str:
-        if sentiment_items:
-            top = sentiment_items[0]
-            if top.sentiment_score >= 0.6:
-                return "bullish"
-            if top.sentiment_score <= 0.4:
-                return "bearish"
-        return "bullish" if bar_close >= bar_open else "bearish"
-
-    def _resolve_signal_state(
-        self,
-        *,
-        availability_status: str,
-        ranking_score: float,
-    ) -> str:
-        if availability_status != "fresh":
-            return "invalidated"
-        if ranking_score >= 0.72:
-            return "active"
-        if ranking_score >= 0.45:
-            return "weakening"
-        return "absent"
-
-    def _resolve_confidence(
-        self,
-        *,
-        ranking_score: float,
-        sentiment_items: list[SentimentContextItem],
-        availability_status: str,
-    ) -> float:
-        confidence = ranking_score
-        if sentiment_items:
-            confidence = min(1.0, confidence + 0.08)
-        if availability_status != "fresh":
-            confidence = max(0.1, confidence - 0.25)
-        return round(confidence, 2)
-
-    def _build_setup_summary(
-        self,
-        *,
-        direction: str,
-        signal_state: str,
-        liquidity: str,
-        symbol: str,
-    ) -> str:
-        if signal_state == "absent":
-            return f"{symbol} stays in monitoring mode while the setup develops."
-        return f"{direction.title()} continuation with {liquidity} liquidity and {signal_state} conviction."
-
-    def _build_execution_notes(
-        self,
-        *,
-        signal_state: str,
-        direction: str,
-        availability_status: str,
-    ) -> list[str]:
-        notes = [f"Signal direction: {direction}."]
-        if signal_state == "active":
-            notes.append("Look for confirmation on Binance before any manual execution.")
-        elif signal_state == "weakening":
-            notes.append("Treat the setup as fragile and wait for cleaner confirmation.")
-        elif signal_state == "invalidated":
-            notes.append("Do not treat this setup as actionable until freshness recovers.")
-        else:
-            notes.append("Stay in monitoring mode and wait for a cleaner setup.")
-        notes.append(f"Availability status is {availability_status}.")
-        return notes
-
-    def _build_risk_posture(self, signal_state: str) -> str:
-        if signal_state == "active":
-            return "normal"
-        if signal_state == "weakening":
-            return "defensive"
-        return "monitoring_only"
-
     def _confidence_label(self, confidence: float) -> str:
         if confidence >= 0.8:
             return "high"
         if confidence >= 0.55:
             return "medium"
         return "low"
-
-    def _build_risk_reward_hint(self, *, direction: str, ranking_score: float) -> str:
-        if ranking_score >= 0.72:
-            return f"{direction.title()} setup supports a structured asymmetric plan."
-        if ranking_score >= 0.45:
-            return "Reward is still present, but the edge is narrowing."
-        return "No favorable risk/reward framing yet."
-
-    def _build_action_guidance(self, signal_state: str) -> str:
-        if signal_state == "active":
-            return "Open Binance in parallel and validate the execution context manually."
-        if signal_state == "weakening":
-            return "Reduce urgency and wait for stronger confirmation."
-        if signal_state == "invalidated":
-            return "Do not execute until the signal or freshness recovers."
-        return "Keep monitoring and do not force a trade."
-
-    def _price_hint(self, last_price: float, direction: str, *, mode: str) -> str:
-        if direction == "bullish":
-            multipliers = {
-                "entry": 1.002,
-                "target": 1.012,
-                "invalidation": 0.994,
-            }
-        else:
-            multipliers = {
-                "entry": 0.998,
-                "target": 0.988,
-                "invalidation": 1.006,
-            }
-        hinted_price = round(last_price * multipliers[mode], 4)
-        if mode == "entry":
-            return f"Watch reaction near {hinted_price}"
-        if mode == "target":
-            return f"First decision zone near {hinted_price}"
-        return f"Treat a move through {hinted_price} as invalidation"
-
-    def _build_analyst_note(
-        self,
-        *,
-        symbol: str,
-        signal_state: str,
-        ranking_score: float,
-    ) -> str:
-        if signal_state == "active":
-            return f"{symbol} is the cleanest decision-support candidate in the current shortlist."
-        if signal_state == "weakening":
-            return f"{symbol} still holds context, but the edge is fading ({ranking_score:.2f})."
-        if signal_state == "invalidated":
-            return f"{symbol} is visible, but the signal is blocked by degraded freshness."
-        return f"{symbol} remains on the radar without an actionable signal."
-
-    def _display_name(self, symbol: str) -> str:
-        if symbol.endswith("USDT"):
-            base = symbol[:-4]
-            return f"{base} / USDT"
-        return symbol

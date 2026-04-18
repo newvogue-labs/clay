@@ -34,6 +34,11 @@ export function ActiveSignalsPanel({
                 {signal.pair} · {signal.direction} · <StatusBadge label={signal.state} />
               </button>
               <div>{signal.setup_summary}</div>
+              <div>
+                Confidence {signal.confidence} · penalty {signal.confidence_penalty} · action{' '}
+                <StatusBadge label={signal.response_action} />
+              </div>
+              <div>Strategy mode: <StatusBadge label={signal.strategy_mode} /></div>
             </li>
           ))}
         </ul>
