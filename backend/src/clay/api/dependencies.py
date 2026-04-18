@@ -3,6 +3,7 @@ from collections.abc import Generator
 from sqlalchemy.orm import Session, sessionmaker
 
 from clay.bootstrap import (
+    ai_control_service,
     control_center_service,
     context_connector_manager,
     event_bus,
@@ -12,6 +13,7 @@ from clay.bootstrap import (
     market_ingestion_service,
     workspace_service,
 )
+from clay.ai_control.service import AIControlService
 from clay.control_center.service import ControlCenterService
 from clay.events.bus import EventBus
 from clay.ingestion.context.manager import ContextConnectorManager
@@ -56,3 +58,7 @@ def get_event_bus() -> EventBus:
 
 def get_workspace_service() -> WorkspaceService:
     return workspace_service
+
+
+def get_ai_control_service() -> AIControlService:
+    return ai_control_service

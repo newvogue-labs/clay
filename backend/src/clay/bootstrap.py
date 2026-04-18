@@ -1,3 +1,4 @@
+from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
 from clay.control_center.service import ControlCenterService
@@ -87,4 +88,11 @@ workspace_service = WorkspaceService(
     runtime_manager=runtime_manager,
     preflight_service=preflight_service,
     registry=registry,
+)
+ai_control_service = AIControlService(
+    runtime_manager=runtime_manager,
+    preflight_service=preflight_service,
+    config_loader=config_loader,
+    audit_writer=audit_writer,
+    event_bus=event_bus,
 )

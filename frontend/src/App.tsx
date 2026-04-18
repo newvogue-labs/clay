@@ -1,10 +1,11 @@
 import { useState } from 'react'
 
+import { AIControlPage } from './features/ai-control/ai-control-page'
 import { ControlCenterPage } from './features/control-center/control-center-page'
 import { TradingWorkspacePage } from './features/workspace/trading-workspace-page'
 
 export function App() {
-  const [screen, setScreen] = useState<'workspace' | 'control-center'>('workspace')
+  const [screen, setScreen] = useState<'workspace' | 'control-center' | 'ai-control'>('workspace')
 
   return (
     <main>
@@ -29,8 +30,19 @@ export function App() {
         >
           Control Center
         </button>
+        <button
+          aria-pressed={screen === 'ai-control'}
+          onClick={() => {
+            setScreen('ai-control')
+          }}
+          type="button"
+        >
+          AI Control
+        </button>
       </nav>
-      {screen === 'workspace' ? <TradingWorkspacePage /> : <ControlCenterPage />}
+      {screen === 'workspace' ? <TradingWorkspacePage /> : null}
+      {screen === 'control-center' ? <ControlCenterPage /> : null}
+      {screen === 'ai-control' ? <AIControlPage /> : null}
     </main>
   )
 }

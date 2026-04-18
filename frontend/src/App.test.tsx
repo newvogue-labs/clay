@@ -4,10 +4,127 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import App from './App'
 
 describe('App', () => {
+  let aiControlSnapshot: Record<string, any>
   let controlCenterSnapshot: Record<string, any>
   let workspaceSnapshot: Record<string, any>
 
   beforeEach(() => {
+    aiControlSnapshot = {
+      summary: {
+        overall_status: 'degraded',
+        chief_agent_model: 'GPT-5.4',
+        active_conflict_count: 2,
+        degraded_role_count: 1,
+        fallback_active: false,
+        last_reviewed_at: null,
+      },
+      roles: [
+        {
+          role_id: 'chief-agent',
+          role_name: 'Chief Agent',
+          responsibility: 'Final synthesis.',
+          inputs: ['ranked signals'],
+          outputs: ['session thesis'],
+          allowed_actions: ['synthesize'],
+          constraints: ['must expose conflicts'],
+          explanation_owner: true,
+          synthesis_owner: true,
+        },
+        {
+          role_id: 'forecast-model',
+          role_name: 'Forecast Model',
+          responsibility: 'Directional forecast hints.',
+          inputs: ['market features'],
+          outputs: ['forecast bias'],
+          allowed_actions: ['forecast'],
+          constraints: ['cannot auto-activate strategy'],
+          explanation_owner: false,
+          synthesis_owner: false,
+        },
+      ],
+      models: [
+        {
+          model_id: 'openai-gpt-5.4',
+          display_name: 'GPT-5.4',
+          provider: 'OpenAI',
+          source: 'cloud',
+          training_date: '2026-02-01',
+          metrics_summary: 'Strong synthesis.',
+          notes: 'Preferred for synthesis.',
+          activation_status: 'active',
+          compatible_roles: ['chief-agent'],
+          fallback_ready: true,
+        },
+        {
+          model_id: 'gemini-2.5-flash',
+          display_name: 'Gemini 2.5 Flash',
+          provider: 'Google',
+          source: 'cloud',
+          training_date: '2026-01-20',
+          metrics_summary: 'Fast forecast.',
+          notes: 'Default forecast assistant.',
+          activation_status: 'active',
+          compatible_roles: ['forecast-model'],
+          fallback_ready: true,
+        },
+        {
+          model_id: 'forecast-lite-v1',
+          display_name: 'Forecast Lite v1',
+          provider: 'Local',
+          source: 'local',
+          training_date: '2025-12-10',
+          metrics_summary: 'Compact fallback.',
+          notes: 'Safe fallback.',
+          activation_status: 'standby',
+          compatible_roles: ['forecast-model'],
+          fallback_ready: true,
+        },
+      ],
+      assignments: [
+        {
+          role_id: 'chief-agent',
+          role_name: 'Chief Agent',
+          model_id: 'openai-gpt-5.4',
+          model_display_name: 'GPT-5.4',
+          provider: 'OpenAI',
+          assignment_mode: 'active',
+          assignment_health: 'healthy',
+          confidence_penalty: 0,
+          review_required: false,
+          reason: 'GPT-5.4 is assigned and ready.',
+        },
+        {
+          role_id: 'forecast-model',
+          role_name: 'Forecast Model',
+          model_id: 'gemini-2.5-flash',
+          model_display_name: 'Gemini 2.5 Flash',
+          provider: 'Google',
+          assignment_mode: 'active',
+          assignment_health: 'review_required',
+          confidence_penalty: 0.1,
+          review_required: true,
+          reason: 'Provider mix creates a reviewable conflict.',
+        },
+      ],
+      conflicts: [
+        {
+          conflict_id: 'provider-mix-forecast-model',
+          severity: 'warning',
+          title: 'Provider mix needs review',
+          description: 'Forecast Model uses Google while Chief Agent uses OpenAI.',
+          affected_roles: ['chief-agent', 'forecast-model'],
+          recommended_action: 'Review the provider split.',
+        },
+      ],
+      fallback: {
+        fallback_active: false,
+        local_fallback_ready: false,
+        degraded_roles: ['news-sentiment-agent'],
+        operator_message: 'Some roles have no safe fallback path.',
+      },
+      pending_review: null,
+    }
+
     controlCenterSnapshot = {
       summary: {
         runtime_state: 'background_monitoring',
@@ -236,6 +353,44 @@ describe('App', () => {
           )
         }
 
+        if (url.endsWith('/ai-control/overview') && method === 'GET') {
+          return Promise.resolve(new Response(JSON.stringify(aiControlSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/ai-control/assignments/review') && method === 'POST') {
+          aiControlSnapshot.pending_review = {
+            review_id: 'review-forecast-lite',
+            role_id: 'forecast-model',
+            role_name: 'Forecast Model',
+            current_model_id: 'gemini-2.5-flash',
+            proposed_model_id: 'forecast-lite-v1',
+            proposed_model_name: 'Forecast Lite v1',
+            severity: 'warning',
+            approval_required: true,
+            blocks_apply: false,
+            summary: 'Review required before assigning Forecast Lite v1 to Forecast Model.',
+            risks: ['Provider switch changes latency/error/fallback profile for this role.'],
+            expected_effects: ['Forecast Model will switch from Gemini 2.5 Flash to Forecast Lite v1.'],
+            resulting_confidence_penalty: 0.2,
+            resulting_conflicts: [],
+          }
+          return Promise.resolve(
+            new Response(JSON.stringify(aiControlSnapshot.pending_review), { status: 200 }),
+          )
+        }
+
+        if (url.endsWith('/ai-control/assignments/apply') && method === 'POST') {
+          aiControlSnapshot.assignments[1].model_id = 'forecast-lite-v1'
+          aiControlSnapshot.assignments[1].model_display_name = 'Forecast Lite v1'
+          aiControlSnapshot.assignments[1].provider = 'Local'
+          aiControlSnapshot.assignments[1].assignment_health = 'healthy'
+          aiControlSnapshot.assignments[1].reason = 'Forecast Lite v1 is assigned and ready.'
+          aiControlSnapshot.summary.active_conflict_count = 0
+          aiControlSnapshot.conflicts = []
+          aiControlSnapshot.pending_review = null
+          return Promise.resolve(new Response(JSON.stringify(aiControlSnapshot), { status: 200 }))
+        }
+
         if (url.endsWith('/runtime/transition') && method === 'POST') {
           controlCenterSnapshot.runtime.state = 'pre_session'
           controlCenterSnapshot.runtime.allowed_transitions = ['active_session', 'degraded']
@@ -340,5 +495,19 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /trading workspace/i }))
     expect(await screen.findByRole('heading', { name: /trading workspace/i })).toBeInTheDocument()
+  })
+
+  it('renders ai control and applies a reviewed assignment', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /ai control/i }))
+    expect(await screen.findByRole('heading', { name: /ai control/i })).toBeInTheDocument()
+    expect(await screen.findByText(/provider mix needs review/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /review forecast lite v1/i }))
+    expect(await screen.findByText(/review required before assigning forecast lite v1/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /apply reviewed assignment/i }))
+    expect(await screen.findByText(/forecast lite v1 is assigned and ready/i)).toBeInTheDocument()
   })
 })

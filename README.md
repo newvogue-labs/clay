@@ -15,6 +15,7 @@ At the moment:
 - `E2` data ingestion and local historical store
 - `E3` trading workspace and live signal surface
 - `E4` control center and runtime operations
+- `E5` AI roles, orchestration, and model assignment
 
 ## E1 Progress
 
@@ -61,6 +62,17 @@ The current `E3` slice already includes:
 - `GET /workspace/trading/stream` for live refresh triggers over `SSE`;
 - a frontend `Trading Workspace` with focused pair context, active signals, monitoring pool, reasoning, risk, and news/sentiment panels;
 - live focus switching between ranked signals and monitoring candidates without direct browser access to provider data.
+
+## E5 Progress
+
+The current `E5` slice already includes:
+
+- a backend `AI Control` registry for roles, model versions, assignments, conflicts, and fallback posture;
+- `GET /ai-control/overview` for the current orchestration snapshot;
+- `POST /ai-control/assignments/review` and `POST /ai-control/assignments/apply` for operator-reviewed assignment changes;
+- `GET /ai-control/stream` for live refresh triggers over `SSE`;
+- a frontend `AI Control` surface with assignment review, conflict visibility, fallback status, and explicit apply flow;
+- audit/event publication for reviewed model assignment changes instead of silent switching.
 
 ## Repository Layout
 
@@ -136,3 +148,13 @@ Copy `.env.example` if you want to override defaults for local development.
   - `POST /workspace/trading/focus`
   - `GET /workspace/trading/stream`
 - current focus logic is derived from persisted `E2` data and current control-plane state; no browser-side market/provider calls are used.
+
+## E5 Notes
+
+- `AI Control` is the operator-facing orchestration layer for roles and model assignments, not a hidden auto-router.
+- Current `E5` routes:
+  - `GET /ai-control/overview`
+  - `POST /ai-control/assignments/review`
+  - `POST /ai-control/assignments/apply`
+  - `GET /ai-control/stream`
+- assignment changes require an explicit review/apply flow; silent switching is intentionally blocked by design.
