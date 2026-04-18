@@ -13,6 +13,7 @@ At the moment:
 - the first delivery target is `Wave 1`:
 - `E1` runtime foundation
 - `E2` data ingestion and local historical store
+- `E3` trading workspace and live signal surface
 - `E4` control center and runtime operations
 
 ## E1 Progress
@@ -49,6 +50,17 @@ The current `E4` slice already includes:
 - `GET /control-center/stream` for live UI refresh triggers over `SSE`;
 - audit and live event publishing for manual ingestion runs;
 - a frontend `Control Center` shell with runtime transitions, manual ingest trigger, service actions, incident/audit view, and config restore actions.
+
+## E3 Progress
+
+The current `E3` slice already includes:
+
+- a storage-backed backend workspace service built on top of `E1 + E2 + E4`;
+- `GET /workspace/trading` for the main trading workspace snapshot;
+- `GET /workspace/trading/focus` and `POST /workspace/trading/focus` for pair and signal focus control;
+- `GET /workspace/trading/stream` for live refresh triggers over `SSE`;
+- a frontend `Trading Workspace` with focused pair context, active signals, monitoring pool, reasoning, risk, and news/sentiment panels;
+- live focus switching between ranked signals and monitoring candidates without direct browser access to provider data.
 
 ## Repository Layout
 
@@ -114,3 +126,13 @@ Copy `.env.example` if you want to override defaults for local development.
   - `GET /control-center/overview`
   - `GET /control-center/stream`
 - operator commands still flow through the existing runtime, services, configs, and ingestion endpoints.
+
+## E3 Notes
+
+- `Trading Workspace` is the analyst-facing layer and intentionally separate from `Control Center`.
+- Current `E3` routes:
+  - `GET /workspace/trading`
+  - `GET /workspace/trading/focus`
+  - `POST /workspace/trading/focus`
+  - `GET /workspace/trading/stream`
+- current focus logic is derived from persisted `E2` data and current control-plane state; no browser-side market/provider calls are used.

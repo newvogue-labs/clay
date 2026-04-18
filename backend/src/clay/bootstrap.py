@@ -16,6 +16,7 @@ from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
 from clay.settings.ingestion import IngestionSettings
+from clay.workspace.service import WorkspaceService
 
 
 config_loader = ConfigLoader()
@@ -81,4 +82,9 @@ control_center_service = ControlCenterService(
     supervisor=supervisor,
     config_loader=config_loader,
     audit_writer=audit_writer,
+)
+workspace_service = WorkspaceService(
+    runtime_manager=runtime_manager,
+    preflight_service=preflight_service,
+    registry=registry,
 )
