@@ -8,6 +8,8 @@ SQLITE_SCHEMA_TRANSLATE_MAP = {
     "market": None,
     "context": None,
     "ops": None,
+    "demo": None,
+    "review": None,
 }
 
 

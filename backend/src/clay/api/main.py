@@ -6,12 +6,18 @@ from clay.api.routes.control_center import router as control_center_router
 from clay.api.routes.control_center_stream import router as control_center_stream_router
 from clay.api.routes.context_data import router as context_data_router
 from clay.api.routes.configs import router as configs_router
+from clay.api.routes.demo_trading import router as demo_trading_router
+from clay.api.routes.demo_trading_stream import router as demo_trading_stream_router
 from clay.api.routes.events import router as events_router
 from clay.api.routes.health import router as health_router
 from clay.api.routes.ingestion import router as ingestion_router
 from clay.api.routes.market_data import router as market_data_router
 from clay.api.routes.preflight import router as preflight_router
 from clay.api.routes.runtime import router as runtime_router
+from clay.api.routes.session_control import router as session_control_router
+from clay.api.routes.session_review import router as session_review_router
+from clay.api.routes.session_review_stream import router as session_review_stream_router
+from clay.api.routes.session_stream import router as session_stream_router
 from clay.api.routes.signals import router as signals_router
 from clay.api.routes.shortlist import router as shortlist_router
 from clay.api.routes.services import router as services_router
@@ -31,12 +37,18 @@ def create_app() -> FastAPI:
     app.include_router(control_center_stream_router)
     app.include_router(configs_router)
     app.include_router(context_data_router)
+    app.include_router(demo_trading_router)
+    app.include_router(demo_trading_stream_router)
     app.include_router(events_router)
     app.include_router(health_router)
     app.include_router(ingestion_router)
     app.include_router(market_data_router)
     app.include_router(preflight_router)
     app.include_router(runtime_router)
+    app.include_router(session_control_router)
+    app.include_router(session_review_router)
+    app.include_router(session_review_stream_router)
+    app.include_router(session_stream_router)
     app.include_router(signals_router)
     app.include_router(shortlist_router)
     app.include_router(services_router)

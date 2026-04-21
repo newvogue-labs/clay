@@ -5,7 +5,7 @@ import pytest
 from clay.api.dependencies import get_db_session, get_ingestion_settings
 from clay.api.main import create_app
 from clay.db import Base, build_engine, build_session_factory
-from clay.db import models_context, models_market, models_ops  # noqa: F401
+from clay.db import models_context, models_demo, models_market, models_ops, models_review  # noqa: F401
 from clay.settings.ingestion import IngestionSettings
 
 

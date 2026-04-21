@@ -6,7 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from clay.db.base import Base
-from clay.db import models_context, models_market, models_ops
+from clay.db import models_context, models_demo, models_market, models_ops, models_review
 from clay.settings.ingestion import IngestionSettings
 
 

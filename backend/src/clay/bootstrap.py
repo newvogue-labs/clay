@@ -3,6 +3,7 @@ from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
 from clay.control_center.service import ControlCenterService
 from clay.db.session import build_session_factory
+from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
@@ -13,6 +14,8 @@ from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
+from clay.session_control.service import SessionControlService
+from clay.session_review.service import SessionReviewService
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
@@ -103,4 +106,23 @@ workspace_service = WorkspaceService(
     preflight_service=preflight_service,
     registry=registry,
     signal_engine_service=signal_engine_service,
+)
+session_control_service = SessionControlService(
+    runtime_manager=runtime_manager,
+    signal_engine_service=signal_engine_service,
+    ai_control_service=ai_control_service,
+    workspace_service=workspace_service,
+    audit_writer=audit_writer,
+    event_bus=event_bus,
+)
+demo_trading_service = DemoTradingService(
+    session_control_service=session_control_service,
+    workspace_service=workspace_service,
+    audit_writer=audit_writer,
+    event_bus=event_bus,
+)
+session_review_service = SessionReviewService(
+    audit_writer=audit_writer,
+    event_bus=event_bus,
+    ai_control_service=ai_control_service,
 )

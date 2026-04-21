@@ -17,6 +17,9 @@ At the moment:
 - `E4` control center and runtime operations
 - `E5` AI roles, orchestration, and model assignment
 - `E6` signal lifecycle, ranking, and risk-control
+- `E7` session lifecycle, briefing, pause, and pair replacement
+- `E8` demo trading integration and result tracking
+- `E9` audit trail, feedback, and session review
 
 ## E1 Progress
 
@@ -84,6 +87,37 @@ The current `E6` slice already includes:
 - risk triggers for stale data, thin context, AI conflicts, runtime degradation, and expired decision windows;
 - `Trading Workspace` wired to signal-engine truth instead of inline heuristic ranking;
 - frontend risk/signal panels that now expose confidence penalties, response actions, strategy mode, and visible triggers.
+
+## E7 Progress
+
+The current `E7` slice already includes:
+
+- a backend `session_control` domain for hard preflight, briefing, lifecycle actions, and pair replacement review;
+- `GET /session/overview` plus lifecycle routes for `start`, `pause`, `resume`, and `complete`;
+- pair replacement review/apply flow with audit/event publication instead of silent focus switching;
+- `GET /session/stream` for live session refresh events over `SSE`;
+- a frontend `Session Control` surface with preflight, briefing, lifecycle actions, and pair replacement review/apply.
+
+## E8 Progress
+
+The current `E8` slice already includes:
+
+- a backend `demo_trading` domain for manual demo action logging, result ingest, and readiness evaluation;
+- persisted `demo.demo_trade_records` storage with Alembic migration support;
+- `GET /demo-trading/overview`, `POST /demo-trading/log-current`, and `POST /demo-trading/results/ingest`;
+- `GET /demo-trading/stream` for live refresh events over `SSE`;
+- a frontend `Demo Validation` surface with readiness gates, manual action logging, and result tracking;
+- explicit outcome classification for `matched`, `missed`, `late_matched`, `mismatched`, and `unresolved`.
+
+## E9 Progress
+
+The current `E9` slice already includes:
+
+- a backend `session_review` domain over audit history, demo outcomes, and operator feedback;
+- persisted `review.signal_feedback` storage with Alembic migration support;
+- `GET /session-review/overview` and `POST /session-review/feedback`;
+- `GET /session-review/stream` for live refresh events over `SSE`;
+- a frontend `Session Review` surface with review summary, filters, reviewed signals, feedback capture, and AI-assisted review cards.
 
 ## Repository Layout
 
@@ -176,3 +210,36 @@ Copy `.env.example` if you want to override defaults for local development.
 - Current `E6` routes:
   - `GET /signals/overview`
 - `Trading Workspace` consumes evaluated signal truth from the backend instead of inventing ranking/risk behavior in the UI layer.
+
+## E7 Notes
+
+- `session_control` is the discipline layer for starting, pausing, resuming, reviewing, and completing a session.
+- Current `E7` routes:
+  - `GET /session/overview`
+  - `POST /session/start`
+  - `POST /session/pause`
+  - `POST /session/resume`
+  - `POST /session/complete`
+  - `POST /session/replacement/review`
+  - `POST /session/replacement/apply`
+  - `GET /session/stream`
+- session transitions stay explicit and operator-confirmed; pair replacement cannot happen silently.
+
+## E8 Notes
+
+- `Demo Validation` is still manual-first: the operator executes trades externally and `Clay` records the intent/result relationship.
+- Current `E8` routes:
+  - `GET /demo-trading/overview`
+  - `POST /demo-trading/log-current`
+  - `POST /demo-trading/results/ingest`
+  - `GET /demo-trading/stream`
+- the readiness gate stays conservative: fewer than five sessions keeps the stage in `collecting`, while unresolved or mismatched records keep it `at_risk`.
+
+## E9 Notes
+
+- `Session Review` turns demo evidence into an operator-facing review loop instead of leaving it as raw logs.
+- Current `E9` routes:
+  - `GET /session-review/overview`
+  - `POST /session-review/feedback`
+  - `GET /session-review/stream`
+- AI-assisted review stays advisory only; strategy/model changes still require explicit confirmation.

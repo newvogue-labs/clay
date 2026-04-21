@@ -1,8 +1,10 @@
 from sqlalchemy.orm import sessionmaker
 
+from clay.db.models_demo import DemoTradeRecord
 from clay.db.models_context import NewsItem, SentimentSnapshot
 from clay.db.models_market import MarketBar, MarketFreshnessStatus, OrderBookSummary
 from clay.db.models_ops import ConnectorStatusHistory, IngestRun, SourceHealthEvent
+from clay.db.models_review import SignalFeedback
 from clay.db.session import build_engine, build_session_factory
 from clay.settings.ingestion import IngestionSettings
 
@@ -58,3 +60,13 @@ def test_ops_schema_contains_expected_tables() -> None:
     assert IngestRun.__tablename__ == "ingest_runs"
     assert ConnectorStatusHistory.__tablename__ == "connector_status_history"
     assert SourceHealthEvent.__tablename__ == "source_health_events"
+
+
+def test_demo_schema_contains_expected_tables() -> None:
+    assert DemoTradeRecord.__tablename__ == "demo_trade_records"
+    assert "executed_symbol" in DemoTradeRecord.__table__.c
+
+
+def test_review_schema_contains_expected_tables() -> None:
+    assert SignalFeedback.__tablename__ == "signal_feedback"
+    assert "feedback_label" in SignalFeedback.__table__.c

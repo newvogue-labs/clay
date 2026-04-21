@@ -6,6 +6,9 @@ import App from './App'
 describe('App', () => {
   let aiControlSnapshot: Record<string, any>
   let controlCenterSnapshot: Record<string, any>
+  let demoTradingSnapshot: Record<string, any>
+  let sessionReviewSnapshot: Record<string, any>
+  let sessionControlSnapshot: Record<string, any>
   let workspaceSnapshot: Record<string, any>
 
   beforeEach(() => {
@@ -220,6 +223,183 @@ describe('App', () => {
         ],
       },
     }
+    demoTradingSnapshot = {
+      readiness: {
+        status: 'collecting',
+        operator_message: 'Keep collecting disciplined demo sessions before the review gate unlocks.',
+        distinct_session_count: 2,
+        total_records: 1,
+        resolved_record_count: 0,
+        profitable_record_count: 0,
+        cumulative_pnl_pct: 0,
+        outcome_counts: {
+          matched: 0,
+          missed: 0,
+          late_matched: 0,
+          mismatched: 0,
+          unresolved: 1,
+        },
+        gates: [
+          {
+            gate_id: 'session-count',
+            label: 'Session count',
+            status: 'warn',
+            detail: '2 / 5 demo sessions recorded.',
+          },
+        ],
+      },
+      active_session: {
+        lifecycle_state: 'active_session',
+        session_id: 'session-1',
+        current_pair_symbol: 'BTCUSDT',
+        current_signal_id: 'sig-btcusdt',
+        can_log_decision: true,
+        blocking_reason: null,
+      },
+      records: [
+        {
+          record_id: 1,
+          session_id: 'session-1',
+          signal_id: 'sig-btcusdt',
+          symbol: 'BTCUSDT',
+          executed_symbol: null,
+          operator_action: 'entered',
+          operator_notes: null,
+          recorded_at: '2026-04-21T15:01:00Z',
+          external_trade_id: null,
+          broker_status: 'awaiting_result',
+          entry_price: null,
+          exit_price: null,
+          pnl_pct: null,
+          observed_at: null,
+          outcome_status: 'unresolved',
+          awaiting_result: true,
+        },
+      ],
+    }
+    sessionReviewSnapshot = {
+      summary: {
+        review_status: 'review_ready',
+        total_demo_records: 2,
+        resolved_demo_records: 2,
+        cumulative_pnl_pct: 1.4,
+        feedback_count: 0,
+        last_reviewed_at: null,
+        operator_message: 'Session evidence is coherent enough for post-session review.',
+      },
+      filters: {
+        pair: null,
+        strategy: null,
+        model_version: null,
+        confidence_band: null,
+      },
+      filter_options: {
+        pairs: ['BTCUSDT', 'SOLUSDT'],
+        strategies: ['momentum', 'defensive'],
+        model_versions: ['openai-gpt-5.4'],
+        confidence_bands: ['high', 'low'],
+      },
+      records: [
+        {
+          record_id: 1,
+          session_id: 'session-1',
+          signal_id: 'sig-btcusdt',
+          symbol: 'BTCUSDT',
+          strategy_mode: 'momentum',
+          model_version: 'openai-gpt-5.4',
+          confidence_band: 'high',
+          operator_action: 'entered',
+          outcome_status: 'matched',
+          pnl_pct: 2.4,
+          recorded_at: '2026-04-21T15:01:00Z',
+          observed_at: '2026-04-21T15:05:00Z',
+        },
+        {
+          record_id: 2,
+          session_id: 'session-2',
+          signal_id: 'sig-solusdt',
+          symbol: 'SOLUSDT',
+          strategy_mode: 'defensive',
+          model_version: 'openai-gpt-5.4',
+          confidence_band: 'low',
+          operator_action: 'off_signal',
+          outcome_status: 'mismatched',
+          pnl_pct: -1,
+          recorded_at: '2026-04-21T14:00:00Z',
+          observed_at: '2026-04-21T14:15:00Z',
+        },
+      ],
+      feedback: [],
+      audit: [
+        {
+          timestamp: '2026-04-21T15:06:00Z',
+          actor: 'operator',
+          module: 'demo',
+          event_type: 'demo.result.ingested',
+          object_id: '1',
+          explanation: 'Ingested demo result for BTCUSDT.',
+          severity: 'info',
+        },
+      ],
+      ai_review_cards: [
+        {
+          card_id: 'mismatch-discipline',
+          severity: 'warning',
+          title: 'Operator discipline drift detected',
+          summary: 'At least one demo result was linked to an off-signal execution.',
+          recommendations: ['Review why the operator deviated from the focused signal.'],
+          confirmation_required_for_changes: true,
+        },
+      ],
+    }
+    sessionControlSnapshot = {
+      preflight: {
+        status: 'pass',
+        blocking_reason: null,
+        checks: [
+          {
+            check_id: 'data-freshness',
+            label: 'Data freshness',
+            status: 'ok',
+            reason: 'Market data is fresh enough for session start.',
+            blocks_start: false,
+          },
+        ],
+      },
+      briefing: {
+        shortlist: [
+          {
+            signal_id: 'sig-btcusdt',
+            symbol: 'BTCUSDT',
+            direction: 'bullish',
+            state: 'active',
+            confidence: 0.83,
+            ranking_score: 0.88,
+            setup_summary: 'Bullish continuation with high liquidity and active conviction.',
+          },
+        ],
+        market_context: 'Market status is fresh, workspace posture is normal.',
+        sentiment_summary: 'Signals show acceptable context coverage.',
+        active_strategy: 'momentum',
+        risk_alerts: ['No elevated risk alerts in the current shortlist.'],
+        ai_summary: 'Chief Agent uses GPT-5.4. Active AI conflicts: 0.',
+      },
+      lifecycle: {
+        lifecycle_state: 'idle',
+        runtime_state: 'background_monitoring',
+        session_id: null,
+        current_pair_symbol: null,
+        current_signal_id: null,
+        started_at: null,
+        paused_at: null,
+        resume_ready: false,
+        can_start: true,
+        can_pause: false,
+        can_resume: false,
+        can_complete: false,
+      },
+      pending_pair_replacement: null,
+    }
     workspaceSnapshot = {
       focus_pair: {
         symbol: 'BTCUSDT',
@@ -358,6 +538,160 @@ describe('App', () => {
           return Promise.resolve(
             new Response(JSON.stringify(controlCenterSnapshot), { status: 200 }),
           )
+        }
+
+        if (url.endsWith('/demo-trading/overview') && method === 'GET') {
+          return Promise.resolve(new Response(JSON.stringify(demoTradingSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/demo-trading/log-current') && method === 'POST') {
+          demoTradingSnapshot.records.unshift({
+            record_id: 2,
+            session_id: 'session-1',
+            signal_id: 'sig-btcusdt',
+            symbol: 'BTCUSDT',
+            executed_symbol: null,
+            operator_action: 'entered',
+            operator_notes: null,
+            recorded_at: '2026-04-21T15:02:00Z',
+            external_trade_id: null,
+            broker_status: 'awaiting_result',
+            entry_price: null,
+            exit_price: null,
+            pnl_pct: null,
+            observed_at: null,
+            outcome_status: 'unresolved',
+            awaiting_result: true,
+          })
+          demoTradingSnapshot.readiness.total_records = demoTradingSnapshot.records.length
+          demoTradingSnapshot.readiness.outcome_counts.unresolved = 2
+          return Promise.resolve(new Response(JSON.stringify(demoTradingSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/demo-trading/results/ingest') && method === 'POST') {
+          demoTradingSnapshot.records[0].broker_status = 'closed'
+          demoTradingSnapshot.records[0].pnl_pct = 2.4
+          demoTradingSnapshot.records[0].outcome_status = 'matched'
+          demoTradingSnapshot.records[0].awaiting_result = false
+          demoTradingSnapshot.records[0].observed_at = '2026-04-21T15:05:00Z'
+          demoTradingSnapshot.readiness.resolved_record_count = 1
+          demoTradingSnapshot.readiness.profitable_record_count = 1
+          demoTradingSnapshot.readiness.cumulative_pnl_pct = 2.4
+          demoTradingSnapshot.readiness.outcome_counts.matched = 1
+          demoTradingSnapshot.readiness.outcome_counts.unresolved = 1
+          return Promise.resolve(new Response(JSON.stringify(demoTradingSnapshot), { status: 200 }))
+        }
+
+        if (url.includes('/session-review/overview') && method === 'GET') {
+          if (url.includes('pair=BTCUSDT')) {
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  ...sessionReviewSnapshot,
+                  summary: {
+                    ...sessionReviewSnapshot.summary,
+                    total_demo_records: 1,
+                    resolved_demo_records: 1,
+                    cumulative_pnl_pct: 2.4,
+                  },
+                  filters: { ...sessionReviewSnapshot.filters, pair: 'BTCUSDT' },
+                  records: [sessionReviewSnapshot.records[0]],
+                }),
+                { status: 200 },
+              ),
+            )
+          }
+          return Promise.resolve(new Response(JSON.stringify(sessionReviewSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/session-review/feedback') && method === 'POST') {
+          sessionReviewSnapshot.feedback.unshift({
+            feedback_id: 1,
+            session_id: 'session-1',
+            signal_id: 'sig-btcusdt',
+            symbol: 'BTCUSDT',
+            strategy_mode: 'momentum',
+            model_version: 'openai-gpt-5.4',
+            confidence_band: 'high',
+            outcome_status: 'matched',
+            feedback_label: 'useful',
+            notes: null,
+            created_at: '2026-04-21T15:10:00Z',
+            score: 1,
+          })
+          sessionReviewSnapshot.summary.feedback_count = 1
+          return Promise.resolve(new Response(JSON.stringify(sessionReviewSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/session/overview') && method === 'GET') {
+          return Promise.resolve(new Response(JSON.stringify(sessionControlSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/session/start') && method === 'POST') {
+          sessionControlSnapshot.lifecycle = {
+            ...sessionControlSnapshot.lifecycle,
+            lifecycle_state: 'active_session',
+            runtime_state: 'active_session',
+            session_id: 'session-1',
+            current_pair_symbol: 'BTCUSDT',
+            current_signal_id: 'sig-btcusdt',
+            started_at: '2026-04-21T15:00:00Z',
+            can_start: false,
+            can_pause: true,
+            can_resume: false,
+            can_complete: true,
+          }
+          return Promise.resolve(new Response(JSON.stringify(sessionControlSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/session/replacement/review') && method === 'POST') {
+          sessionControlSnapshot.pending_pair_replacement = {
+            review_id: 'replacement-1',
+            current_symbol: 'BTCUSDT',
+            proposed_symbol: 'SOLUSDT',
+            severity: 'warning',
+            summary: 'Review replacement from BTCUSDT to SOLUSDT.',
+            reasons_to_switch: ['SOLUSDT ranking score is 0.91.'],
+            risks: ['Focus will move away from BTCUSDT.'],
+            approval_required: true,
+            blocks_apply: false,
+          }
+          return Promise.resolve(
+            new Response(JSON.stringify(sessionControlSnapshot.pending_pair_replacement), { status: 200 }),
+          )
+        }
+
+        if (url.endsWith('/session/replacement/apply') && method === 'POST') {
+          sessionControlSnapshot.lifecycle.current_pair_symbol = 'SOLUSDT'
+          sessionControlSnapshot.pending_pair_replacement = null
+          return Promise.resolve(new Response(JSON.stringify(sessionControlSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/session/pause') && method === 'POST') {
+          sessionControlSnapshot.lifecycle.lifecycle_state = 'paused'
+          sessionControlSnapshot.lifecycle.runtime_state = 'paused'
+          sessionControlSnapshot.lifecycle.paused_at = '2026-04-21T15:05:00Z'
+          sessionControlSnapshot.lifecycle.can_pause = false
+          sessionControlSnapshot.lifecycle.can_resume = true
+          return Promise.resolve(new Response(JSON.stringify(sessionControlSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/session/resume') && method === 'POST') {
+          sessionControlSnapshot.lifecycle.lifecycle_state = 'active_session'
+          sessionControlSnapshot.lifecycle.runtime_state = 'active_session'
+          sessionControlSnapshot.lifecycle.paused_at = null
+          sessionControlSnapshot.lifecycle.can_pause = true
+          sessionControlSnapshot.lifecycle.can_resume = false
+          return Promise.resolve(new Response(JSON.stringify(sessionControlSnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/session/complete') && method === 'POST') {
+          sessionControlSnapshot.lifecycle.lifecycle_state = 'review'
+          sessionControlSnapshot.lifecycle.runtime_state = 'review'
+          sessionControlSnapshot.lifecycle.can_pause = false
+          sessionControlSnapshot.lifecycle.can_resume = false
+          sessionControlSnapshot.lifecycle.can_complete = false
+          return Promise.resolve(new Response(JSON.stringify(sessionControlSnapshot), { status: 200 }))
         }
 
         if (url.endsWith('/ai-control/overview') && method === 'GET') {
@@ -516,5 +850,60 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /apply reviewed assignment/i }))
     expect(await screen.findByText(/forecast lite v1 is assigned and ready/i)).toBeInTheDocument()
+  })
+
+  it('runs the session lifecycle and pair replacement flow', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /session control/i }))
+    expect(await screen.findByRole('heading', { name: /session control/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /hard preflight/i })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /start session/i }))
+    expect(await screen.findByText(/current pair: BTCUSDT/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /review pair replacement/i }))
+    expect(await screen.findByText(/review replacement from BTCUSDT to SOLUSDT/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /apply pair replacement/i }))
+    expect(await screen.findByText(/current pair: SOLUSDT/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /pause session/i }))
+    expect(await screen.findByText(/lifecycle:/i)).toBeInTheDocument()
+    expect((await screen.findAllByText(/paused/i)).length).toBeGreaterThan(0)
+
+    fireEvent.click(await screen.findByRole('button', { name: /resume session/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /complete session/i }))
+    expect(await screen.findAllByText(/review/i)).not.toHaveLength(0)
+  })
+
+  it('tracks demo validation actions and result ingest', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /demo validation/i }))
+    expect(await screen.findByRole('heading', { name: /demo validation/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /readiness gates/i })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /log entered trade/i }))
+    expect(await screen.findAllByText(/unresolved/i)).not.toHaveLength(0)
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /mark win/i }))[0])
+    expect(await screen.findAllByText(/matched/i)).not.toHaveLength(0)
+    expect(await screen.findByText(/cumulative pnl: 2.4%/i)).toBeInTheDocument()
+  })
+
+  it('renders session review, filters by pair, and captures feedback', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /session review/i }))
+    expect(await screen.findByRole('heading', { name: /session review/i })).toBeInTheDocument()
+    expect(await screen.findByText(/operator discipline drift detected/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'BTCUSDT' }))
+    expect(await screen.findByText(/total demo records: 1/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /mark useful/i }))
+    expect(await screen.findByText(/feedback count: 1/i)).toBeInTheDocument()
+    expect(await screen.findByText(/label: useful/i)).toBeInTheDocument()
   })
 })
