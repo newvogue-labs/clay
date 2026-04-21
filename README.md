@@ -22,6 +22,7 @@ At the moment:
 - `E9` audit trail, feedback, and session review
 - `E10` knowledge base and research layer
 - `E11` backtesting, replay, and model/strategy activation
+- `E12` reliability, degraded mode, and release readiness
 
 ## E1 Progress
 
@@ -142,6 +143,17 @@ The current `E11` slice already includes:
 - `GET /validation-lab/stream` for live refresh events over `SSE`;
 - a frontend `Validation Lab` surface with replay actions, run history, review cards, and operator-confirmed activation apply;
 - an explicit policy that strategy/model activation must pass through replay evidence instead of silent switching.
+
+## E12 Progress
+
+The current `E12` slice already includes:
+
+- a backend `reliability` domain that aggregates runtime, ingest, AI fallback, demo readiness, review evidence, and validation posture;
+- `GET /reliability/overview` and `POST /reliability/recheck`;
+- `GET /reliability/stream` for live refresh events over `SSE`;
+- a frontend `Reliability Center` with degraded triggers, fallback posture, readiness checks, release gates, and incident review;
+- explicit release-readiness statuses of `blocked`, `needs_attention`, and `ready_for_demo`;
+- visible reliability gates instead of silent “looks fine to me” assumptions.
 
 ## Repository Layout
 
@@ -287,3 +299,12 @@ Copy `.env.example` if you want to override defaults for local development.
   - `POST /validation-lab/activation/apply`
   - `GET /validation-lab/stream`
 - activation remains explicit and operator-confirmed; replay evidence can return `ready`, `staged`, or `blocked` posture before apply.
+
+## E12 Notes
+
+- `Reliability Center` is the final Wave 1 discipline layer for degraded mode visibility, readiness checks, and release gates.
+- Current `E12` routes:
+  - `GET /reliability/overview`
+  - `POST /reliability/recheck`
+  - `GET /reliability/stream`
+- release gates remain operator-facing and explicit; a visible warning is better than a silent “probably stable” fairy tale.

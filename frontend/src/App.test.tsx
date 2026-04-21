@@ -8,6 +8,7 @@ describe('App', () => {
   let controlCenterSnapshot: Record<string, any>
   let demoTradingSnapshot: Record<string, any>
   let knowledgeSnapshot: Record<string, any>
+  let reliabilitySnapshot: Record<string, any>
   let sessionReviewSnapshot: Record<string, any>
   let sessionControlSnapshot: Record<string, any>
   let validationLabSnapshot: Record<string, any>
@@ -316,6 +317,76 @@ describe('App', () => {
       },
       runs: [],
       activation_reviews: [],
+    }
+    reliabilitySnapshot = {
+      summary: {
+        overall_status: 'degraded',
+        degraded_mode_active: false,
+        release_readiness_status: 'needs_attention',
+        blocking_gate_count: 0,
+        warning_gate_count: 2,
+        operator_message:
+          'System is usable, but reliability still needs operator attention before a calm demo launch.',
+        last_evaluated_at: '2026-04-21T17:00:00Z',
+      },
+      degraded_triggers: [
+        {
+          trigger_id: 'fallback-not-complete',
+          severity: 'warning',
+          title: 'Local fallback is incomplete',
+          description:
+            'Fallback visibility exists, but not every role has a complete local fallback path.',
+          recommended_action:
+            'Treat degraded-mode recovery as constrained and operator-reviewed.',
+        },
+      ],
+      fallback: {
+        fallback_active: false,
+        local_fallback_ready: false,
+        degraded_roles: [],
+        operator_message:
+          'Fallback visibility exists, but not every role has a complete local fallback path.',
+      },
+      readiness_checks: [
+        {
+          check_id: 'runtime-stability',
+          label: 'Runtime stability',
+          status: 'pass',
+          detail: 'Runtime is stable enough for operator work.',
+        },
+        {
+          check_id: 'local-fallback',
+          label: 'Local fallback posture',
+          status: 'warn',
+          detail:
+            'Fallback visibility exists, but not every role has a complete local fallback path.',
+        },
+      ],
+      release_gates: [
+        {
+          gate_id: 'runtime-stability',
+          label: 'Runtime and preflight gate',
+          status: 'pass',
+          detail: 'Runtime is stable enough for operator work.',
+          blocks_release: false,
+        },
+        {
+          gate_id: 'local-fallback',
+          label: 'Local fallback gate',
+          status: 'warn',
+          detail:
+            'Fallback visibility exists, but not every role has a complete local fallback path.',
+          blocks_release: false,
+        },
+      ],
+      incidents: [
+        {
+          source_name: 'demo_news_feed',
+          severity: 'warning',
+          message: 'connector recovered after retry',
+          recorded_at: '2026-04-21T17:00:00Z',
+        },
+      ],
     }
     sessionReviewSnapshot = {
       summary: {
@@ -753,6 +824,17 @@ describe('App', () => {
           return Promise.resolve(new Response(JSON.stringify(validationLabSnapshot), { status: 200 }))
         }
 
+        if (url.endsWith('/reliability/overview') && method === 'GET') {
+          return Promise.resolve(new Response(JSON.stringify(reliabilitySnapshot), { status: 200 }))
+        }
+
+        if (url.endsWith('/reliability/recheck') && method === 'POST') {
+          reliabilitySnapshot.summary.last_evaluated_at = '2026-04-21T17:05:00Z'
+          reliabilitySnapshot.summary.operator_message =
+            'Release gates are visible; local fallback still needs operator attention.'
+          return Promise.resolve(new Response(JSON.stringify(reliabilitySnapshot), { status: 200 }))
+        }
+
         if (url.includes('/session-review/overview') && method === 'GET') {
           if (url.includes('pair=BTCUSDT')) {
             return Promise.resolve(
@@ -1112,5 +1194,19 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /apply activation review/i }))
     expect(await screen.findAllByText(/status: applied/i)).not.toHaveLength(0)
+  })
+
+  it('renders reliability center and rechecks release gates', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /reliability center/i }))
+    expect(await screen.findByRole('heading', { name: /reliability center/i })).toBeInTheDocument()
+    expect(await screen.findByText(/release readiness: needs_attention/i)).toBeInTheDocument()
+    expect(await screen.findByText(/local fallback is incomplete/i)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /recheck reliability/i }))
+    expect(
+      await screen.findByText(/local fallback still needs operator attention/i),
+    ).toBeInTheDocument()
   })
 })

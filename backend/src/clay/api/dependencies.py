@@ -13,6 +13,7 @@ from clay.bootstrap import (
     ingestion_settings,
     knowledge_service,
     market_ingestion_service,
+    reliability_service,
     session_control_service,
     session_review_service,
     signal_engine_service,
@@ -27,6 +28,7 @@ from clay.ingestion.context.manager import ContextConnectorManager
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
 from clay.knowledge.service import KnowledgeService
+from clay.reliability.service import ReliabilityService
 from clay.session_control.service import SessionControlService
 from clay.session_review.service import SessionReviewService
 from clay.signal_engine.service import SignalEngineService
@@ -98,3 +100,7 @@ def get_knowledge_service() -> KnowledgeService:
 
 def get_validation_lab_service() -> ValidationLabService:
     return validation_lab_service
+
+
+def get_reliability_service() -> ReliabilityService:
+    return reliability_service

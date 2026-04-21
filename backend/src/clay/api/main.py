@@ -15,6 +15,8 @@ from clay.api.routes.knowledge import router as knowledge_router
 from clay.api.routes.knowledge_stream import router as knowledge_stream_router
 from clay.api.routes.market_data import router as market_data_router
 from clay.api.routes.preflight import router as preflight_router
+from clay.api.routes.reliability import router as reliability_router
+from clay.api.routes.reliability_stream import router as reliability_stream_router
 from clay.api.routes.runtime import router as runtime_router
 from clay.api.routes.session_control import router as session_control_router
 from clay.api.routes.session_review import router as session_review_router
@@ -50,6 +52,8 @@ def create_app() -> FastAPI:
     app.include_router(knowledge_stream_router)
     app.include_router(market_data_router)
     app.include_router(preflight_router)
+    app.include_router(reliability_router)
+    app.include_router(reliability_stream_router)
     app.include_router(runtime_router)
     app.include_router(session_control_router)
     app.include_router(session_review_router)

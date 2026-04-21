@@ -4,13 +4,24 @@ import { AIControlPage } from './features/ai-control/ai-control-page'
 import { ControlCenterPage } from './features/control-center/control-center-page'
 import { DemoValidationPage } from './features/demo-trading/demo-validation-page'
 import { KnowledgePage } from './features/knowledge/knowledge-page'
+import { ReliabilityPage } from './features/reliability/reliability-page'
 import { SessionControlPage } from './features/session-control/session-control-page'
 import { SessionReviewPage } from './features/session-review/session-review-page'
 import { ValidationLabPage } from './features/validation-lab/validation-lab-page'
 import { TradingWorkspacePage } from './features/workspace/trading-workspace-page'
 
 export function App() {
-  const [screen, setScreen] = useState<'workspace' | 'control-center' | 'ai-control' | 'session-control' | 'demo-validation' | 'session-review' | 'knowledge' | 'validation-lab'>('workspace')
+  const [screen, setScreen] = useState<
+    | 'workspace'
+    | 'control-center'
+    | 'ai-control'
+    | 'session-control'
+    | 'demo-validation'
+    | 'session-review'
+    | 'knowledge'
+    | 'validation-lab'
+    | 'reliability'
+  >('workspace')
 
   return (
     <main>
@@ -89,6 +100,15 @@ export function App() {
         >
           Validation Lab
         </button>
+        <button
+          aria-pressed={screen === 'reliability'}
+          onClick={() => {
+            setScreen('reliability')
+          }}
+          type="button"
+        >
+          Reliability Center
+        </button>
       </nav>
       {screen === 'workspace' ? <TradingWorkspacePage /> : null}
       {screen === 'control-center' ? <ControlCenterPage /> : null}
@@ -98,6 +118,7 @@ export function App() {
       {screen === 'session-review' ? <SessionReviewPage /> : null}
       {screen === 'knowledge' ? <KnowledgePage /> : null}
       {screen === 'validation-lab' ? <ValidationLabPage /> : null}
+      {screen === 'reliability' ? <ReliabilityPage /> : null}
     </main>
   )
 }

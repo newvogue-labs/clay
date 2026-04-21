@@ -14,6 +14,7 @@ from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
 from clay.knowledge.service import KnowledgeService
 from clay.preflight.service import PreflightService
+from clay.reliability.service import ReliabilityService
 from clay.runtime.manager import RuntimeManager
 from clay.session_control.service import SessionControlService
 from clay.session_review.service import SessionReviewService
@@ -136,6 +137,15 @@ validation_lab_service = ValidationLabService(
     signal_engine_service=signal_engine_service,
     ai_control_service=ai_control_service,
     session_review_service=session_review_service,
+    audit_writer=audit_writer,
+    event_bus=event_bus,
+)
+reliability_service = ReliabilityService(
+    control_center_service=control_center_service,
+    ai_control_service=ai_control_service,
+    demo_trading_service=demo_trading_service,
+    session_review_service=session_review_service,
+    validation_lab_service=validation_lab_service,
     audit_writer=audit_writer,
     event_bus=event_bus,
 )
