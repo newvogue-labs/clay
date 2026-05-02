@@ -9,7 +9,7 @@ export function KnowledgePage() {
   const snapshot = knowledge.snapshot
 
   return (
-    <section aria-label="knowledge-page">
+    <div aria-label="knowledge-page" className="screen-page" data-screen="knowledge">
       <KnowledgeStateBanner
         summary={snapshot?.summary ?? null}
         isLoading={knowledge.isLoading}
@@ -35,6 +35,6 @@ export function KnowledgePage() {
         searchResults={snapshot?.search_results ?? []}
         isLoading={knowledge.isLoading}
       />
-    </section>
+    </div>
   )
 }

@@ -15,7 +15,7 @@ export function TradingWorkspacePage() {
   const snapshot = workspace.snapshot
 
   return (
-    <section aria-label="trading-workspace-page">
+    <div aria-label="trading-workspace-page" className="screen-page" data-screen="workspace">
       <WorkspaceStateBanner
         workspaceState={snapshot?.workspace_state ?? null}
         isLoading={workspace.isLoading}
@@ -26,7 +26,7 @@ export function TradingWorkspacePage() {
         workspaceState={snapshot?.workspace_state ?? null}
       />
       <UpdateMetaStrip meta={snapshot?.update_meta ?? null} />
-      <div>
+      <div className="workspace-primary-grid">
         <ActiveSignalsPanel
           signals={snapshot?.signals ?? []}
           selectedSignalId={snapshot?.focus_pair.active_signal_id ?? null}
@@ -43,17 +43,19 @@ export function TradingWorkspacePage() {
           }}
         />
       </div>
-      {snapshot?.workspace_state.focused_signal_state === 'absent' ? (
-        <NoActiveSignalState />
-      ) : (
-        <SituationMap situationMap={snapshot?.situation_map ?? null} />
-      )}
-      <ReasoningPanel reasoning={snapshot?.reasoning ?? null} />
-      <RiskPanel risk={snapshot?.risk ?? null} />
-      <NewsSentimentPanel
-        news={snapshot?.news ?? []}
-        sentiment={snapshot?.sentiment ?? []}
-      />
-    </section>
+      <div className="workspace-analysis-grid">
+        {snapshot?.workspace_state.focused_signal_state === 'absent' ? (
+          <NoActiveSignalState />
+        ) : (
+          <SituationMap situationMap={snapshot?.situation_map ?? null} />
+        )}
+        <ReasoningPanel reasoning={snapshot?.reasoning ?? null} />
+        <RiskPanel risk={snapshot?.risk ?? null} />
+        <NewsSentimentPanel
+          news={snapshot?.news ?? []}
+          sentiment={snapshot?.sentiment ?? []}
+        />
+      </div>
+    </div>
   )
 }

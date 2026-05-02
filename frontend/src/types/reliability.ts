@@ -41,8 +41,11 @@ export type ReleaseGateSnapshot = {
 export type ReliabilityIncidentSnapshot = {
   source_name: string
   severity: string
+  lifecycle_status?: string
   message: string
   recorded_at: string
+  resolved_at?: string | null
+  resolution_message?: string | null
 }
 
 export type ReliabilitySnapshot = {

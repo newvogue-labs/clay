@@ -1067,17 +1067,16 @@ describe('App', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders the runtime foundation shell with live control data', async () => {
+  it('renders the runtime foundation shell with live overview data', async () => {
     render(<App />)
 
     expect(screen.getByRole('heading', { name: 'Clay' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: /trading workspace/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /focused pair/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /active signals/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /monitoring pool/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /risk assessment/i })).toBeInTheDocument()
-    expect(await screen.findByText(/BTC \/ USDT/i)).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: /open in binance/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /mission overview/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /top ranked signals/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /quick actions/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /active strategy/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /system status/i })).toBeInTheDocument()
+    expect(await screen.findByText(/BTCUSDT/i)).toBeInTheDocument()
   })
 
   it('switches between workspace and control center screens', async () => {

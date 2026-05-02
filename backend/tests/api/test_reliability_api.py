@@ -256,3 +256,35 @@ def test_reliability_recheck_route_returns_updated_snapshot(db_session, tmp_path
 
     assert payload["summary"]["release_readiness_status"] == "needs_attention"
     assert payload["release_gates"]
+
+
+def test_reliability_ignores_resolved_incidents_for_release_blockers(
+    db_session,
+    tmp_path: Path,
+) -> None:
+    bundle = build_reliability_bundle(tmp_path)
+    seed_reliability_inputs(db_session)
+    ops_repository = OpsRepository(db_session)
+    now = datetime.now(UTC)
+
+    ops_repository.record_source_health_event(
+        source_name="binance_spot:BTCUSDT:5m",
+        severity="error",
+        message="TimeoutError",
+        recorded_at=now - timedelta(minutes=10),
+    )
+    ops_repository.resolve_source_health_events(
+        source_name="binance_spot:BTCUSDT:5m",
+        resolved_at=now,
+        resolution_message="Market ingest recovered after successful refresh.",
+    )
+    db_session.commit()
+
+    payload = asyncio.run(get_reliability_overview(db_session, bundle["service"]))
+
+    assert payload["summary"]["blocking_gate_count"] == 0
+    assert all(trigger["trigger_id"] != "critical-incidents" for trigger in payload["degraded_triggers"])
+    assert all(
+        not (gate["gate_id"] == "incident-budget" and gate["blocks_release"])
+        for gate in payload["release_gates"]
+    )

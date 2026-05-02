@@ -161,6 +161,30 @@ def test_storage_backed_read_routes_return_seeded_data(
     assert context_payload["news"][0]["headline"] == "BTC holds breakout"
 
 
+def test_ingestion_health_recomputes_market_staleness_from_latest_bar_time(
+    db_session,
+) -> None:
+    now = datetime.now(UTC)
+    market_repository = MarketRepository(db_session)
+
+    market_repository.upsert_freshness_status(
+        symbol="BTCUSDT",
+        timeframe="15m",
+        freshness_state="fresh",
+        evaluated_at=now - timedelta(days=6),
+        latest_bar_open_time=now - timedelta(days=6),
+        is_stale=False,
+    )
+    db_session.commit()
+
+    payload = asyncio.run(get_ingestion_health(db_session))
+
+    assert payload["market"]["status"] == "stale"
+    assert payload["market"]["blocks_active_trading"] is True
+    assert payload["market"]["items"][0]["status"] == "stale"
+    assert "delta=6 days" in payload["market"]["items"][0]["reason"]
+
+
 class FakeBinanceClient:
     async def fetch_klines(self, symbol: str, interval: str, limit: int = 200):
         del symbol, interval, limit

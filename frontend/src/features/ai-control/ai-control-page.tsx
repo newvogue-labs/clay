@@ -10,7 +10,7 @@ export function AIControlPage() {
   const snapshot = aiControl.snapshot
 
   return (
-    <section aria-label="ai-control-page">
+    <div aria-label="ai-control-page" className="screen-page" data-screen="ai-control">
       <AIControlStateBanner
         summary={snapshot?.summary ?? null}
         isLoading={aiControl.isLoading}
@@ -39,6 +39,6 @@ export function AIControlPage() {
         }}
       />
       <RolesPanel roles={snapshot?.roles ?? []} isLoading={aiControl.isLoading} />
-    </section>
+    </div>
   )
 }

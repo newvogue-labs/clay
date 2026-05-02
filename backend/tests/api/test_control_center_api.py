@@ -146,3 +146,56 @@ def test_control_center_overview_returns_operator_snapshot(
     assert payload["incidents"][0]["message"] == "connector recovered after retry"
     assert payload["audit"][0]["event_type"] == "runtime.transitioned"
     assert payload["config"]["scopes"][0]["scope"] == "risk"
+
+
+def test_control_center_recomputes_stale_market_freshness(
+    sqlite_session_factory,
+    tmp_path: Path,
+) -> None:
+    service = build_control_center_service(tmp_path)
+    now = datetime.now(UTC)
+
+    with sqlite_session_factory() as session:
+        market_repository = MarketRepository(session)
+        market_repository.upsert_freshness_status(
+            symbol="BTCUSDT",
+            timeframe="15m",
+            freshness_state="fresh",
+            evaluated_at=now - timedelta(days=6),
+            latest_bar_open_time=now - timedelta(days=6),
+            is_stale=False,
+        )
+        session.commit()
+        payload = asyncio.run(get_control_center_overview(session, service))
+
+    assert payload["ingestion"]["market_status"] == "stale"
+    assert payload["ingestion"]["blocks_active_trading"] is True
+    assert payload["ingestion"]["market_items"][0]["status"] == "stale"
+
+
+def test_control_center_ignores_resolved_incidents_in_active_counts(
+    sqlite_session_factory,
+    tmp_path: Path,
+) -> None:
+    service = build_control_center_service(tmp_path)
+    now = datetime.now(UTC)
+
+    with sqlite_session_factory() as session:
+        ops_repository = OpsRepository(session)
+        ops_repository.record_source_health_event(
+            source_name="binance_spot:BTCUSDT:5m",
+            severity="error",
+            message="TimeoutError",
+            recorded_at=now - timedelta(minutes=10),
+        )
+        ops_repository.resolve_source_health_events(
+            source_name="binance_spot:BTCUSDT:5m",
+            resolved_at=now,
+            resolution_message="Market ingest recovered after successful refresh.",
+        )
+        session.commit()
+        payload = asyncio.run(get_control_center_overview(session, service))
+
+    assert payload["summary"]["active_incident_count"] == 0
+    assert payload["summary"]["critical_incident_count"] == 0
+    assert payload["incidents"] == []

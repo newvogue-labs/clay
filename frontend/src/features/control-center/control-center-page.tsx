@@ -11,7 +11,7 @@ export function ControlCenterPage() {
   const snapshot = controlCenter.snapshot
 
   return (
-    <section aria-label="control-center-page">
+    <div aria-label="control-center-page" className="screen-page" data-screen="control-center">
       <ControlCenterStateBanner
         summary={snapshot?.summary ?? null}
         isLoading={controlCenter.isLoading}
@@ -54,6 +54,6 @@ export function ControlCenterPage() {
           void controlCenter.restoreConfig(scope)
         }}
       />
-    </section>
+    </div>
   )
 }

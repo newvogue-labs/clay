@@ -7,7 +7,7 @@ backend-test:
 	cd backend && uv run pytest
 
 backend-run:
-	cd backend && uv run uvicorn clay.api.main:app --reload
+	cd backend && uv run uvicorn clay.api.main:app --host 127.0.0.1 --port 8000 --reload
 
 frontend-install:
 	cd frontend && pnpm install
@@ -19,4 +19,4 @@ frontend-build:
 	cd frontend && pnpm build
 
 frontend-run:
-	cd frontend && pnpm dev
+	cd frontend && pnpm exec vite --host 127.0.0.1 --port 5173 --strictPort

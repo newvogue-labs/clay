@@ -9,7 +9,11 @@ from clay.bootstrap import audit_writer, event_bus
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
-from clay.freshness.evaluator import evaluate_context_freshness, evaluate_market_freshness
+from clay.freshness.evaluator import (
+    collapse_market_statuses,
+    evaluate_context_freshness,
+    resolve_market_freshness_status,
+)
 from clay.ingestion.service import IngestionCycleService
 
 
@@ -27,30 +31,31 @@ async def get_ingestion_health(
 
     freshness_rows = market_repo.list_freshness_statuses()
     market_items = []
-    market_status = "fresh"
+    market_statuses: list[str] = []
     blocks_active_trading = False
     for row in freshness_rows:
-        evaluated = evaluate_market_freshness(
+        effective = resolve_market_freshness_status(
+            stored_status=row.freshness_state,
             timeframe=row.timeframe,
-            last_received_at=row.latest_bar_open_time,
+            latest_bar_open_time=row.latest_bar_open_time,
             now=now,
         )
         market_items.append(
             {
                 "symbol": row.symbol,
                 "timeframe": row.timeframe,
-                "status": row.freshness_state,
-                "evaluated_at": row.evaluated_at.isoformat(),
+                "status": effective.status,
+                "evaluated_at": effective.observed_at.isoformat(),
                 "latest_bar_open_time": (
                     row.latest_bar_open_time.isoformat()
                     if row.latest_bar_open_time is not None
                     else None
                 ),
-                "reason": evaluated.reason,
+                "reason": effective.reason,
             },
         )
-        if row.freshness_state != "fresh":
-            market_status = row.freshness_state
+        market_statuses.append(effective.status)
+        if effective.blocks_active_trading:
             blocks_active_trading = True
 
     latest_news = context_repo.latest_news(limit=1)
@@ -79,7 +84,7 @@ async def get_ingestion_health(
 
     return {
         "market": {
-            "status": market_status if market_items else "unknown",
+            "status": collapse_market_statuses(market_statuses),
             "blocks_active_trading": blocks_active_trading,
             "items": market_items,
         },
@@ -103,8 +108,11 @@ async def get_ingestion_health(
             {
                 "source_name": row.source_name,
                 "severity": row.severity,
+                "lifecycle_status": row.lifecycle_status,
                 "message": row.message,
                 "recorded_at": row.recorded_at.isoformat(),
+                "resolved_at": row.resolved_at.isoformat() if row.resolved_at is not None else None,
+                "resolution_message": row.resolution_message,
             }
             for row in ops_repo.latest_incidents()
         ],

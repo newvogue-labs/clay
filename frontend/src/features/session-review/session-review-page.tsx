@@ -10,7 +10,7 @@ export function SessionReviewPage() {
   const snapshot = review.snapshot
 
   return (
-    <section aria-label="session-review-page">
+    <div aria-label="session-review-page" className="screen-page" data-screen="session-review">
       <ReviewStateBanner
         summary={snapshot?.summary ?? null}
         isLoading={review.isLoading}
@@ -39,6 +39,6 @@ export function SessionReviewPage() {
         aiReviewCards={snapshot?.ai_review_cards ?? []}
         isLoading={review.isLoading}
       />
-    </section>
+    </div>
   )
 }

@@ -38,5 +38,8 @@ class SourceHealthEvent(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     source_name: Mapped[str] = mapped_column(String(64), index=True)
     severity: Mapped[str] = mapped_column(String(32), index=True)
+    lifecycle_status: Mapped[str] = mapped_column(String(32), index=True, default="active")
     message: Mapped[str] = mapped_column(Text)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution_message: Mapped[str | None] = mapped_column(Text, nullable=True)

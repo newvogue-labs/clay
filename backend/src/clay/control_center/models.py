@@ -60,8 +60,11 @@ class IngestionHealthSnapshot(BaseModel):
 class IncidentSnapshot(BaseModel):
     source_name: str
     severity: str
+    lifecycle_status: str
     message: str
     recorded_at: str
+    resolved_at: str | None = None
+    resolution_message: str | None = None
 
 
 class AuditEventSnapshot(BaseModel):

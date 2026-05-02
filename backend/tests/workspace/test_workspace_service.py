@@ -197,3 +197,73 @@ def test_workspace_focus_selection_updates_focus_source(db_session) -> None:
 
     assert snapshot.focus_pair.symbol == "SOLUSDT"
     assert snapshot.focus_pair.focus_source == "monitoring_click"
+
+
+def test_workspace_switches_to_defensive_when_market_data_is_old(
+    db_session,
+) -> None:
+    now = datetime.now(UTC)
+    market_repository = MarketRepository(db_session)
+    context_repository = ContextRepository(db_session)
+    ops_repository = OpsRepository(db_session)
+
+    market_repository.upsert_market_bars(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "open": 70200.0,
+                "high": 70450.0,
+                "low": 70100.0,
+                "close": 70400.0,
+                "volume": 210.0,
+                "quote_volume": 12840000.0,
+                "source": "binance_spot",
+                "bar_open_time": now - timedelta(days=6, minutes=15),
+                "bar_close_time": now - timedelta(days=6, minutes=1),
+            },
+        ],
+    )
+    market_repository.upsert_freshness_status(
+        symbol="BTCUSDT",
+        timeframe="15m",
+        freshness_state="fresh",
+        evaluated_at=now - timedelta(days=6),
+        latest_bar_open_time=now - timedelta(days=6),
+        is_stale=False,
+    )
+    context_repository.store_news_items(
+        [
+            {
+                "source_name": "demo_news_feed",
+                "headline": "BTC pauses after breakout",
+                "summary": "Context still available, but market data is old.",
+                "published_at": now - timedelta(minutes=30),
+                "symbol": "BTCUSDT",
+                "source_url": "https://example.invalid/news/btc-pause",
+            },
+        ],
+    )
+    context_repository.store_sentiment_snapshots(
+        [
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "BTCUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.71,
+                "captured_at": now - timedelta(minutes=20),
+            },
+        ],
+    )
+    ops_repository.record_connector_status(
+        connector_id="demo-news",
+        connector_type="news",
+        status="healthy",
+        observed_at=now,
+    )
+    db_session.commit()
+
+    snapshot = build_workspace_service().build_snapshot(db_session)
+
+    assert snapshot.workspace_state.workspace_posture == "defensive"
+    assert snapshot.update_meta.market_status == "degraded"

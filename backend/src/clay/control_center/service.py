@@ -22,7 +22,11 @@ from clay.control_center.models import (
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
-from clay.freshness.evaluator import evaluate_context_freshness, evaluate_market_freshness
+from clay.freshness.evaluator import (
+    collapse_market_statuses,
+    evaluate_context_freshness,
+    resolve_market_freshness_status,
+)
 from clay.preflight.models import PreflightResult
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
@@ -144,32 +148,32 @@ class ControlCenterService:
         ops_repo = OpsRepository(session)
 
         market_items: list[MarketFreshnessItem] = []
-        market_status = "fresh"
+        market_statuses: list[str] = []
         blocks_active_trading = False
 
         for row in market_repo.list_freshness_statuses():
-            evaluated = evaluate_market_freshness(
+            effective = resolve_market_freshness_status(
+                stored_status=row.freshness_state,
                 timeframe=row.timeframe,
-                last_received_at=row.latest_bar_open_time,
+                latest_bar_open_time=row.latest_bar_open_time,
                 now=now,
             )
             market_items.append(
                 MarketFreshnessItem(
                     symbol=row.symbol,
                     timeframe=row.timeframe,
-                    status=row.freshness_state,
-                    evaluated_at=row.evaluated_at.isoformat(),
+                    status=effective.status,
+                    evaluated_at=effective.observed_at.isoformat(),
                     latest_bar_open_time=(
                         row.latest_bar_open_time.isoformat()
                         if row.latest_bar_open_time is not None
                         else None
                     ),
-                    reason=evaluated.reason,
+                    reason=effective.reason,
                 ),
             )
-            if self._is_worse_status(row.freshness_state, market_status):
-                market_status = row.freshness_state
-            if row.freshness_state != "fresh":
+            market_statuses.append(effective.status)
+            if effective.blocks_active_trading:
                 blocks_active_trading = True
 
         latest_news = context_repo.latest_news(limit=1)
@@ -195,7 +199,7 @@ class ControlCenterService:
             context_status = "degraded"
 
         return IngestionHealthSnapshot(
-            market_status=market_status if market_items else "unknown",
+            market_status=collapse_market_statuses(market_statuses),
             context_status=context_status,
             blocks_active_trading=blocks_active_trading,
             market_items=market_items,
@@ -216,10 +220,13 @@ class ControlCenterService:
             IncidentSnapshot(
                 source_name=row.source_name,
                 severity=row.severity,
+                lifecycle_status=row.lifecycle_status,
                 message=row.message,
                 recorded_at=row.recorded_at.isoformat(),
+                resolved_at=row.resolved_at.isoformat() if row.resolved_at is not None else None,
+                resolution_message=row.resolution_message,
             )
-            for row in ops_repo.latest_incidents(limit=10)
+            for row in ops_repo.latest_incidents(limit=10, active_only=True)
         ]
 
     def _read_audit_events(self, *, limit: int) -> list[AuditEventSnapshot]:

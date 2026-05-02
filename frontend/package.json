@@ -6,11 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "vitest run"
+    "test": "NODE_ENV=test vitest run"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.2.4",
+    "lucide-react": "^1.8.0",
+    "motion": "^12.38.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.2.4"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

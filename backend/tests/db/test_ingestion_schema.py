@@ -62,6 +62,8 @@ def test_ops_schema_contains_expected_tables() -> None:
     assert IngestRun.__tablename__ == "ingest_runs"
     assert ConnectorStatusHistory.__tablename__ == "connector_status_history"
     assert SourceHealthEvent.__tablename__ == "source_health_events"
+    assert "lifecycle_status" in SourceHealthEvent.__table__.c
+    assert "resolved_at" in SourceHealthEvent.__table__.c
 
 
 def test_demo_schema_contains_expected_tables() -> None:

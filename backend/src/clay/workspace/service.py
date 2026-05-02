@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
+from clay.freshness.evaluator import collapse_market_statuses, resolve_market_freshness_status
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.runtime.states import RuntimeState
@@ -160,6 +161,7 @@ class WorkspaceService:
         self,
         session: Session,
     ) -> tuple[WorkspaceStateSnapshot, str, str, str | None]:
+        now = datetime.now(UTC)
         runtime_snapshot = self.runtime_manager.snapshot()
         preflight = self.preflight_service.run()
         market_repo = MarketRepository(session)
@@ -167,10 +169,17 @@ class WorkspaceService:
         ops_repo = OpsRepository(session)
 
         freshness_rows = market_repo.list_freshness_statuses()
-        market_status = "fresh"
-        if not freshness_rows:
-            market_status = "unknown"
-        elif any(row.freshness_state in {"stale", "error", "unknown"} for row in freshness_rows):
+        effective_market_statuses = [
+            resolve_market_freshness_status(
+                stored_status=row.freshness_state,
+                timeframe=row.timeframe,
+                latest_bar_open_time=row.latest_bar_open_time,
+                now=now,
+            ).status
+            for row in freshness_rows
+        ]
+        market_status = collapse_market_statuses(effective_market_statuses)
+        if market_status in {"stale", "error"}:
             market_status = "degraded"
 
         latest_news = context_repo.latest_news(limit=10)

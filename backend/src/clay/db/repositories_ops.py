@@ -77,11 +77,33 @@ class OpsRepository:
             SourceHealthEvent(
                 source_name=source_name,
                 severity=severity,
+                lifecycle_status="active",
                 message=message,
                 recorded_at=recorded_at,
+                resolved_at=None,
+                resolution_message=None,
             ),
         )
         self.session.flush()
+
+    def resolve_source_health_events(
+        self,
+        *,
+        source_name: str,
+        resolved_at: datetime,
+        resolution_message: str,
+    ) -> int:
+        query = select(SourceHealthEvent).where(
+            SourceHealthEvent.source_name == source_name,
+            SourceHealthEvent.lifecycle_status == "active",
+        )
+        active_rows = list(self.session.scalars(query).all())
+        for row in active_rows:
+            row.lifecycle_status = "resolved"
+            row.resolved_at = resolved_at
+            row.resolution_message = resolution_message
+        self.session.flush()
+        return len(active_rows)
 
     def latest_connector_statuses(self) -> list[ConnectorStatusHistory]:
         query = select(ConnectorStatusHistory).order_by(
@@ -97,8 +119,16 @@ class OpsRepository:
             seen.add(row.connector_id)
         return deduped
 
-    def latest_incidents(self, *, limit: int = 10) -> list[SourceHealthEvent]:
-        query = select(SourceHealthEvent).order_by(
+    def latest_incidents(
+        self,
+        *,
+        limit: int = 10,
+        active_only: bool = True,
+    ) -> list[SourceHealthEvent]:
+        query = select(SourceHealthEvent)
+        if active_only:
+            query = query.where(SourceHealthEvent.lifecycle_status == "active")
+        query = query.order_by(
             SourceHealthEvent.recorded_at.desc(),
         ).limit(limit)
         return list(self.session.scalars(query).all())

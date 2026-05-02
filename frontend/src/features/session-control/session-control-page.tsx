@@ -10,7 +10,7 @@ export function SessionControlPage() {
   const snapshot = sessionControl.snapshot
 
   return (
-    <section aria-label="session-control-page">
+    <div aria-label="session-control-page" className="screen-page" data-screen="session-control">
       <SessionStateBanner
         lifecycle={snapshot?.lifecycle ?? null}
         isLoading={sessionControl.isLoading}
@@ -54,6 +54,6 @@ export function SessionControlPage() {
           void sessionControl.applyReplacement()
         }}
       />
-    </section>
+    </div>
   )
 }

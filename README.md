@@ -179,9 +179,9 @@ Backend:
 
 ```bash
 make backend-install
+cd backend && uv run alembic upgrade head
 make backend-test
 make backend-run
-cd backend && uv run alembic upgrade head
 ```
 
 Frontend:
@@ -192,6 +192,12 @@ make frontend-test
 make frontend-build
 make frontend-run
 ```
+
+Default local URLs:
+
+- frontend: `http://127.0.0.1:5173`
+- backend: `http://127.0.0.1:8000`
+- backend health: `http://127.0.0.1:8000/health`
 
 ## Local Environment
 

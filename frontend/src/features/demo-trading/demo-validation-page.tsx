@@ -9,7 +9,7 @@ export function DemoValidationPage() {
   const snapshot = demoTrading.snapshot
 
   return (
-    <section aria-label="demo-validation-page">
+    <div aria-label="demo-validation-page" className="screen-page" data-screen="demo-validation">
       <DemoStateBanner
         readiness={snapshot?.readiness ?? null}
         activeSession={snapshot?.active_session ?? null}
@@ -36,6 +36,6 @@ export function DemoValidationPage() {
           void demoTrading.markResult(recordId, resultProfile)
         }}
       />
-    </section>
+    </div>
   )
 }

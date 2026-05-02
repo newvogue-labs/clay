@@ -60,8 +60,11 @@ export interface IngestionHealthSnapshot {
 export interface IncidentSnapshot {
   source_name: string
   severity: string
+  lifecycle_status?: string
   message: string
   recorded_at: string
+  resolved_at?: string | null
+  resolution_message?: string | null
 }
 
 export interface AuditEventSnapshot {

@@ -9,7 +9,7 @@ export function ValidationLabPage() {
   const snapshot = validation.snapshot
 
   return (
-    <section aria-label="validation-lab-page">
+    <div aria-label="validation-lab-page" className="screen-page" data-screen="validation-lab">
       <ValidationStateBanner
         summary={snapshot?.summary ?? null}
         isLoading={validation.isLoading}
@@ -41,6 +41,6 @@ export function ValidationLabPage() {
           void validation.applyActivation()
         }}
       />
-    </section>
+    </div>
   )
 }

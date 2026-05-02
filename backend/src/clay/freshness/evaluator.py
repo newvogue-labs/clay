@@ -14,6 +14,13 @@ CONTEXT_THRESHOLDS = {
     "sentiment": timedelta(hours=4),
 }
 
+MARKET_STATUS_PRIORITY = {
+    "fresh": 0,
+    "unknown": 1,
+    "stale": 2,
+    "error": 3,
+}
+
 
 def evaluate_market_freshness(
     timeframe: str,
@@ -71,7 +78,47 @@ def evaluate_context_freshness(
     )
 
 
+def resolve_market_freshness_status(
+    *,
+    stored_status: str,
+    timeframe: str,
+    latest_bar_open_time: datetime | None,
+    now: datetime,
+) -> FreshnessResult:
+    evaluated = evaluate_market_freshness(
+        timeframe=timeframe,
+        last_received_at=latest_bar_open_time,
+        now=now,
+    )
+    effective_status = _worse_market_status(stored_status, evaluated.status)
+    reason = evaluated.reason
+    if effective_status != evaluated.status:
+        reason = f"stored_state={stored_status}; {evaluated.reason}"
+    return FreshnessResult(
+        stream_name=evaluated.stream_name,
+        status=effective_status,
+        observed_at=evaluated.observed_at,
+        blocks_active_trading=effective_status != "fresh",
+        reason=reason,
+    )
+
+
+def collapse_market_statuses(statuses: list[str]) -> str:
+    if not statuses:
+        return "unknown"
+    current = "fresh"
+    for status in statuses:
+        current = _worse_market_status(current, status)
+    return current
+
+
 def _coerce_timezone(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _worse_market_status(left: str, right: str) -> str:
+    left_priority = MARKET_STATUS_PRIORITY.get(left, MARKET_STATUS_PRIORITY["error"])
+    right_priority = MARKET_STATUS_PRIORITY.get(right, MARKET_STATUS_PRIORITY["error"])
+    return left if left_priority >= right_priority else right

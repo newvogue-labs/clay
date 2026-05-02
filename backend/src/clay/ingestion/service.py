@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -102,9 +103,9 @@ class IngestionCycleService:
         for symbol in self.settings.market_symbols:
             for timeframe in self.settings.market_timeframes:
                 try:
-                    bars = await self.market_service.fetch_and_normalize(
+                    bars = await self._fetch_market_bars(
                         symbol=symbol,
-                        interval=timeframe,
+                        timeframe=timeframe,
                     )
                     written = self.market_service.persist_bars(market_repo, bars)
                     summary.market_records_written += written
@@ -126,20 +127,26 @@ class IngestionCycleService:
                         latest_bar_open_time=latest_bar.bar_open_time,
                         is_stale=freshness.status != "fresh",
                     )
+                    ops_repo.resolve_source_health_events(
+                        source_name=f"binance_spot:{symbol}:{timeframe}",
+                        resolved_at=freshness.observed_at,
+                        resolution_message="Market ingest recovered after successful refresh.",
+                    )
                     summary.freshness_updates_written += 1
                 except Exception as exc:  # pragma: no cover - runtime/network safety
                     observed_at = datetime.now(UTC)
+                    message = self._format_exception_message(exc)
                     summary.incidents.append(
                         {
                             "source_name": f"binance_spot:{symbol}:{timeframe}",
                             "severity": "error",
-                            "message": str(exc),
+                            "message": message,
                         },
                     )
                     ops_repo.record_source_health_event(
                         source_name=f"binance_spot:{symbol}:{timeframe}",
                         severity="error",
-                        message=str(exc),
+                        message=message,
                         recorded_at=observed_at,
                     )
                     market_repo.upsert_freshness_status(
@@ -206,6 +213,11 @@ class IngestionCycleService:
             final_status = result.status
             if result.status == "healthy":
                 final_status = "success"
+                ops_repo.resolve_source_health_events(
+                    source_name=result.source_name,
+                    resolved_at=result.finished_at,
+                    resolution_message="Connector recovered after healthy run.",
+                )
             elif result.status == "disabled":
                 final_status = "skipped"
             elif result.status != "success":
@@ -241,3 +253,32 @@ class IngestionCycleService:
                     "payload_count": len(result.payloads),
                 },
             )
+
+    async def _fetch_market_bars(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+    ) -> list[Any]:
+        last_error: Exception | None = None
+        for attempt in range(1, self.settings.market_fetch_max_attempts + 1):
+            try:
+                return await self.market_service.fetch_and_normalize(
+                    symbol=symbol,
+                    interval=timeframe,
+                )
+            except Exception as exc:
+                last_error = exc
+                if attempt >= self.settings.market_fetch_max_attempts:
+                    break
+                await asyncio.sleep(self.settings.market_fetch_retry_delay_seconds)
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError(f"market ingest failed without exception for {symbol}:{timeframe}")
+
+    def _format_exception_message(self, exc: Exception) -> str:
+        message = str(exc).strip()
+        if message:
+            return message
+        return type(exc).__name__

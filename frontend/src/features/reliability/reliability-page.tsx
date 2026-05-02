@@ -9,7 +9,7 @@ export function ReliabilityPage() {
   const snapshot = reliability.snapshot
 
   return (
-    <section aria-label="reliability-page">
+    <div aria-label="reliability-page" className="screen-page" data-screen="reliability">
       <ReliabilityStateBanner
         summary={snapshot?.summary ?? null}
         isLoading={reliability.isLoading}
@@ -33,6 +33,6 @@ export function ReliabilityPage() {
         incidents={snapshot?.incidents ?? []}
         isLoading={reliability.isLoading}
       />
-    </section>
+    </div>
   )
 }

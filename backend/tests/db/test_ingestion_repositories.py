@@ -104,3 +104,28 @@ def test_context_and_ops_repositories_store_runtime_records(db_session) -> None:
     assert context_repository.latest_sentiment()[0].sentiment_label == "bullish"
     assert ops_repository.latest_connector_statuses()[0].connector_id == "demo-news"
     assert ops_repository.latest_incidents()[0].message == "rate limited"
+
+
+def test_ops_repository_resolves_active_incidents(db_session) -> None:
+    ops_repository = OpsRepository(db_session)
+    observed_at = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
+
+    ops_repository.record_source_health_event(
+        source_name="binance_spot:BTCUSDT:5m",
+        severity="error",
+        message="TimeoutError",
+        recorded_at=observed_at,
+    )
+    resolved_count = ops_repository.resolve_source_health_events(
+        source_name="binance_spot:BTCUSDT:5m",
+        resolved_at=observed_at,
+        resolution_message="Market ingest recovered after successful refresh.",
+    )
+    db_session.commit()
+
+    recent = ops_repository.latest_incidents(active_only=False)
+
+    assert resolved_count == 1
+    assert ops_repository.latest_incidents() == []
+    assert recent[0].lifecycle_status == "resolved"
+    assert recent[0].resolution_message == "Market ingest recovered after successful refresh."
