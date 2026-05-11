@@ -2250,6 +2250,227 @@
   .demo-outcome-list strong {
     @apply font-mono text-xs font-bold text-clay-text;
   }
+
+  .validation-lab-page {
+    @apply gap-5;
+  }
+
+  .validation-command-header {
+    @apply gap-4 px-0 pb-4;
+  }
+
+  .validation-command-row {
+    @apply flex flex-wrap items-center justify-end gap-2;
+  }
+
+  .validation-command-row > span {
+    @apply rounded border border-clay-border bg-clay-card px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-clay-muted;
+  }
+
+  .validation-error-panel {
+    @apply flex items-center gap-2 border-clay-danger/40 bg-clay-danger/10 text-clay-danger;
+  }
+
+  .validation-overview-strip {
+    @apply grid gap-3 border-0 bg-transparent p-0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .validation-metric-card {
+    @apply grid min-h-36 content-start gap-3 rounded-md border border-clay-border bg-clay-card p-4;
+  }
+
+  .validation-metric-card > div {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .validation-metric-card span {
+    @apply block text-[9px] font-bold uppercase tracking-[0.18em] text-clay-muted;
+  }
+
+  .validation-metric-card strong {
+    @apply mt-1 block text-base font-bold uppercase tracking-normal text-clay-text;
+  }
+
+  .validation-metric-card p {
+    @apply line-clamp-3 text-[11px] leading-5 text-clay-muted;
+  }
+
+  .validation-command-grid {
+    @apply grid gap-5;
+    grid-template-columns: minmax(0, 1.35fr) minmax(22rem, 0.75fr);
+  }
+
+  .validation-main-stack,
+  .validation-side-stack {
+    @apply grid content-start gap-5;
+  }
+
+  .validation-panel-title {
+    @apply mb-4 flex items-start justify-between gap-4 border-b border-clay-border/60 pb-3;
+  }
+
+  .validation-panel-title h3 {
+    @apply mb-0 text-sm font-bold uppercase tracking-[0.16em] text-clay-text;
+  }
+
+  .validation-panel-title span {
+    @apply mt-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-clay-muted;
+  }
+
+  .validation-empty-line {
+    @apply rounded border border-dashed border-clay-border bg-clay-bg/35 px-3 py-3 text-xs text-clay-muted;
+  }
+
+  .validation-action-grid {
+    @apply grid gap-2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .validation-action-grid button,
+  .validation-review-card button {
+    @apply inline-flex items-center justify-center gap-2;
+  }
+
+  .validation-action-grid button:nth-last-child(-n+2) {
+    @apply border-clay-accent/40 bg-clay-accent/10 text-clay-accent hover:bg-clay-accent/15;
+  }
+
+  .validation-run-table {
+    @apply overflow-hidden rounded-md border border-clay-border/70;
+  }
+
+  .validation-run-head,
+  .validation-run-row {
+    @apply grid items-start gap-3;
+    grid-template-columns: minmax(10rem, 1fr) minmax(11rem, 1fr) minmax(9rem, 0.8fr) minmax(8rem, 0.7fr);
+  }
+
+  .validation-run-head {
+    @apply bg-clay-bg/55 px-4 py-3;
+  }
+
+  .validation-run-head span {
+    @apply text-[9px] font-bold uppercase tracking-[0.18em] text-clay-muted;
+  }
+
+  .validation-run-row {
+    @apply border-t border-clay-border/70 bg-clay-card px-4 py-4;
+  }
+
+  .validation-run-row > div {
+    @apply min-w-0;
+  }
+
+  .validation-run-row strong {
+    @apply block truncate text-xs font-bold text-clay-text;
+  }
+
+  .validation-run-row span {
+    @apply mt-1 block truncate text-[10px] text-clay-muted;
+  }
+
+  .validation-run-row > p {
+    @apply col-span-4 rounded border border-clay-border/60 bg-clay-bg/35 px-3 py-3 text-[11px] leading-5 text-clay-text-muted;
+  }
+
+  .validation-run-row .is-positive,
+  .validation-run-row .is-negative {
+    @apply flex items-center gap-2;
+  }
+
+  .validation-run-row .is-positive strong {
+    @apply text-clay-success;
+  }
+
+  .validation-run-row .is-positive svg {
+    @apply text-clay-success;
+  }
+
+  .validation-run-row .is-negative strong {
+    @apply text-clay-danger;
+  }
+
+  .validation-run-row .is-negative svg {
+    @apply text-clay-danger;
+  }
+
+  .validation-review-card {
+    @apply rounded-md border border-clay-border/70 bg-clay-bg/35 p-4;
+  }
+
+  .validation-review-card + .validation-review-card {
+    @apply mt-3;
+  }
+
+  .validation-review-card[data-tone='success'] {
+    @apply border-clay-success/30 bg-clay-success/5;
+  }
+
+  .validation-review-card[data-tone='warning'] {
+    @apply border-clay-warning/35 bg-clay-warning/5;
+  }
+
+  .validation-review-card[data-tone='danger'] {
+    @apply border-clay-danger/35 bg-clay-danger/5;
+  }
+
+  .validation-review-card > div:first-child {
+    @apply mb-3 flex items-center justify-between gap-3;
+  }
+
+  .validation-review-card h4 {
+    @apply text-xs font-bold text-clay-text;
+  }
+
+  .validation-review-card p {
+    @apply text-[11px] leading-5 text-clay-muted;
+  }
+
+  .validation-review-card dl {
+    @apply mt-4 grid gap-2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .validation-review-card dl div {
+    @apply rounded border border-clay-border/60 bg-clay-card px-3 py-2;
+  }
+
+  .validation-review-card dt {
+    @apply text-[9px] font-bold uppercase tracking-[0.16em] text-clay-muted;
+  }
+
+  .validation-review-card dd {
+    @apply m-0 mt-1 truncate text-xs font-bold text-clay-text;
+  }
+
+  .validation-review-card button {
+    @apply mt-4 w-full border-clay-success/35 bg-clay-success/10 text-clay-success hover:bg-clay-success/15;
+  }
+
+  .validation-evidence-list {
+    @apply mt-4 flex flex-wrap gap-2;
+  }
+
+  .validation-evidence-list span {
+    @apply rounded border border-clay-border/60 bg-clay-card px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-clay-muted;
+  }
+
+  .validation-readiness-list {
+    @apply grid gap-2;
+  }
+
+  .validation-readiness-list p {
+    @apply flex items-center justify-between gap-3 rounded border border-clay-border/60 bg-clay-bg/35 px-3 py-2;
+  }
+
+  .validation-readiness-list span {
+    @apply text-[10px] font-bold uppercase tracking-[0.14em] text-clay-muted;
+  }
+
+  .validation-readiness-list strong {
+    @apply font-mono text-xs font-bold text-clay-text;
+  }
 }
 
 @media (max-width: 1280px) {
@@ -2317,6 +2538,30 @@
   .demo-result-actions {
     @apply col-span-2;
   }
+
+  .validation-overview-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .validation-command-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .validation-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .validation-run-head {
+    @apply hidden;
+  }
+
+  .validation-run-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .validation-run-row > p {
+    @apply col-span-2;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -2362,6 +2607,15 @@
   }
 
   .demo-command-row {
+    @apply justify-start;
+  }
+
+  .validation-command-header {
+    @apply items-start;
+    flex-direction: column;
+  }
+
+  .validation-command-row {
     @apply justify-start;
   }
 }
@@ -2415,6 +2669,17 @@
   }
 
   .demo-result-actions {
+    @apply col-span-1;
+  }
+
+  .validation-overview-strip,
+  .validation-action-grid,
+  .validation-run-row,
+  .validation-review-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .validation-run-row > p {
     @apply col-span-1;
   }
 }

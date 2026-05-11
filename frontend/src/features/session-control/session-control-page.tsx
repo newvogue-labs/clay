@@ -425,8 +425,8 @@ type TargetConsoleProps = {
 }
 
 function TargetConsole({ lifecycle, briefing, primarySignal }: TargetConsoleProps) {
-  const currentPair = lifecycle?.current_pair_symbol ?? 'not selected'
-  const targetLabel = lifecycle?.current_pair_symbol ?? primarySignal?.symbol ?? 'standby'
+  const currentPair = lifecycle?.current_pair_symbol ?? primarySignal?.symbol ?? 'not selected'
+  const targetLabel = currentPair === 'not selected' ? 'standby' : currentPair
 
   return (
     <section className="session-target-console">
