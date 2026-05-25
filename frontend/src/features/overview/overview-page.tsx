@@ -2,10 +2,12 @@ import {
   Activity,
   AlertCircle,
   ArrowRight,
-  BarChart3,
   CheckCircle2,
   Database,
+  ListChecks,
   Percent,
+  RefreshCw,
+  Route,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
@@ -15,6 +17,13 @@ import type { ReactNode } from 'react'
 
 import { StatusBadge } from '../../components/status-badge'
 import type { AppScreen } from '../../components/app-sidebar'
+import type {
+  AlphaGateStatus,
+  AlphaOperatorStepSnapshot,
+  AlphaReadinessGateSnapshot,
+  AlphaReadinessSnapshot,
+} from '../../types/alpha'
+import { useAlphaReadiness } from '../alpha/use-alpha-readiness'
 import { useControlCenter } from '../control-center/use-control-center'
 import { useReliability } from '../reliability/use-reliability'
 import { useWorkspace } from '../workspace/use-workspace'
@@ -27,10 +36,12 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
   const controlCenter = useControlCenter()
   const workspace = useWorkspace()
   const reliability = useReliability()
+  const alpha = useAlphaReadiness()
 
   const controlSnapshot = controlCenter.snapshot
   const workspaceSnapshot = workspace.snapshot
   const reliabilitySnapshot = reliability.snapshot
+  const alphaSnapshot = alpha.snapshot
   const signals = workspaceSnapshot?.signals ?? []
   const topSignals = signals.slice(0, 4)
   const activeSignals = signals.filter((signal) => signal.state === 'active')
@@ -39,6 +50,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
   const marketStatus = controlSnapshot?.ingestion.market_status ?? 'loading'
   const contextStatus = controlSnapshot?.ingestion.context_status ?? 'loading'
   const releaseStatus = reliabilitySnapshot?.summary.release_readiness_status ?? 'loading'
+  const alphaStatus = alphaSnapshot?.summary.readiness_status ?? 'loading'
   const overallStatus = controlSnapshot?.summary.overall_status ?? 'loading'
   const reviewScore = reliabilitySnapshot ? Math.max(0, 100 - reliabilitySnapshot.summary.warning_gate_count * 6) : 0
 
@@ -65,11 +77,15 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           value={String(activeSignals.length)}
         />
         <MetricCard
-          icon={<BarChart3 className="h-3.5 w-3.5" />}
-          label="Simulated Result"
-          meta="Demo discipline pending"
-          tone="success"
-          value="+0.0%"
+          icon={<Route className="h-3.5 w-3.5" />}
+          label="Alpha Core"
+          meta={
+            alphaSnapshot
+              ? `${alphaSnapshot.summary.blocking_gate_count} blockers / ${alphaSnapshot.summary.warning_gate_count} warnings`
+              : 'Loading operator path'
+          }
+          tone={alphaSnapshot?.summary.operator_path_ready ? 'success' : 'warning'}
+          value={alphaSnapshot?.summary.operator_path_ready ? 'open' : formatStatus(alphaStatus)}
         />
         <MetricCard
           icon={<Percent className="h-3.5 w-3.5" />}
@@ -97,6 +113,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
         <CompactStatus label="Consensus" status={criticalIncidents > 0 ? 'conflict' : activeIncidents > 0 ? 'partial' : 'agreement'} />
         <CompactStatus label="Market Data" status={marketStatus} />
         <CompactStatus label="Context Feeds" status={contextStatus} />
+        <CompactStatus label="Alpha Core" status={alphaStatus} />
         <CompactStatus label="Readiness" status={releaseStatus} />
       </div>
 
@@ -144,6 +161,18 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
               )}
             </div>
           </section>
+
+          <AlphaReadinessPanel
+            error={alpha.error}
+            isLoading={alpha.isLoading}
+            onNavigateSession={() => {
+              onNavigate('session-control')
+            }}
+            onRefresh={() => {
+              void alpha.refresh()
+            }}
+            snapshot={alphaSnapshot}
+          />
 
           <section className="overview-panel overview-audit-panel">
             <div className="panel-title-row">
@@ -251,13 +280,157 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
         </aside>
       </div>
 
-      {controlCenter.error || workspace.error || reliability.error ? (
+      {controlCenter.error || workspace.error || reliability.error || alpha.error ? (
         <section className="overview-panel">
           <h3>Integration Warnings</h3>
-          <p>{controlCenter.error ?? workspace.error ?? reliability.error}</p>
+          <p>{controlCenter.error ?? workspace.error ?? reliability.error ?? alpha.error}</p>
         </section>
       ) : null}
     </div>
+  )
+}
+
+type AlphaReadinessPanelProps = {
+  snapshot: AlphaReadinessSnapshot | null
+  isLoading: boolean
+  error: string | null
+  onRefresh: () => void
+  onNavigateSession: () => void
+}
+
+function AlphaReadinessPanel({
+  snapshot,
+  isLoading,
+  error,
+  onRefresh,
+  onNavigateSession,
+}: AlphaReadinessPanelProps) {
+  const summary = snapshot?.summary ?? null
+  const evidence = snapshot?.evidence ?? null
+  const gates = prioritizeAlphaItems(snapshot?.gates ?? []).slice(0, 5)
+  const operatorSteps = prioritizeAlphaItems(snapshot?.operator_steps ?? []).slice(0, 5)
+
+  return (
+    <section aria-label="alpha-readiness-panel" className="overview-panel alpha-readiness-panel">
+      <div className="panel-title-row">
+        <div>
+          <h3>Alpha Readiness</h3>
+          <p>Operator path contract from live backend gates</p>
+        </div>
+        <div className="alpha-panel-actions">
+          <button
+            aria-label="Refresh alpha readiness"
+            disabled={isLoading}
+            onClick={onRefresh}
+            type="button"
+          >
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </button>
+          <button
+            aria-label="Open alpha session workflow"
+            onClick={onNavigateSession}
+            type="button"
+          >
+            <ListChecks className="h-3 w-3" /> Session
+          </button>
+        </div>
+      </div>
+
+      {error ? <div className="alpha-error-line">{error}</div> : null}
+      {isLoading && !snapshot ? <div className="empty-terminal-line">Loading alpha readiness...</div> : null}
+
+      {summary ? (
+        <>
+          <div className="alpha-summary-grid">
+            <AlphaSummaryCell
+              label="Path"
+              tone={summary.operator_path_ready ? 'pass' : 'fail'}
+              value={summary.operator_path_ready ? 'operator path ready' : formatStatus(summary.readiness_status)}
+            />
+            <AlphaSummaryCell
+              label="Focus"
+              tone={evidence?.focused_signal_state === 'active' ? 'pass' : 'warn'}
+              value={evidence?.focus_symbol ?? 'none'}
+            />
+            <AlphaSummaryCell
+              label="Session"
+              tone={evidence?.session_lifecycle_state === 'active_session' ? 'pass' : 'warn'}
+              value={formatStatus(evidence?.session_lifecycle_state ?? 'unknown')}
+            />
+            <AlphaSummaryCell
+              label="Validation"
+              tone={evidence?.validation_replay_ready ? 'pass' : 'warn'}
+              value={`${evidence?.validation_run_count ?? 0} runs`}
+            />
+          </div>
+
+          <div className="alpha-next-action">
+            <span>Next action</span>
+            <strong>{summary.next_action}</strong>
+          </div>
+
+          <div className="alpha-flow-grid">
+            <div className="alpha-flow-column">
+              <h4>Readiness Gates</h4>
+              <div className="alpha-row-list">
+                {gates.map((gate) => (
+                  <AlphaGateRow gate={gate} key={gate.gate_id} />
+                ))}
+              </div>
+            </div>
+            <div className="alpha-flow-column">
+              <h4>Operator Steps</h4>
+              <div className="alpha-row-list">
+                {operatorSteps.map((step) => (
+                  <AlphaStepRow key={step.step_id} step={step} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </section>
+  )
+}
+
+function AlphaSummaryCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: AlphaGateStatus
+}) {
+  return (
+    <div className="alpha-summary-cell" data-tone={tone}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
+function AlphaGateRow({ gate }: { gate: AlphaReadinessGateSnapshot }) {
+  return (
+    <article className="alpha-readiness-row" data-tone={gate.status}>
+      <div>
+        <strong>{gate.label}</strong>
+        <p>{gate.detail}</p>
+      </div>
+      <StatusBadge label={gate.status} />
+    </article>
+  )
+}
+
+function AlphaStepRow({ step }: { step: AlphaOperatorStepSnapshot }) {
+  return (
+    <article className="alpha-readiness-row" data-tone={step.status}>
+      <div>
+        <strong>{step.label}</strong>
+        <p>{step.detail}</p>
+      </div>
+      <StatusBadge label={step.status} />
+    </article>
   )
 }
 
@@ -298,4 +471,17 @@ function CompactStatus({ label, status }: { label: string; status: string }) {
       <StatusBadge label={status} />
     </section>
   )
+}
+
+function formatStatus(status: string): string {
+  return status.replaceAll('_', ' ')
+}
+
+function prioritizeAlphaItems<T extends { status: AlphaGateStatus }>(items: T[]): T[] {
+  const rank: Record<AlphaGateStatus, number> = {
+    fail: 0,
+    warn: 1,
+    pass: 2,
+  }
+  return [...items].sort((left, right) => rank[left.status] - rank[right.status])
 }

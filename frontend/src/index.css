@@ -211,7 +211,7 @@
   }
 
   .overview-secondary-grid {
-    @apply grid grid-cols-1 gap-3 md:grid-cols-4;
+    @apply grid grid-cols-1 gap-3 md:grid-cols-5;
   }
 
   .compact-status-card {
@@ -246,8 +246,16 @@
     @apply min-h-44;
   }
 
+  .alpha-readiness-panel {
+    @apply min-h-80;
+  }
+
   .panel-title-row {
     @apply mb-4 flex items-center justify-between gap-3 border-b border-clay-border/50 pb-3;
+  }
+
+  .panel-title-row p {
+    @apply mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-clay-muted;
   }
 
   .panel-title-row h3 {
@@ -256,6 +264,113 @@
 
   .link-command {
     @apply inline-flex items-center gap-1 border-0 bg-transparent px-0 py-0 text-[9px] font-bold uppercase tracking-[0.16em] text-clay-accent hover:bg-transparent hover:text-clay-text;
+  }
+
+  .alpha-panel-actions {
+    @apply flex flex-wrap items-center justify-end gap-2;
+  }
+
+  .alpha-panel-actions button {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.16em];
+  }
+
+  .alpha-error-line {
+    @apply mb-3 rounded border border-clay-danger/40 bg-clay-danger/10 px-3 py-2 text-xs font-bold text-clay-danger;
+  }
+
+  .alpha-summary-grid {
+    @apply mb-3 grid grid-cols-2 gap-2 xl:grid-cols-4;
+  }
+
+  .alpha-summary-cell {
+    @apply min-h-20 rounded border border-clay-border/60 bg-clay-bg/40 p-3;
+  }
+
+  .alpha-summary-cell span {
+    @apply block text-[8px] font-bold uppercase tracking-[0.18em] text-clay-muted;
+  }
+
+  .alpha-summary-cell strong {
+    @apply mt-2 block text-xs font-bold uppercase text-clay-text;
+  }
+
+  .alpha-summary-cell[data-tone='pass'] {
+    @apply border-clay-success/35 bg-clay-success/5;
+  }
+
+  .alpha-summary-cell[data-tone='pass'] strong {
+    @apply text-clay-success;
+  }
+
+  .alpha-summary-cell[data-tone='warn'] {
+    @apply border-clay-warning/35 bg-clay-warning/5;
+  }
+
+  .alpha-summary-cell[data-tone='warn'] strong {
+    @apply text-clay-warning;
+  }
+
+  .alpha-summary-cell[data-tone='fail'] {
+    @apply border-clay-danger/35 bg-clay-danger/5;
+  }
+
+  .alpha-summary-cell[data-tone='fail'] strong {
+    @apply text-clay-danger;
+  }
+
+  .alpha-next-action {
+    @apply mb-4 rounded border border-clay-border/60 bg-clay-bg/45 px-3 py-2;
+  }
+
+  .alpha-next-action span {
+    @apply block text-[8px] font-bold uppercase tracking-[0.18em] text-clay-muted;
+  }
+
+  .alpha-next-action strong {
+    @apply mt-1 block text-xs font-semibold text-clay-text;
+  }
+
+  .alpha-flow-grid {
+    @apply grid grid-cols-1 gap-3 xl:grid-cols-2;
+  }
+
+  .alpha-flow-column {
+    @apply min-w-0 rounded border border-clay-border/50 bg-clay-bg/25 p-3;
+  }
+
+  .alpha-flow-column h4 {
+    @apply mb-3 text-[9px] font-bold uppercase tracking-[0.18em] text-clay-muted;
+  }
+
+  .alpha-row-list {
+    @apply space-y-2;
+  }
+
+  .alpha-readiness-row {
+    @apply grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded border border-clay-border/55 bg-clay-card/60 px-3 py-2;
+  }
+
+  .alpha-readiness-row[data-tone='pass'] {
+    @apply border-clay-success/25;
+  }
+
+  .alpha-readiness-row[data-tone='warn'] {
+    @apply border-clay-warning/30;
+  }
+
+  .alpha-readiness-row[data-tone='fail'] {
+    @apply border-clay-danger/35;
+  }
+
+  .alpha-readiness-row strong {
+    @apply block truncate text-[11px] font-bold text-clay-text;
+  }
+
+  .alpha-readiness-row p {
+    @apply mt-1 overflow-hidden text-[10px] font-medium leading-4 text-clay-muted;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .dense-list {
@@ -3225,6 +3340,11 @@
   .reliability-fallback-grid,
   .reliability-check-row,
   .reliability-gate-row {
+    grid-template-columns: 1fr;
+  }
+
+  .alpha-summary-grid,
+  .alpha-readiness-row {
     grid-template-columns: 1fr;
   }
 

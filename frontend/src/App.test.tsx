@@ -5,6 +5,7 @@ import App from './App'
 
 describe('App', () => {
   let aiControlSnapshot: Record<string, any>
+  let alphaReadinessSnapshot: Record<string, any>
   let controlCenterSnapshot: Record<string, any>
   let demoTradingSnapshot: Record<string, any>
   let knowledgeSnapshot: Record<string, any>
@@ -129,6 +130,85 @@ describe('App', () => {
         operator_message: 'Some roles have no safe fallback path.',
       },
       pending_review: null,
+    }
+    alphaReadinessSnapshot = {
+      summary: {
+        readiness_status: 'needs_attention',
+        operator_path_ready: true,
+        blocking_gate_count: 0,
+        warning_gate_count: 3,
+        next_action: 'Keep collecting disciplined demo sessions before the review gate unlocks.',
+      },
+      gates: [
+        {
+          gate_id: 'preflight-ready',
+          label: 'Preflight ready',
+          status: 'pass',
+          blocks_alpha: false,
+          detail: 'Session preflight passes.',
+        },
+        {
+          gate_id: 'focused-signal',
+          label: 'Focused signal',
+          status: 'pass',
+          blocks_alpha: false,
+          detail: 'BTCUSDT is actionable for demo logging.',
+        },
+        {
+          gate_id: 'demo-evidence',
+          label: 'Demo evidence',
+          status: 'warn',
+          blocks_alpha: false,
+          detail: 'Keep collecting disciplined demo sessions before the review gate unlocks.',
+        },
+        {
+          gate_id: 'reliability-posture',
+          label: 'Reliability posture',
+          status: 'warn',
+          blocks_alpha: false,
+          detail: 'System is usable, but reliability still needs operator attention before a calm demo launch.',
+        },
+      ],
+      operator_steps: [
+        {
+          step_id: 'check_preflight',
+          label: 'Check preflight',
+          status: 'pass',
+          detail: 'Preflight is clear.',
+        },
+        {
+          step_id: 'focus_signal',
+          label: 'Focus signal',
+          status: 'pass',
+          detail: 'Focused on BTCUSDT.',
+        },
+        {
+          step_id: 'start_or_resume_session',
+          label: 'Start or resume session',
+          status: 'warn',
+          detail: 'Session is ready to start.',
+        },
+        {
+          step_id: 'run_validation_replay',
+          label: 'Run validation replay',
+          status: 'warn',
+          detail: 'Validation Lab is waiting for the first replay run before any activation review.',
+        },
+      ],
+      evidence: {
+        runtime_state: 'background_monitoring',
+        preflight_status: 'pass',
+        workspace_posture: 'normal',
+        focus_symbol: 'BTCUSDT',
+        focused_signal_state: 'active',
+        session_lifecycle_state: 'idle',
+        demo_readiness_status: 'collecting',
+        demo_record_count: 1,
+        review_status: 'review_ready',
+        validation_replay_ready: false,
+        validation_run_count: 0,
+        release_readiness_status: 'needs_attention',
+      },
     }
 
     controlCenterSnapshot = {
@@ -628,6 +708,10 @@ describe('App', () => {
           return Promise.resolve(new Response(JSON.stringify(workspaceSnapshot), { status: 200 }))
         }
 
+        if (url.endsWith('/alpha/overview') && method === 'GET') {
+          return Promise.resolve(new Response(JSON.stringify(alphaReadinessSnapshot), { status: 200 }))
+        }
+
         if (url.endsWith('/workspace/trading/focus') && method === 'POST') {
           workspaceSnapshot.focus_pair.symbol = 'SOLUSDT'
           workspaceSnapshot.focus_pair.display_name = 'SOL / USDT'
@@ -1073,11 +1157,13 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: 'Clay' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: /mission overview/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /alpha readiness/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /top ranked signals/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /quick actions/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /active strategy/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /system status/i })).toBeInTheDocument()
-    expect(await screen.findByText(/BTCUSDT/i)).toBeInTheDocument()
+    expect(await screen.findByText(/operator path ready/i)).toBeInTheDocument()
+    expect((await screen.findAllByText(/BTCUSDT/i)).length).toBeGreaterThan(0)
   })
 
   it('switches between workspace and control center screens', async () => {
