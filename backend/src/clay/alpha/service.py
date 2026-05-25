@@ -201,15 +201,17 @@ class AlphaReadinessService:
             start_step_status = "fail"
 
         demo_log_status: AlphaGateStatus = "warn"
-        if demo_snapshot.active_session.can_log_decision or demo_snapshot.readiness.total_records > 0:
+        if demo_snapshot.readiness.total_records > 0:
             demo_log_status = "pass"
+        elif demo_snapshot.active_session.can_log_decision:
+            demo_log_status = "warn"
         elif session_snapshot.lifecycle.lifecycle_state == "idle" and not session_snapshot.lifecycle.can_start:
             demo_log_status = "fail"
 
         reliability_step_status: AlphaGateStatus = "pass"
         if reliability_snapshot.summary.release_readiness_status == "blocked":
             reliability_step_status = "fail"
-        elif reliability_snapshot.summary.release_readiness_status == "needs_attention":
+        elif reliability_snapshot.summary.last_rechecked_at is None:
             reliability_step_status = "warn"
 
         steps = [
@@ -266,6 +268,8 @@ class AlphaReadinessService:
                 detail=(
                     "Demo decision logging is available or already evidenced."
                     if demo_log_status == "pass"
+                    else "Demo decision logging is available; log the current operator decision."
+                    if demo_snapshot.active_session.can_log_decision
                     else demo_snapshot.active_session.blocking_reason or "Demo decision logging is waiting on an active session."
                 ),
                 target_screen="demo-validation",

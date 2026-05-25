@@ -255,6 +255,7 @@ def test_reliability_recheck_route_returns_updated_snapshot(db_session, tmp_path
     payload = asyncio.run(recheck_reliability(db_session, bundle["service"]))
 
     assert payload["summary"]["release_readiness_status"] == "needs_attention"
+    assert payload["summary"]["last_rechecked_at"] is not None
     assert payload["release_gates"]
 
 

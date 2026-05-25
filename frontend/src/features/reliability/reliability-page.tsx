@@ -111,6 +111,11 @@ export function ReliabilityPage() {
           <span className="reliability-meta-chip">
             {summary ? `Last evaluated: ${formatDateTime(summary.last_evaluated_at)}` : 'Last evaluated: pending'}
           </span>
+          <span className="reliability-meta-chip">
+            {summary?.last_rechecked_at
+              ? `Last recheck: ${formatDateTime(summary.last_rechecked_at)}`
+              : 'Last recheck: pending'}
+          </span>
           <button
             disabled={reliability.isLoading || reliability.isActing}
             onClick={() => {
@@ -467,7 +472,13 @@ function OperatorMessageConsole({ summary, isLoading }: OperatorMessageConsolePr
       <div className="reliability-panel-title">
         <div>
           <h3>Operator Message</h3>
-          <span>{summary ? formatDateTime(summary.last_evaluated_at) : 'pending evaluation'}</span>
+          <span>
+            {summary?.last_rechecked_at
+              ? `rechecked ${formatDateTime(summary.last_rechecked_at)}`
+              : summary
+                ? `evaluated ${formatDateTime(summary.last_evaluated_at)}`
+                : 'pending evaluation'}
+          </span>
         </div>
         <Clock3 className="h-4 w-4 text-clay-muted" />
       </div>

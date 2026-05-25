@@ -6,6 +6,7 @@ export type ReliabilitySummary = {
   warning_gate_count: number
   operator_message: string
   last_evaluated_at: string
+  last_rechecked_at: string | null
 }
 
 export type DegradedTriggerSnapshot = {

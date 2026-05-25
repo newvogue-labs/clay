@@ -19,6 +19,7 @@ class ReliabilitySummary(BaseModel):
     warning_gate_count: int
     operator_message: str
     last_evaluated_at: str
+    last_rechecked_at: str | None
 
 
 class DegradedTriggerSnapshot(BaseModel):

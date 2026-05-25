@@ -420,6 +420,7 @@ describe('App', () => {
         operator_message:
           'System is usable, but reliability still needs operator attention before a calm demo launch.',
         last_evaluated_at: '2026-04-21T17:00:00Z',
+        last_rechecked_at: null,
       },
       degraded_triggers: [
         {
@@ -926,6 +927,7 @@ describe('App', () => {
 
         if (url.endsWith('/reliability/recheck') && method === 'POST') {
           reliabilitySnapshot.summary.last_evaluated_at = '2026-04-21T17:05:00Z'
+          reliabilitySnapshot.summary.last_rechecked_at = '2026-04-21T17:05:00Z'
           reliabilitySnapshot.summary.operator_message =
             'Release gates are visible; local fallback still needs operator attention.'
           return Promise.resolve(new Response(JSON.stringify(reliabilitySnapshot), { status: 200 }))
@@ -1241,7 +1243,7 @@ describe('App', () => {
 
     fireEvent.click((await screen.findAllByRole('button', { name: /mark win/i }))[0])
     expect(await screen.findAllByText(/matched/i)).not.toHaveLength(0)
-    expect(await screen.findByText(/cumulative pnl: 2.4%/i)).toBeInTheDocument()
+    expect(await screen.findByText(/cumulative pnl: \+2.4%/i)).toBeInTheDocument()
   })
 
   it('renders session review, filters by pair, and captures feedback', async () => {

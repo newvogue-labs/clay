@@ -44,6 +44,7 @@ class ReliabilityService:
         self.validation_lab_service = validation_lab_service
         self.audit_writer = audit_writer
         self.event_bus = event_bus
+        self._last_rechecked_at: datetime | None = None
 
     def build_snapshot(self, session: Session) -> ReliabilitySnapshot:
         now = datetime.now(UTC)
@@ -95,6 +96,11 @@ class ReliabilityService:
                     degraded_mode_active=control_snapshot.runtime.state == "degraded",
                 ),
                 last_evaluated_at=now.isoformat(),
+                last_rechecked_at=(
+                    self._last_rechecked_at.isoformat()
+                    if self._last_rechecked_at is not None
+                    else None
+                ),
             ),
             degraded_triggers=degraded_triggers,
             fallback=fallback_snapshot,
@@ -104,6 +110,7 @@ class ReliabilityService:
         )
 
     def recheck(self, session: Session) -> ReliabilitySnapshot:
+        self._last_rechecked_at = datetime.now(UTC)
         snapshot = self.build_snapshot(session)
         self.audit_writer.write(
             "reliability.rechecked",
