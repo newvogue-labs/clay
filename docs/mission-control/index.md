@@ -65,6 +65,7 @@
 - `adrs/adr-004-storage-baseline-and-phased-extensions.md`
 - `adrs/adr-005-model-provider-abstraction.md`
 - `runbooks/runbook-001-preflight-degraded-mode.md`
+- `runbooks/runbook-002-alpha-operator-path.md`
 - `implementation_plans/e1-runtime-foundation-control-plane-implementation-plan.md`
 
 ## Как использовать
