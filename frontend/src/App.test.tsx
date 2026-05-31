@@ -809,6 +809,27 @@ describe('App', () => {
           })
           demoTradingSnapshot.readiness.total_records = demoTradingSnapshot.records.length
           demoTradingSnapshot.readiness.outcome_counts.unresolved = 2
+          alphaReadinessSnapshot.evidence.demo_record_count = demoTradingSnapshot.readiness.total_records
+          alphaReadinessSnapshot.summary.next_action = '0 demo records are resolved.'
+          alphaReadinessSnapshot.operator_steps = alphaReadinessSnapshot.operator_steps.map((step: Record<string, any>) => {
+            if (step.step_id === 'log_demo_decision') {
+              return {
+                ...step,
+                status: 'pass',
+                detail: 'Demo decision logging is available or already evidenced.',
+                is_next: false,
+              }
+            }
+            if (step.step_id === 'resolve_demo_result') {
+              return {
+                ...step,
+                status: 'warn',
+                detail: '0 demo records are resolved.',
+                is_next: true,
+              }
+            }
+            return { ...step, is_next: false }
+          })
           return Promise.resolve(new Response(JSON.stringify(demoTradingSnapshot), { status: 200 }))
         }
 
@@ -823,6 +844,26 @@ describe('App', () => {
           demoTradingSnapshot.readiness.cumulative_pnl_pct = 2.4
           demoTradingSnapshot.readiness.outcome_counts.matched = 1
           demoTradingSnapshot.readiness.outcome_counts.unresolved = 1
+          alphaReadinessSnapshot.summary.next_action = '0 review feedback items are captured.'
+          alphaReadinessSnapshot.operator_steps = alphaReadinessSnapshot.operator_steps.map((step: Record<string, any>) => {
+            if (step.step_id === 'resolve_demo_result') {
+              return {
+                ...step,
+                status: 'pass',
+                detail: '1 demo records are resolved.',
+                is_next: false,
+              }
+            }
+            if (step.step_id === 'review_feedback') {
+              return {
+                ...step,
+                status: 'warn',
+                detail: '0 review feedback items are captured.',
+                is_next: true,
+              }
+            }
+            return { ...step, is_next: false }
+          })
           return Promise.resolve(new Response(JSON.stringify(demoTradingSnapshot), { status: 200 }))
         }
 
@@ -903,6 +944,29 @@ describe('App', () => {
               created_at: '2026-04-21T12:00:00Z',
             },
           ]
+          alphaReadinessSnapshot.evidence.validation_replay_ready = true
+          alphaReadinessSnapshot.evidence.validation_run_count = 1
+          alphaReadinessSnapshot.summary.next_action =
+            'System is usable, but reliability still needs operator attention before a calm demo launch.'
+          alphaReadinessSnapshot.operator_steps = alphaReadinessSnapshot.operator_steps.map((step: Record<string, any>) => {
+            if (step.step_id === 'run_validation_replay') {
+              return {
+                ...step,
+                status: 'pass',
+                detail: 'Replay evidence is healthy enough to prepare review cards for staged activation.',
+                is_next: false,
+              }
+            }
+            if (step.step_id === 'recheck_reliability') {
+              return {
+                ...step,
+                status: 'warn',
+                detail: 'System is usable, but reliability still needs operator attention before a calm demo launch.',
+                is_next: true,
+              }
+            }
+            return { ...step, is_next: false }
+          })
           return Promise.resolve(new Response(JSON.stringify(validationLabSnapshot), { status: 200 }))
         }
 
@@ -966,6 +1030,29 @@ describe('App', () => {
           reliabilitySnapshot.summary.last_rechecked_at = '2026-04-21T17:05:00Z'
           reliabilitySnapshot.summary.operator_message =
             'Release gates are visible; local fallback still needs operator attention.'
+          alphaReadinessSnapshot.summary = {
+            readiness_status: 'operator_path_ready',
+            operator_path_ready: true,
+            blocking_gate_count: 0,
+            warning_gate_count: 0,
+            next_action: 'Alpha operator path is ready for a disciplined end-to-end run.',
+          }
+          alphaReadinessSnapshot.gates = alphaReadinessSnapshot.gates.map((gate: Record<string, any>) => ({
+            ...gate,
+            status: 'pass',
+            blocks_alpha: false,
+          }))
+          alphaReadinessSnapshot.operator_steps = alphaReadinessSnapshot.operator_steps.map((step: Record<string, any>) => {
+            if (step.step_id === 'recheck_reliability') {
+              return {
+                ...step,
+                status: 'pass',
+                detail: 'Release gates are visible; local fallback still needs operator attention.',
+                is_next: false,
+              }
+            }
+            return { ...step, status: 'pass', is_next: false }
+          })
           return Promise.resolve(new Response(JSON.stringify(reliabilitySnapshot), { status: 200 }))
         }
 
@@ -1007,6 +1094,27 @@ describe('App', () => {
             score: 1,
           })
           sessionReviewSnapshot.summary.feedback_count = 1
+          alphaReadinessSnapshot.summary.next_action =
+            'Validation Lab is waiting for the first replay run before any activation review.'
+          alphaReadinessSnapshot.operator_steps = alphaReadinessSnapshot.operator_steps.map((step: Record<string, any>) => {
+            if (step.step_id === 'review_feedback') {
+              return {
+                ...step,
+                status: 'pass',
+                detail: '1 review feedback items are captured.',
+                is_next: false,
+              }
+            }
+            if (step.step_id === 'run_validation_replay') {
+              return {
+                ...step,
+                status: 'warn',
+                detail: 'Validation Lab is waiting for the first replay run before any activation review.',
+                is_next: true,
+              }
+            }
+            return { ...step, is_next: false }
+          })
           return Promise.resolve(new Response(JSON.stringify(sessionReviewSnapshot), { status: 200 }))
         }
 
@@ -1250,7 +1358,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /trading workspace/i })).toBeInTheDocument()
   })
 
-  it('runs the alpha operator console next step', async () => {
+  it('runs the full alpha operator console path', async () => {
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /alpha operator/i }))
@@ -1260,6 +1368,27 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: /run alpha step start session/i }))
     expect(await screen.findByText(/start session completed/i)).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /run alpha step log demo decision/i })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run alpha step log demo decision/i }))
+    expect(await screen.findByText(/log demo decision completed/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /run alpha step resolve demo result/i })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run alpha step resolve demo result/i }))
+    expect(await screen.findByText(/resolve demo result completed/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /run alpha step capture review feedback/i })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run alpha step capture review feedback/i }))
+    expect(await screen.findByText(/capture review feedback completed/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /run alpha step run validation replay/i })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run alpha step run validation replay/i }))
+    expect(await screen.findByText(/run validation replay completed/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /run alpha step recheck reliability/i })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run alpha step recheck reliability/i }))
+    expect(await screen.findByText(/recheck reliability completed/i)).toBeInTheDocument()
+    expect(await screen.findByText(/path complete/i)).toBeInTheDocument()
+    expect(await screen.findByText(/alpha operator path is ready/i)).toBeInTheDocument()
   })
 
   it('renders ai control and applies a reviewed assignment', async () => {
