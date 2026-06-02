@@ -1,11 +1,10 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from clay.api.dependencies import get_db_session, get_ingestion_cycle_service
-from clay.bootstrap import audit_writer, event_bus
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
@@ -14,7 +13,7 @@ from clay.freshness.evaluator import (
     evaluate_context_freshness,
     resolve_market_freshness_status,
 )
-from clay.ingestion.service import IngestionCycleService
+from clay.ingestion.service import IngestionCycleBusy, IngestionCycleService
 
 
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
@@ -124,8 +123,20 @@ async def run_ingestion_cycle(
     session: Annotated[Session, Depends(get_db_session)],
     service: Annotated[IngestionCycleService, Depends(get_ingestion_cycle_service)],
 ) -> dict[str, object]:
-    summary = await service.run_once(session)
-    payload = summary.as_payload()
-    audit_writer.write("ingestion.run", payload)
-    event_bus.publish("ingestion.updated", payload)
-    return payload
+    """Run one ingestion cycle, then return the run summary.
+
+    B5 contract: the service's ``run_once(session, emit=True)``
+    owns the audit + bus emission (single source of payload
+    shape, shared with the B5 ``IngestionCycleJob``). The route
+    just translates ``IngestionCycleBusy`` into ``409 Conflict``
+    so an operator double-click of "Run cycle" gets a clear
+    status code instead of a stack trace.
+    """
+    try:
+        summary = await service.run_once(session, emit=True)
+    except IngestionCycleBusy as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    return summary.as_payload()

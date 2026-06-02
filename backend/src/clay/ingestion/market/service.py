@@ -26,7 +26,8 @@ class MarketIngestionService:
         self,
         repository: MarketRepository,
         bars: Iterable[NormalizedMarketBar],
-    ) -> int:
+    ) -> tuple[int, int]:
+        """Persist bars; return ``(inserted, updated)`` (B5 counter split)."""
         return repository.upsert_market_bars(
             [bar.model_dump(mode="python") for bar in bars],
         )

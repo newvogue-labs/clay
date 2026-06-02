@@ -10,8 +10,20 @@ class MarketRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def upsert_market_bars(self, bars: list[dict[str, object]]) -> int:
-        written = 0
+    def upsert_market_bars(
+        self, bars: list[dict[str, object]],
+    ) -> tuple[int, int]:
+        """Insert-or-update bars; return ``(inserted, updated)``.
+
+        B5 (MED-C) splits the previous ``int`` return into a
+        ``(inserted, updated)`` tuple so the cycle summary can
+        report the two counts separately (the
+        ``market_records_written`` total is a computed property
+        ``= inserted + updated`` in ``IngestionRunSummary`` for
+        backward-compat with the pre-B5 ``assert ... == 4`` tests).
+        """
+        inserted = 0
+        updated = 0
         next_sqlite_id = self._next_sqlite_market_bar_id()
         for bar in bars:
             existing = self.session.scalar(
@@ -27,7 +39,7 @@ class MarketRepository:
                     payload["id"] = next_sqlite_id
                     next_sqlite_id += 1
                 self.session.add(MarketBar(**payload))
-                written += 1
+                inserted += 1
                 continue
 
             existing.open = float(bar["open"])
@@ -42,10 +54,10 @@ class MarketRepository:
             )
             existing.source = str(bar["source"])
             existing.bar_close_time = bar["bar_close_time"]  # type: ignore[assignment]
-            written += 1
+            updated += 1
 
         self.session.flush()
-        return written
+        return inserted, updated
 
     def _next_sqlite_market_bar_id(self) -> int | None:
         bind = self.session.get_bind()
@@ -64,7 +76,25 @@ class MarketRepository:
         evaluated_at: datetime,
         latest_bar_open_time: datetime | None,
         is_stale: bool,
-    ) -> None:
+    ) -> bool:
+        """Upsert a freshness row; return ``True`` iff a state transition occurred.
+
+        B5 Поправка 2 (Emma caught): the previous ``None`` return
+        gave the caller no signal of whether the upsert changed
+        anything, so ``IngestionRunSummary.freshness_state_transitions``
+        could not be computed without re-reading the row. The new
+        ``bool`` return is the **transition signal** the
+        ``IngestionCycleJob``'s anti-flood diff watches.
+
+        Semantics:
+
+        * INSERT (no existing row) → ``True`` (first observation =
+          transition from "unknown").
+        * UPDATE with **same** ``freshness_state`` → ``False``
+          (timestamp-only touch, no transition).
+        * UPDATE with **different** ``freshness_state`` → ``True``
+          (real state change).
+        """
         existing = self.session.scalar(
             select(MarketFreshnessStatus).where(
                 MarketFreshnessStatus.symbol == symbol,
@@ -82,13 +112,16 @@ class MarketRepository:
                     is_stale=is_stale,
                 ),
             )
-        else:
-            existing.freshness_state = freshness_state
-            existing.evaluated_at = evaluated_at
-            existing.latest_bar_open_time = latest_bar_open_time
-            existing.is_stale = is_stale
+            self.session.flush()
+            return True
 
+        state_changed = existing.freshness_state != freshness_state
+        existing.freshness_state = freshness_state
+        existing.evaluated_at = evaluated_at
+        existing.latest_bar_open_time = latest_bar_open_time
+        existing.is_stale = is_stale
         self.session.flush()
+        return state_changed
 
     def list_latest_bars(
         self,

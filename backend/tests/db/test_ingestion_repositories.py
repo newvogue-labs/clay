@@ -39,7 +39,7 @@ def test_market_repository_persists_bars_and_freshness(db_session) -> None:
     latest = repository.list_latest_bars()
     freshness = repository.list_freshness_statuses()
 
-    assert written == 1
+    assert written == (1, 0)  # B5: (inserted, updated) tuple
     assert latest[0].symbol == "BTCUSDT"
     assert freshness[0].freshness_state == "fresh"
 
