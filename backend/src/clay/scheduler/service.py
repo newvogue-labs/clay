@@ -59,6 +59,7 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable
 
+from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import UTC
@@ -141,7 +142,10 @@ class ClayScheduler:
         self._session_factory = session_factory
         self._ingestion_cycle_service = ingestion_cycle_service
         self._apscheduler = AsyncIOScheduler(
-            executors={"default": ThreadPoolExecutor(max_workers=4)},
+            executors={
+                "default": ThreadPoolExecutor(max_workers=4),
+                "async": AsyncIOExecutor(),
+            },
             timezone=UTC,
         )
 
@@ -278,19 +282,20 @@ class ClayScheduler:
         )
 
     def add_ingestion_cycle_job(self) -> None:
-        """Register the B5 ``IngestionCycleJob`` (flag-gated + 4-dep-checked).
+        """Register the B5 ``IngestionCycleJob`` (flag-gated + 3-dep-checked).
 
         Three gates — in order — before registration:
 
         1. ``ingestion_enabled`` flag (``False`` → silent skip, a
            documented operator opt-out, not a misconfiguration).
-        2. All 4 B5 deps present: ``ingestion_cycle_service``,
-           ``session_factory``, ``audit_writer``, ``event_bus``.
-           If any are ``None`` while the flag is ``True``, emit a
-           **loud warning** (Q1, Emma, scaled up from B4's 2
-           deps) that **names the missing dep(s)** — this is a
-           misconfiguration: production (``lifespan.py``) always
-           passes all four, so the path is dev/test-only.
+        2. All 3 C3 deps present: ``ingestion_cycle_service``,
+           ``audit_writer``, ``event_bus``. ``session_factory``
+           is no longer needed here — it lives inside
+           ``IngestionCycleService`` (C3 refactor: session
+           lifecycle is owned by the service's ``_persist``
+           method, running in ``to_thread``). If any dep is
+           ``None`` while the flag is ``True``, emit a **loud
+           warning** (Q1) that **names the missing dep(s)**.
         3. The job is registered through ``_arun_safely``
            (NOT ``_run_safely`` — sync wrapper would not await
            the coroutine, silent no-op; Emma's fragment D
@@ -312,7 +317,6 @@ class ClayScheduler:
             name
             for name, value in (
                 ("ingestion_cycle_service", self._ingestion_cycle_service),
-                ("session_factory", self._session_factory),
                 ("audit_writer", self._audit_writer),
                 ("event_bus", self._event_bus),
             )
@@ -327,7 +331,6 @@ class ClayScheduler:
             return
         job = IngestionCycleJob(
             ingestion_service=self._ingestion_cycle_service,  # type: ignore[arg-type]
-            session_factory=self._session_factory,  # type: ignore[arg-type]
             audit_writer=self._audit_writer,
             event_bus=self._event_bus,
         )
@@ -344,8 +347,7 @@ class ClayScheduler:
             trigger="interval",
             seconds=self._settings.ingestion_cycle_interval_seconds,
             id=self._INGESTION_CYCLE_JOB_ID,
-            # executor=None (default = AsyncIOScheduler's own loop)
-            # is the explicit B5 async-routing contract.
+            executor="async",
             max_instances=1,
             coalesce=True,
             replace_existing=True,

@@ -9,6 +9,7 @@ present.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -491,5 +492,103 @@ async def test_loud_warning_when_ingestion_enabled_but_deps_missing(
             or "session_factory" in warning_text
         )
         assert "NOT registered" in warning_text or "misconfiguration" in warning_text
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+@pytest.mark.anyio
+async def test_T1_ingestion_cycle_has_async_executor(tmp_path: Path) -> None:
+    """T1: ``ingestion-cycle`` registered with ``executor="async"``.
+
+    Sync jobs (``health-tick``, ``reliability-recheck``) keep
+    ``executor="default"`` (ThreadPoolExecutor).
+    """
+    settings = SchedulerSettings(
+        enabled=True,
+        reliability_enabled=True,
+        ingestion_enabled=True,
+    )
+    scheduler, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+        reliability_service=MagicMock(),
+        session_factory=MagicMock(),
+        ingestion_cycle_service=MagicMock(),
+    )
+    scheduler.start()
+
+    try:
+        ingestion_job = scheduler._apscheduler.get_job("ingestion-cycle")
+        health_job = scheduler._apscheduler.get_job("health-tick")
+        reliability_job = scheduler._apscheduler.get_job("reliability-recheck")
+
+        assert ingestion_job is not None
+        assert health_job is not None
+        assert reliability_job is not None
+
+        assert ingestion_job.executor == "async"
+        assert health_job.executor == "default"
+        assert reliability_job.executor == "default"
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+@pytest.mark.anyio
+async def test_T2_ingestion_cycle_actually_executes_on_scheduler(tmp_path: Path) -> None:
+    """T2: scheduler-driven ingestion cycle actually runs (no ``coroutine never awaited``).
+
+    Previously the async ``_arun_safely`` was submitted to the sync
+    ThreadPoolExecutor (``"default"``) and silently dropped. After
+    D4-FIX, it uses ``AsyncIOExecutor`` (``"async"``) and the
+    coroutine is awaited.
+
+    We prove this by registering with a short interval, running for
+    a few ticks, and asserting the service's ``run_once`` was called.
+    """
+    from dataclasses import dataclass, field
+
+    @dataclass
+    class _FakeRunSummary:
+        incidents: list = field(default_factory=list)
+        freshness_state_transitions: int = 0
+
+    class _FakeIngestionCycleService:
+        """Minimal fake that works with ``IngestionCycleJob``.
+
+        MagicMock is unsuitable because:
+        - ``is_running`` (property) is truthy by default →
+          always short-circuits the tick.
+        - ``run_once`` (async) returns a non-awaitable →
+          raises TypeError inside the scheduler's ``await``.
+        """
+        is_running = False
+        call_count = 0
+
+        async def run_once(self, *, emit: bool = False) -> _FakeRunSummary:  # noqa: ARG002
+            self.call_count += 1
+            return _FakeRunSummary()
+
+        def emit_cycle_events(self, summary: _FakeRunSummary) -> None:
+            pass
+
+    ingestion_service = _FakeIngestionCycleService()
+    settings = SchedulerSettings(
+        enabled=True,
+        ingestion_enabled=True,
+        ingestion_cycle_interval_seconds=1,
+    )
+    scheduler, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+        ingestion_cycle_service=ingestion_service,
+        session_factory=MagicMock(),
+    )
+    scheduler.start()
+
+    try:
+        await asyncio.sleep(2.5)
+        assert ingestion_service.call_count >= 1, (
+            f"Expected >=1 call to run_once, got {ingestion_service.call_count}"
+        )
     finally:
         scheduler.shutdown(wait=True)
