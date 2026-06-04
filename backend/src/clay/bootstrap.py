@@ -40,7 +40,7 @@ from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
 from clay.ingestion.context.contracts import ContextConnector
 from clay.ingestion.context.manager import ContextConnectorManager
-from clay.ingestion.market.binance_client import BinanceSpotClient
+from clay.ingestion.market.factory import build_exchanges_map, build_market_client
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
 from clay.knowledge.service import KnowledgeService
@@ -173,9 +173,13 @@ def build_services(
     preflight_service = PreflightService(registry)
 
     ingestion_settings = IngestionSettings()
-    market_ingestion_service = MarketIngestionService(
-        BinanceSpotClient(base_url=ingestion_settings.binance_base_url),
-    )
+    exchanges_map = build_exchanges_map(ingestion_settings)
+    exchange_clients = {
+        eid: (build_market_client(cfg), cfg)
+        for eid, cfg in exchanges_map.items()
+        if cfg.enabled
+    }
+    market_ingestion_service = MarketIngestionService(exchange_clients)
 
     context_connector_manager = ContextConnectorManager(
         _build_default_context_connectors(ingestion_settings),

@@ -14,6 +14,7 @@ from clay.db.repositories_ops import OpsRepository
 from clay.events.bus import EventBus
 from clay.freshness.evaluator import evaluate_market_freshness
 from clay.ingestion.context.manager import ConnectorRunResult, ContextConnectorManager
+from clay.ingestion.market.protocol import MarketDataClient
 from clay.ingestion.market.service import MarketIngestionService
 from clay.settings.ingestion import IngestionSettings
 
@@ -101,8 +102,9 @@ class IngestionRunSummary:
 
 @dataclass(slots=True)
 class _MarketBatch:
-    """DTO for one symbol+timeframe fetch result — plain data, no ORM."""
+    """DTO for one exchange+symbol+timeframe fetch result — plain data, no ORM."""
 
+    source: str
     symbol: str
     timeframe: str
     bars: list[Any] | None = None
@@ -271,34 +273,32 @@ class IngestionCycleService:
         )
 
     async def _collect_market_bars(self) -> list[_MarketBatch]:
-        """Async fetch per symbol+timeframe with per-symbol failure isolation.
+        """Async fetch per exchange → symbol+timeframe with per-batch isolation.
 
-        🔴 C3 fix: preserves the pre-C3 semantics where a single
-        symbol failure does **not** abort the whole cycle — the
-        error is captured in ``_MarketBatch.error`` and the loop
-        continues to the next symbol. The failure is then persisted
-        (health event + freshness status) in the ``_persist`` phase.
-        No DB writes happen here — all writes are deferred to the
-        sync ``_persist_market_bars`` running in the worker thread.
+        E3: outer loop over enabled exchanges, inner loop over the existing
+        per-symbol/timeframe pattern. One exchange (``binance_spot``) at E3;
+        future exchanges (E4, Bybit) add a second iteration.  A single symbol
+        failure inside an exchange does **not** abort the exchange; a whole
+        exchange failure is captured per-batch and handled in the persist phase.
         """
-        if not self.settings.binance_spot_enabled:
-            return []
-
         batches: list[_MarketBatch] = []
-        for symbol in self.settings.market_symbols:
-            for timeframe in self.settings.market_timeframes:
-                try:
-                    bars = await self._fetch_market_bars(
-                        symbol=symbol, timeframe=timeframe,
-                    )
-                    batches.append(_MarketBatch(
-                        symbol=symbol, timeframe=timeframe, bars=bars,
-                    ))
-                except Exception as exc:
-                    batches.append(_MarketBatch(
-                        symbol=symbol, timeframe=timeframe,
-                        error=exc,
-                    ))
+        for _exchange_id, (client, config) in self.market_service.exchange_clients.items():
+            for symbol in config.symbols:
+                for timeframe in config.timeframes:
+                    try:
+                        bars = await self._fetch_market_bars(
+                            client=client, symbol=symbol, timeframe=timeframe,
+                        )
+                        batches.append(_MarketBatch(
+                            source=config.source,
+                            symbol=symbol, timeframe=timeframe, bars=bars,
+                        ))
+                    except Exception as exc:
+                        batches.append(_MarketBatch(
+                            source=config.source,
+                            symbol=symbol, timeframe=timeframe,
+                            error=exc,
+                        ))
         return batches
 
     def _persist(
@@ -337,104 +337,116 @@ class IngestionCycleService:
         summary: IngestionRunSummary,
         collected: _CollectedData,
     ) -> None:
-        """Sync persist market bars + freshness + health events."""
-        if not self.settings.binance_spot_enabled:
-            return
+        """Sync persist market bars + freshness + health events per exchange.
 
-        market_run = ops_repo.create_ingest_run(
-            source_name="binance_spot",
-            source_type="market",
-            status="running",
-            started_at=collected.started_at,
-            details={
-                "symbols": self.settings.market_symbols,
-                "timeframes": self.settings.market_timeframes,
-            },
-        )
-
-        incidents_before = len(summary.incidents)
-
+        E3: groups batches by source (exchange) and creates one ingest
+        run per exchange.  At E3 there is exactly one source group
+        (``binance_spot``), so the behaviour is byte-identical to the
+        pre-E3 single-run code path.
+        """
+        # Group by exchange source
+        groups: dict[str, list[_MarketBatch]] = {}
         for batch in collected.market_batches:
-            if batch.is_failure:
-                # 🔴 C3 fix: per-symbol failure isolation — record
-                # incident + health event + unknown freshness,
-                # then continue to the next batch.
-                assert batch.error is not None
-                observed_at = datetime.now(UTC)
-                message = self._format_exception_message(batch.error)
-                summary.incidents.append({
-                    "source_name": f"binance_spot:{batch.symbol}:{batch.timeframe}",
-                    "severity": "error",
-                    "message": message,
-                })
-                ops_repo.record_source_health_event(
-                    source_name=f"binance_spot:{batch.symbol}:{batch.timeframe}",
-                    severity="error",
-                    message=message,
-                    recorded_at=observed_at,
+            groups.setdefault(batch.source, []).append(batch)
+
+        for source, exchange_batches in groups.items():
+            exchange_symbols = sorted({b.symbol for b in exchange_batches})
+            exchange_timeframes = sorted({b.timeframe for b in exchange_batches})
+
+            market_run = ops_repo.create_ingest_run(
+                source_name=source,
+                source_type="market",
+                status="running",
+                started_at=collected.started_at,
+                details={
+                    "symbols": list(exchange_symbols),
+                    "timeframes": list(exchange_timeframes),
+                },
+            )
+
+            incidents_before = len(summary.incidents)
+
+            for batch in exchange_batches:
+                if batch.is_failure:
+                    # 🔴 C3 fix: per-symbol failure isolation — record
+                    # incident + health event + unknown freshness,
+                    # then continue to the next batch.
+                    assert batch.error is not None
+                    observed_at = datetime.now(UTC)
+                    message = self._format_exception_message(batch.error)
+                    summary.incidents.append({
+                        "source_name": f"{source}:{batch.symbol}:{batch.timeframe}",
+                        "severity": "error",
+                        "message": message,
+                    })
+                    ops_repo.record_source_health_event(
+                        source_name=f"{source}:{batch.symbol}:{batch.timeframe}",
+                        severity="error",
+                        message=message,
+                        recorded_at=observed_at,
+                    )
+                    market_repo.upsert_freshness_status(
+                        symbol=batch.symbol, timeframe=batch.timeframe,
+                        source=batch.source,
+                        freshness_state="unknown", evaluated_at=observed_at,
+                        latest_bar_open_time=None, is_stale=True,
+                    )
+                    summary.freshness_updates_written += 1
+                    continue
+
+                assert batch.bars is not None
+                inserted, updated = self.market_service.persist_bars(
+                    market_repo, batch.bars,
                 )
-                market_repo.upsert_freshness_status(
+                summary.market_records_inserted += inserted
+                summary.market_records_updated += updated
+
+                latest_bar = max(
+                    batch.bars,
+                    key=lambda candidate: candidate.bar_close_time,
+                )
+                freshness = evaluate_market_freshness(
+                    timeframe=batch.timeframe,
+                    last_received_at=latest_bar.bar_close_time,
+                    now=datetime.now(UTC),
+                )
+                state_changed = market_repo.upsert_freshness_status(
                     symbol=batch.symbol, timeframe=batch.timeframe,
-                    source=self.market_service.client.source,
-                    freshness_state="unknown", evaluated_at=observed_at,
-                    latest_bar_open_time=None, is_stale=True,
+                    source=latest_bar.source,
+                    freshness_state=freshness.status,
+                    evaluated_at=freshness.observed_at,
+                    latest_bar_open_time=latest_bar.bar_open_time,
+                    is_stale=freshness.status != "fresh",
                 )
+                if state_changed:
+                    summary.freshness_state_transitions += 1
                 summary.freshness_updates_written += 1
-                continue
+                ops_repo.resolve_source_health_events(
+                    source_name=f"{source}:{batch.symbol}:{batch.timeframe}",
+                    resolved_at=freshness.observed_at,
+                    resolution_message="Market ingest recovered after successful refresh.",
+                )
 
-            assert batch.bars is not None
-            inserted, updated = self.market_service.persist_bars(
-                market_repo, batch.bars,
-            )
-            summary.market_records_inserted += inserted
-            summary.market_records_updated += updated
+            incidents_after = len(summary.incidents)
+            market_status = "success"
+            if incidents_after > incidents_before and (
+                summary.market_records_inserted + summary.market_records_updated
+            ) > 0:
+                market_status = "partial_failure"
+            elif incidents_after > incidents_before:
+                market_status = "failed"
 
-            latest_bar = max(
-                batch.bars,
-                key=lambda candidate: candidate.bar_close_time,
+            ops_repo.finalize_ingest_run(
+                market_run,
+                status=market_status,
+                finished_at=datetime.now(UTC),
+                details={
+                    "market_records_written": (
+                        summary.market_records_inserted + summary.market_records_updated
+                    ),
+                    "freshness_updates_written": summary.freshness_updates_written,
+                },
             )
-            freshness = evaluate_market_freshness(
-                timeframe=batch.timeframe,
-                last_received_at=latest_bar.bar_close_time,
-                now=datetime.now(UTC),
-            )
-            state_changed = market_repo.upsert_freshness_status(
-                symbol=batch.symbol, timeframe=batch.timeframe,
-                source=latest_bar.source,
-                freshness_state=freshness.status,
-                evaluated_at=freshness.observed_at,
-                latest_bar_open_time=latest_bar.bar_open_time,
-                is_stale=freshness.status != "fresh",
-            )
-            if state_changed:
-                summary.freshness_state_transitions += 1
-            summary.freshness_updates_written += 1
-            ops_repo.resolve_source_health_events(
-                source_name=f"binance_spot:{batch.symbol}:{batch.timeframe}",
-                resolved_at=freshness.observed_at,
-                resolution_message="Market ingest recovered after successful refresh.",
-            )
-
-        incidents_after = len(summary.incidents)
-        market_status = "success"
-        if incidents_after > incidents_before and (
-            summary.market_records_inserted + summary.market_records_updated
-        ) > 0:
-            market_status = "partial_failure"
-        elif incidents_after > incidents_before:
-            market_status = "failed"
-
-        ops_repo.finalize_ingest_run(
-            market_run,
-            status=market_status,
-            finished_at=datetime.now(UTC),
-            details={
-                "market_records_written": (
-                    summary.market_records_inserted + summary.market_records_updated
-                ),
-                "freshness_updates_written": summary.freshness_updates_written,
-            },
-        )
 
     def _persist_context(
         self,
@@ -515,6 +527,7 @@ class IngestionCycleService:
 
     async def _fetch_market_bars(
         self,
+        client: MarketDataClient,
         *,
         symbol: str,
         timeframe: str,
@@ -523,9 +536,10 @@ class IngestionCycleService:
         cap = self.settings.binance_retry_after_cap_seconds
         for attempt in range(1, self.settings.market_fetch_max_attempts + 1):
             try:
-                return await self.market_service.fetch_and_normalize(
+                return await client.fetch_klines(
                     symbol=symbol,
                     interval=timeframe,
+                    limit=200,
                 )
             except Exception as exc:
                 last_error = exc

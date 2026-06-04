@@ -20,6 +20,7 @@ from clay.api.routes.ingestion import run_ingestion_cycle
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
 from clay.ingestion.context.manager import ContextConnectorManager
+from clay.ingestion.market.exchange_config import ExchangeConfig
 from clay.ingestion.market.models import NormalizedMarketBar
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
@@ -58,9 +59,16 @@ class _FakeBinanceClient:
 
 
 def _build_service(sqlite_settings: IngestionSettings, session_factory: Any) -> IngestionCycleService:
+    client = _FakeBinanceClient()
+    exchange_config = ExchangeConfig(
+        exchange_id="test", source=client.source,
+        enabled=True, base_url="http://fake",
+        symbols=list(sqlite_settings.market_symbols),
+        timeframes=list(sqlite_settings.market_timeframes),
+    )
     return IngestionCycleService(
         settings=sqlite_settings,
-        market_service=MarketIngestionService(_FakeBinanceClient()),
+        market_service=MarketIngestionService({"test": (client, exchange_config)}),
         context_manager=ContextConnectorManager(
             [DemoNewsConnector(), DemoSentimentConnector()],
         ),

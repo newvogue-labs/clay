@@ -3,43 +3,30 @@ from collections.abc import Iterable
 import httpx
 
 from clay.db.repositories_market import MarketRepository
+from clay.ingestion.market.exchange_config import ExchangeConfig
 from clay.ingestion.market.models import NormalizedMarketBar
 from clay.ingestion.market.protocol import MarketDataClient
 
 
 class MarketIngestionService:
-    """Coordinates market payload fetch and normalization.
+    """Coordinates market payload fetch and normalization across exchanges.
 
-    E1: depends on ``MarketDataClient`` protocol — any exchange
-    adapter conforming to the protocol can be wired in.
-    Normalization happens inside the adapter (not here).
+    E3: holds a dict of ``exchange_id → (client, config)`` — one entry
+    per enabled exchange.  The outer loop in ``IngestionCycleService``
+    iterates over exchanges then per-symbol/timeframe inside each,
+    using the appropriate client for fetches.
     """
 
-    def __init__(self, client: MarketDataClient) -> None:
-        self.client = client
+    def __init__(
+        self,
+        exchange_clients: dict[str, tuple[MarketDataClient, ExchangeConfig]],
+    ) -> None:
+        self.exchange_clients = exchange_clients
 
     def set_http_client(self, client: httpx.AsyncClient | None) -> None:
-        """Late-binding pass-through to the underlying ``MarketDataClient``.
-
-        C2 (Wave C pre-D hardening): this is the **real** inject path,
-        not an optional helper. ``api/lifespan.py`` startup calls
-        ``market_ingestion_service.set_http_client(http_client)`` to
-        install the shared lifespan-owned client on the import-time
-        singleton. ``ingestion_cycle_service`` (and therefore the
-        scheduler-job and the ``POST /ingestion/run`` route) reach the
-        same client through this single ``MarketIngestionService`` →
-        ``MarketDataClient`` chain — no ``app.state.httpx_client``
-        needed.
-        """
-        self.client.set_http_client(client)
-
-    async def fetch_and_normalize(
-        self,
-        symbol: str,
-        interval: str,
-        limit: int = 200,
-    ) -> list[NormalizedMarketBar]:
-        return await self.client.fetch_klines(symbol=symbol, interval=interval, limit=limit)
+        """Inject the shared lifespan-owned HTTP client into every adapter."""
+        for c, _ in self.exchange_clients.values():
+            c.set_http_client(client)
 
     def persist_bars(
         self,

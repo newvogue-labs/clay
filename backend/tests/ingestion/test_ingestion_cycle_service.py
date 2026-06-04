@@ -44,6 +44,7 @@ from clay.freshness.models import FreshnessResult
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
 from clay.ingestion.context.manager import ContextConnectorManager
+from clay.ingestion.market.exchange_config import ExchangeConfig
 from clay.ingestion.market.models import NormalizedMarketBar
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import (
@@ -120,9 +121,18 @@ def _build_service(
     client + demo connectors are enough to drive a full market+context
     cycle (4 market bars + 1 news + 1 sentiment).
     """
+    client = _FakeBinanceClient()
+    exchange_config = ExchangeConfig(
+        exchange_id="test",
+        source=client.source,
+        enabled=True,
+        base_url="http://fake",
+        symbols=list(sqlite_settings.market_symbols),
+        timeframes=list(sqlite_settings.market_timeframes),
+    )
     return IngestionCycleService(
         settings=sqlite_settings,
-        market_service=MarketIngestionService(_FakeBinanceClient()),
+        market_service=MarketIngestionService({"test": (client, exchange_config)}),
         context_manager=ContextConnectorManager(
             [DemoNewsConnector(), DemoSentimentConnector()],
         ),
@@ -384,3 +394,160 @@ async def test_persist_runs_in_worker_thread(
         f"_persist ran on the event-loop thread ({main_thread}), "
         f"expected a different (worker) thread"
     )
+
+
+class _SecondFakeClient:
+    """A second fake client for the E3 synthetic 2-exchange seam test."""
+
+    source: str = "bybit_spot"
+
+    async def fetch_klines(  # noqa: PLR6301
+        self,
+        symbol: str,
+        interval: str,
+        limit: int = 200,
+    ) -> list[NormalizedMarketBar]:
+        del symbol, interval, limit
+        return [
+            NormalizedMarketBar(
+                symbol="ETHUSDT",
+                timeframe="5m",
+                open=3500.0, high=3510.0, low=3490.0, close=3505.0,
+                volume=50.0, quote_volume=175000.0,
+                source="bybit_spot",
+                bar_open_time=datetime(2024, 4, 1, 7, 0, tzinfo=UTC),
+                bar_close_time=datetime(2024, 4, 1, 7, 14, 59, 999000, tzinfo=UTC),
+            ),
+        ]
+
+    def set_http_client(self, client: object | None) -> None:
+        return
+
+
+@pytest.mark.anyio
+async def test_two_exchange_seam_dispatches_clients_correctly(
+    sqlite_session_factory: Any,
+    sqlite_settings: IngestionSettings,
+    tmp_path: Path,
+) -> None:
+    """E3 synthetic 2-exchange seam test: both exchanges produce bars tagged with own source.
+
+    Proves that the multi-exchange produce path works without a real
+    second exchange adapter (e.g. Bybit).  At E3 there is only
+    ``binance_spot`` in production, but the same dispatch logic runs.
+    """
+    # Exchange 1: binance (existing fake, source="test")
+    binance_client = _FakeBinanceClient()
+    binance_config = ExchangeConfig(
+        exchange_id="binance_spot", source="binance_spot",
+        enabled=True, base_url="http://fake",
+        symbols=list(sqlite_settings.market_symbols),
+        timeframes=list(sqlite_settings.market_timeframes),
+    )
+    # Exchange 2: bybit (second fake, source="bybit_spot")
+    bybit_client = _SecondFakeClient()
+    bybit_config = ExchangeConfig(
+        exchange_id="bybit_spot", source="bybit_spot",
+        enabled=True, base_url="http://fake",
+        symbols=["ETHUSDT"], timeframes=["5m"],
+    )
+    market_service = MarketIngestionService({
+        "binance_spot": (binance_client, binance_config),
+        "bybit_spot": (bybit_client, bybit_config),
+    })
+    audit_writer = AuditWriter(tmp_path / "state")
+    event_bus = EventBus()
+    service = IngestionCycleService(
+        settings=sqlite_settings,
+        market_service=market_service,
+        context_manager=ContextConnectorManager([]),
+        session_factory=sqlite_session_factory,
+        audit_writer=audit_writer,
+        event_bus=event_bus,
+    )
+
+    summary = await service.run_once(emit=False)
+
+    # Both exchanges produced records
+    assert summary.market_records_written >= 2  # 1 from bybit + >=1 from binance
+
+    with sqlite_session_factory() as session:
+        from sqlalchemy import select
+        from clay.db.models_market import MarketBar
+        rows = session.scalars(select(MarketBar)).all()
+        sources = {r.source for r in rows}
+        # At least the second exchange's source appears
+        assert "bybit_spot" in sources
+
+
+@pytest.mark.anyio
+async def test_per_exchange_failure_isolation_continues_healthy_exchange(
+    sqlite_session_factory: Any,
+    sqlite_settings: IngestionSettings,
+    tmp_path: Path,
+) -> None:
+    """E3: one exchange raises → the other exchange persists its bars.
+
+    The failed exchange gets ``freshness_state="unknown"`` while the
+    healthy exchange's data flows through normally.
+    """
+    class _FailingFakeClient:
+        source: str = "failing_exchange"
+
+        async def fetch_klines(
+            self, symbol: str, interval: str, limit: int = 200,
+        ) -> list[NormalizedMarketBar]:
+            del symbol, interval, limit
+            raise TimeoutError("simulated failure")
+
+        def set_http_client(self, client: object | None) -> None:
+            return
+
+    failing_client = _FailingFakeClient()
+    failing_config = ExchangeConfig(
+        exchange_id="failing", source="failing_exchange",
+        enabled=True, base_url="http://fake",
+        symbols=["BTCUSDT"], timeframes=["5m"],
+    )
+    healthy_client = _FakeBinanceClient()
+    healthy_config = ExchangeConfig(
+        exchange_id="healthy", source="healthy",
+        enabled=True, base_url="http://fake",
+        symbols=list(sqlite_settings.market_symbols),
+        timeframes=list(sqlite_settings.market_timeframes),
+    )
+    market_service = MarketIngestionService({
+        "failing": (failing_client, failing_config),
+        "healthy": (healthy_client, healthy_config),
+    })
+    audit_writer = AuditWriter(tmp_path / "state")
+    event_bus = EventBus()
+    service = IngestionCycleService(
+        settings=sqlite_settings,
+        market_service=market_service,
+        context_manager=ContextConnectorManager([]),
+        session_factory=sqlite_session_factory,
+        audit_writer=audit_writer,
+        event_bus=event_bus,
+    )
+
+    summary = await service.run_once(emit=False)
+
+    # Healthy exchange persisted its bars
+    assert summary.market_records_written >= 4
+
+    with sqlite_session_factory() as session:
+        from sqlalchemy import select
+        from clay.db.models_market import MarketBar, MarketFreshnessStatus
+
+        # Healthy bars are persisted
+        rows = session.scalars(select(MarketBar)).all()
+        assert len(rows) >= 4
+        for row in rows:
+            assert row.source in ("binance_spot", "healthy")
+
+        # Failing exchange has freshness="unknown"
+        freshness_rows = session.scalars(select(MarketFreshnessStatus)).all()
+        failing_freshness = [r for r in freshness_rows if r.source == "failing_exchange"]
+        assert len(failing_freshness) == 1
+        assert failing_freshness[0].freshness_state == "unknown"

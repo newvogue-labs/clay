@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from clay.api.routes.context_data import get_context_summary
 from clay.api.routes.ingestion import get_ingestion_health, run_ingestion_cycle
@@ -12,8 +13,18 @@ from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
 from clay.ingestion.context.manager import ContextConnectorManager
 from clay.ingestion.market.models import NormalizedMarketBar
+from clay.ingestion.market.exchange_config import ExchangeConfig
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
+
+
+def _market_service(client: Any, settings: Any) -> MarketIngestionService:
+    cfg = ExchangeConfig(
+        exchange_id="test", source=getattr(client, "source", "test"),
+        enabled=True, base_url="http://fake",
+        symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+    )
+    return MarketIngestionService({"test": (client, cfg)})
 
 
 def test_ingestion_health_route_returns_market_and_context_sections(
@@ -222,7 +233,7 @@ def test_ingestion_run_route_executes_storage_backed_cycle(
 ) -> None:
     service = IngestionCycleService(
         settings=sqlite_settings,
-        market_service=MarketIngestionService(FakeBinanceClient()),
+        market_service=_market_service(FakeBinanceClient(), sqlite_settings),
         context_manager=ContextConnectorManager(
             [DemoNewsConnector(), DemoSentimentConnector()],
         ),

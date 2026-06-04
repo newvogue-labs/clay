@@ -1,48 +1,49 @@
-# Report: Wave E — E2 source в identity
+# Report: Wave E — E3 produce-side multi-exchange seam
 
-> **Сессия 2026-06-04.** E1 закоммичен (commit `6d6953f`). E2 закоммичен. **288 passed** (286 → 288, +2 net, 0 regress). Pyright src 35 (baseline 35).
+> **Сессия 2026-06-04.** E1 (`6d6953f`), E2 (`d94e893`), E3 (this commit). **293 passed** (288 → 293, +5 net, 0 regress). Pyright src 35 (baseline 35).
 
-## E2 — source становится частью identity ✅
+## E3 — produce-side multi-exchange seam ✅
 
-### Решения Emma (Q1-Q3)
-- **Q1 — один слайс**: атомарно (schema + code + tests), DDL мгновенный
-- **Q2 — server_default СНИМАЕМ**: forgotten source = NOT NULL violation, не mislabel; multi-exchange hazard
-- **Q3 — OrderBookSummary**: 0 касаний (dormant)
+### Решения Emma
+- E3 обрезан до produce-side (read-side вырезан в pre-E5 decision-gated слайс)
+- Product-fork: (i) primary-source preference — склон к этому
 
 ### Создано
 | Файл | Суть |
 |---|---|
-| `backend/alembic/versions/0010_e2_source_in_identity.py` | Миграция: UC расширены, DROP DEFAULT, ADD COLUMN +source |
-| `.context/observations/2026-06/obs-2026-06-04-001-e2-source-in-identity.md` | Observation E2 |
+| `backend/src/clay/ingestion/market/exchange_config.py` | `ExchangeConfig` frozen dataclass |
+| `backend/src/clay/ingestion/market/factory.py` | `build_market_client` dispatch + `build_exchanges_map` |
+| `backend/tests/ingestion/market/test_factory.py` | 3 unit tests (binance, unknown fail-fast, exchanges map) |
 
-### Изменено (3 source + ~18 test)
+### Изменено
 | Файл | Суть |
 |---|---|
-| `db/models_market.py` | FreshnessStatus +source; UC расширены на обоих; 0 default |
-| `db/repositories_market.py` | `upsert_freshness_status(..., source)`, WHERE += source |
-| `ingestion/service.py` | source: success=`latest_bar.source`, failure=`client.source` (не литерал) |
-| 18 test-файлов | `source="binance_spot"` во все вызовы `upsert_freshness_status` |
+| `ingestion/market/__init__.py` | +exports |
+| `ingestion/market/service.py` | `exchange_clients: dict[str, tuple[MarketDataClient, ExchangeConfig]]`; `set_http_client` iterates all |
+| `bootstrap.py` | `build_exchanges_map` + `build_market_client` вместо прямого `BinanceSpotClient` |
+| `ingestion/service.py` | `_MarketBatch.source`; outer exchange loop; per-exchange ingest runs; `batch.source` вместо `self.market_service.client.source` |
+| 6 test-файлов | dict-based `MarketIngestionService`; seam + isolation tests |
 
 ### Проверки
 | Критерий | Статус |
 |---|---|
-| (a) PK не тронут | ✅ |
-| (b) server_default снят | ✅ |
-| (c) failure-path из client.source | ✅ |
-| (d) up/down/up на PG | ✅ |
-| (e) orderbook не тронут | ✅ |
-| (f) литерал `'binance_spot'` в проде | ❌ нет |
-| (g) положительные пины | ✅ 2 теста |
+| (a) production 1-exchange byte-identical | ✅ 288 baseline зелёные |
+| (b) factory fail-fast | ✅ ValueError на неизвестном exchange_id |
+| (c) per-exchange isolation | ✅ упавший → freshness unknown, здоровый → persist |
+| (d) read-side НЕ тронут | ✅ 9 call-sites + 3 dedup = 0 изменений |
+| (e) 0 новых ENV | ✅ flat settings не тронуты |
+| (f) A6: 0 import clay.bootstrap | ✅ |
+| (g) synthetic 2-exchange seam | ✅ dispatch доказан без Bybit |
 
 ### Acceptance
-| | baseline | E2 | Δ |
+| | baseline | E3 | Δ |
 |---|---|---|---|
-| pytest | 286 | **288** | +2 (source-UC + freshness-source) |
+| pytest | 288 | **293** | +5 (factory ×3 + seam + isolation) |
 | regressions | — | 0 | ✅ |
 | pyright src | 35 | **35** | 0 new |
-| migrations | 1 (0010) | up/down/up | ✅ |
+| migrations | — | 0 | ✅ |
 
-### Отложено в E3/E5
-- Read-side source-фильтрация (6 freshness + 4 bars sites) — E3
-- `list_latest_bars()` dedup на `(symbol, timeframe)` без source — E3
-- Bybit адаптер — E4
+### Что дальше
+- **E4 (Bybit-адаптер, изолированно)** — чистый `MarketDataClient` имплементатор, symbol/tf-маппинг внутри адаптера, 0 вайринга в bootstrap/ingestion
+- **Read-side pre-E5** — source-фильтр + dedup + product decision (i)
+- **E5** — live-вайринг Bybit

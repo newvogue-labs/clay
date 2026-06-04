@@ -475,17 +475,19 @@ async def test_http_client_is_open_during_lifespan_and_closed_after(
     """
     app, services = isolated_app
     market_service = services["market_ingestion_service"]
+    # E3: the single (only) exchange client lives in exchange_clients
+    first_client = list(market_service.exchange_clients.values())[0][0]
 
     # The fixture has already rebound lifespan_module._market_ingestion_service
     # to the isolated service — so lifespan calls set_http_client on it.
     # Before startup: no client injected.
-    assert market_service.client._client is None, "client should not be set before startup"
+    assert first_client._client is None, "client should not be set before startup"
 
     async with LifespanManager(app):
         # Inside lifespan: client is open and reachable through the singleton.
-        assert market_service.client._client is not None, "set_http_client never called"
-        assert market_service.client._client.is_closed is False, "client should be open during lifespan"
+        assert first_client._client is not None, "set_http_client never called"
+        assert first_client._client.is_closed is False, "client should be open during lifespan"
 
     # After lifespan exit: client is closed (MED-3 — closed strictly after
     # scheduler.shutdown(wait=True) return, so no in-flight job races).
-    assert market_service.client._client.is_closed is True, "client must be closed after shutdown"
+    assert first_client._client.is_closed is True, "client must be closed after shutdown"

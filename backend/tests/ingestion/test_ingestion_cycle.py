@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -8,9 +9,19 @@ from clay.db.repositories_ops import OpsRepository
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
 from clay.ingestion.context.manager import ContextConnectorManager
+from clay.ingestion.market.exchange_config import ExchangeConfig
 from clay.ingestion.market.models import NormalizedMarketBar
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
+
+
+def _market_service(client: Any, settings: Any) -> MarketIngestionService:
+    cfg = ExchangeConfig(
+        exchange_id="test", source=getattr(client, "source", "test"),
+        enabled=True, base_url="http://fake",
+        symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+    )
+    return MarketIngestionService({"test": (client, cfg)})
 
 
 def _make_bar(
@@ -80,7 +91,7 @@ async def test_ingestion_cycle_persists_market_context_and_ops_records(
 ) -> None:
     service = IngestionCycleService(
         settings=sqlite_settings,
-        market_service=MarketIngestionService(FakeBinanceClient()),
+        market_service=_market_service(FakeBinanceClient(), sqlite_settings),
         context_manager=ContextConnectorManager(
             [DemoNewsConnector(), DemoSentimentConnector()],
         ),
@@ -114,7 +125,7 @@ async def test_ingestion_cycle_retries_transient_market_failures(
     flaky_client = FlakyBinanceClient()
     service = IngestionCycleService(
         settings=sqlite_settings,
-        market_service=MarketIngestionService(flaky_client),
+        market_service=_market_service(flaky_client, sqlite_settings),
         context_manager=ContextConnectorManager(
             [DemoNewsConnector(), DemoSentimentConnector()],
         ),
@@ -142,7 +153,7 @@ async def test_ingestion_cycle_uses_exception_class_when_message_is_empty(
     sqlite_settings.market_fetch_retry_delay_seconds = 0.0
     service = IngestionCycleService(
         settings=sqlite_settings,
-        market_service=MarketIngestionService(EmptyErrorBinanceClient()),
+        market_service=_market_service(EmptyErrorBinanceClient(), sqlite_settings),
         context_manager=ContextConnectorManager([]),
         session_factory=sqlite_session_factory,
     )
@@ -169,11 +180,12 @@ async def test_ingestion_cycle_resolves_previous_market_incident_after_success(
     sqlite_settings.market_timeframes = ["5m"]
     sqlite_settings.market_fetch_retry_delay_seconds = 0.0
 
+    client = FakeBinanceClient()
     with sqlite_session_factory() as seed_session:
         ops_repository = OpsRepository(seed_session)
         observed_at = datetime.now(UTC)
         ops_repository.record_source_health_event(
-            source_name="binance_spot:BTCUSDT:5m",
+            source_name=f"{client.source}:BTCUSDT:5m",
             severity="error",
             message="TimeoutError",
             recorded_at=observed_at,
@@ -182,7 +194,7 @@ async def test_ingestion_cycle_resolves_previous_market_incident_after_success(
 
     service = IngestionCycleService(
         settings=sqlite_settings,
-        market_service=MarketIngestionService(FakeBinanceClient()),
+        market_service=_market_service(client, sqlite_settings),
         context_manager=ContextConnectorManager([]),
         session_factory=sqlite_session_factory,
     )

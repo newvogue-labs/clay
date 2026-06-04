@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
+from clay.ingestion.market.exchange_config import ExchangeConfig
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
 from clay.settings.ingestion import IngestionSettings
@@ -82,14 +83,20 @@ async def test_429_with_retry_after_uses_capped_delay() -> None:
     )
     service = IngestionCycleService(
         settings=settings,
-        market_service=MarketIngestionService(client),
+        market_service=MarketIngestionService(
+            {"test": (client, ExchangeConfig(
+                exchange_id="test", source="test",
+                enabled=True, base_url="http://fake",
+                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+            ))},
+        ),
         context_manager=AsyncMock(),  # type: ignore[arg-type]
         session_factory=AsyncMock(),  # type: ignore[arg-type]
     )
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
 
     assert any(2.0 <= d <= 2.1 for d in SLEEP_TIMES), f"expected ~2.0, got {SLEEP_TIMES}"
 
@@ -101,14 +108,20 @@ async def test_429_without_retry_after_falls_back_to_default() -> None:
     client = _ThrowingBinanceClient(error=_make_rate_limit_error())
     service = IngestionCycleService(
         settings=settings,
-        market_service=MarketIngestionService(client),
+        market_service=MarketIngestionService(
+            {"test": (client, ExchangeConfig(
+                exchange_id="test", source="test",
+                enabled=True, base_url="http://fake",
+                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+            ))},
+        ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
     )
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
 
     assert any(0.4 <= d <= 0.6 for d in SLEEP_TIMES), f"expected ~0.5, got {SLEEP_TIMES}"
 
@@ -120,14 +133,20 @@ async def test_429_with_retry_above_cap_is_capped() -> None:
     client = _ThrowingBinanceClient(error=_make_rate_limit_error(retry_after="300"))
     service = IngestionCycleService(
         settings=settings,
-        market_service=MarketIngestionService(client),
+        market_service=MarketIngestionService(
+            {"test": (client, ExchangeConfig(
+                exchange_id="test", source="test",
+                enabled=True, base_url="http://fake",
+                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+            ))},
+        ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
     )
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
 
     assert any(59.0 <= d <= 61.0 for d in SLEEP_TIMES), f"expected ~60.0, got {SLEEP_TIMES}"
 
@@ -139,14 +158,20 @@ async def test_generic_500_uses_default_delay() -> None:
     client = _ThrowingBinanceClient(error=_make_rate_limit_error(status_code=500))
     service = IngestionCycleService(
         settings=settings,
-        market_service=MarketIngestionService(client),
+        market_service=MarketIngestionService(
+            {"test": (client, ExchangeConfig(
+                exchange_id="test", source="test",
+                enabled=True, base_url="http://fake",
+                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+            ))},
+        ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
     )
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
 
     assert any(0.4 <= d <= 0.6 for d in SLEEP_TIMES), f"expected ~0.5, got {SLEEP_TIMES}"
 
@@ -159,13 +184,19 @@ async def test_retry_succeeds_on_second_attempt_after_429() -> None:
     settings = IngestionSettings(market_fetch_max_attempts=2, binance_retry_after_cap_seconds=60.0)
     service = IngestionCycleService(
         settings=settings,
-        market_service=MarketIngestionService(client),
+        market_service=MarketIngestionService(
+            {"test": (client, ExchangeConfig(
+                exchange_id="test", source="test",
+                enabled=True, base_url="http://fake",
+                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+            ))},
+        ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
     )
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
-        result = await service._fetch_market_bars(symbol="BTCUSDT", timeframe="5m")
+        result = await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
 
     assert result == []
     assert client.call_count == 2
@@ -179,13 +210,19 @@ async def test_retry_exhausted_raises_and_per_symbol_isolation() -> None:
     settings = IngestionSettings(market_fetch_max_attempts=2)
     service = IngestionCycleService(
         settings=settings,
-        market_service=MarketIngestionService(client),
+        market_service=MarketIngestionService(
+            {"test": (client, ExchangeConfig(
+                exchange_id="test", source="test",
+                enabled=True, base_url="http://fake",
+                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+            ))},
+        ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
     )
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(httpx.HTTPStatusError):
-            await service._fetch_market_bars(symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
 
     assert client.call_count == 2
