@@ -17,3 +17,7 @@ playwright-report/
 .vscode/
 .superpowers/
 .codex-screenshots/
+
+# Agent session memory (not part of Clay product)
+.context/
+.opencode/

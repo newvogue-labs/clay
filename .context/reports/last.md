@@ -1,59 +1,35 @@
-# Report: MP1 (retention) + MP4 (loud-failure) + MP3 (config-driven providers)
-
-> **Сессия 2026-06-04 (продолжение).** E6a+b → MP0 → **MP1 ✅ + MP4 ✅ + MP3 ✅**. **357 passed** (+16 net, 0 regress). Pyright src 35. 4 коммита в origin.
+# Session Report — 2026-06-04 (MP2)
 
 ## Что сделано
 
-### MP1 — ops.* retention ✅ (committed `facef1f`)
-- Миграция 0011: 3 индекса (all 3 ops time-cols)
-- `OpsRetentionJob`: sync, threadpool, session-owned, isolated error policy
-- 13 retention-тестов
-- Микрофикс: `index=True` на `IngestRun.started_at` (модель=DDL symmetry)
-- C3 (`routes/ingestion.py`) отделён в `c30a911`
+### MP2 (deploy capstone) — FORMALLY CLOSED ✅
 
-### MP4 — loud-failure / observability ✅ (committed `a6b0e3f`)
+**8 файлов** (4 modified + 4 new):
 
-| Компонент | Что |
-|---|---|
-| `core/logging.py` | own-handler, `propagate=False`, sentinel guard, `CLAY_LOG_LEVEL` env |
-| `create_app()` wire | `configure_clay_logging()` первым вызовом |
-| Site 1: `_collect_market_bars` | `logger.warning(source, symbol, tf, exc)` |
-| Site 2: `_fetch_market_bars` retry | per-attempt `logger.warning` + финальный `logger.error` |
-| Site 3: `context/manager.py` | `logger.exception(connector_id, source_name)` |
-| Config tests (6) | propagate, anti-dup, level, env, format |
-| Emission tests (3) | StreamHandler-capture (caplog не достаёт из-за `propagate=False`) |
-| Caplog fix (2) | `test_clay_scheduler`, `test_context_repositories_dedup` |
+| # | Часть | Файл | LOC |
+|---|-------|------|:---:|
+| 1 | `ClayScheduler.is_running` property | `scheduler/service.py` | +5 |
+| 2 | `readiness_stale_threshold_seconds=120` | `settings/scheduler.py` | +5 |
+| 3 | `OpsRepository.latest_ingest_run()` | `repositories_ops.py` | +6 |
+| 4 | `/health/ready` — tiered, flag-aware, startup-grace | `routes/health.py` | +86 |
+| 5 | `clay/__main__.py` — single-worker entrypoint | `clay/__main__.py` | +17 |
+| 6 | 16 тестов (readiness/is_running/entrypoint) | 3 test-файла | +213 |
 
-### MP3 — config-driven providers ✅ (committed `cb5ef77`)
+### Ключевые решения
 
-| Группа | Было | Стало |
-|---|---|---|
-| `limit=200` | 6 мест (protocol + clients defaults + `service.py:546`) | read from `settings.market_fetch_limit` at call-site only |
-| `timeout=10.0` | 3 хардкода (binance/bybit ctors, lifespan) | read from `settings.market_fetch_timeout` |
-| `Limits(20,10)` | lifespan.py literals | read from `settings.market_limits_*` |
-| THRESHOLDS (5) | `evaluator.py` module-level consts | optional DI params `market_thresholds`/`context_thresholds` |
-| Settings surface | only `IngestionSettings` exported | +`SchedulerSettings` exported |
+- **Поправка 1:** `is_running` через `_running` флаг (не apscheduler `state`, не registry heartbeat)
+- **Поправка 2:** tiered readiness-матрица (DB-ping HARD, scheduler flag-aware, ingest flag-aware + startup-grace)
+- **Миноры:** host/port из env (не settings), один app-инстанс, prod `0.0.0.0`, workers=1, reload=False
 
-**10 новых полей** в `IngestionSettings`, flat (Option A), defaults = прежние литералы.
-evaluator через DI (not `import settings`). Settings-агрегат = YAGNI.
+### Регрессия
 
-## Acceptance
+- **pytest:** 373 passed (+16 net, 0 regress)
+- **pyright:** offline (not run — baseline src=35, pre-existing test-fake debt)
+- **AST:** все src-файлы чисты
 
-| | baseline | now | Δ |
-|---|---|---|---|
-| pytest | 341 | **357** | +16 net |
-| regressions | — | 0 | ✅ |
-| pyright src | 35 | **35** | 0 new |
-| pyright total | 194 | **194** | 0 new |
-| migrations | 0011 | **0011** | ✅ |
+## Что не сделано
 
-## Commit lineage
-```
-cb5ef77 feat(settings): MP3 config-driven providers — 10 hardcoded values → IngestionSettings + DI
-a6b0e3f feat(obs): MP4 loud-failure logging at 3 fetch/retry/context sites + clay logging config
-facef1f feat(ops): MP1 wire ops.* retention prune-job + 0011 indexes + started_at index
-c30a911 feat(ingestion): C3 route no longer owns session lifecycle
-```
-
-## Что дальше
-- **MP2 (deploy capstone)** — финальный слайс MVP-polish. Ждёт от Emma.
+- Контейнеризация (Dockerfile/compose) — backlog
+- Multi-worker — out of scope (ADR-007)
+- `audit.jsonl` ротация — backlog
+- pyright online-прогон — не подтверждён (offline)
