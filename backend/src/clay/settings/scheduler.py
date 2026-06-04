@@ -73,6 +73,12 @@ class SchedulerSettings(BaseSettings):
     # ``CLAY_SCHEDULER_OPS_RETENTION_INTERVAL_SECONDS``.
     ops_retention_interval_seconds: int = 86400
 
+    # MP2: readiness stale-threshold in seconds. Default 120 (2 × default
+    # ingestion_cycle_interval). Used by ``/health/ready`` to classify
+    # ingest-freshness as stale. Overridable via
+    # ``CLAY_SCHEDULER_READINESS_STALE_THRESHOLD_SECONDS``.
+    readiness_stale_threshold_seconds: int = 120
+
     @model_validator(mode="after")
     def _stale_after_at_least_two_ticks(self) -> SchedulerSettings:
         """Invariant from B2 (Emma carry-forward): ``stale_after`` must

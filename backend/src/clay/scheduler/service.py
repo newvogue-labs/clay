@@ -150,6 +150,12 @@ class ClayScheduler:
             },
             timezone=UTC,
         )
+        self._running = False
+
+    @property
+    def is_running(self) -> bool:
+        """True after ``start()``, False after ``shutdown()`` (MP2 readiness)."""
+        return self._running
 
     def start(self) -> None:
         """Start the underlying scheduler, register jobs, mark this service HEALTHY.
@@ -174,6 +180,7 @@ class ClayScheduler:
         third job id.
         """
         self._apscheduler.start()
+        self._running = True
         self.add_health_tick_job()
         self.add_reliability_recheck_job()
         self.add_ops_retention_job()
@@ -525,6 +532,7 @@ class ClayScheduler:
         """
         self._registry.update_status(self._SERVICE_ID, ServiceStatus.STOPPING)
         self._apscheduler.shutdown(wait=wait)
+        self._running = False
         self._registry.update_status(self._SERVICE_ID, ServiceStatus.STOPPED)
         self._audit_writer.write(
             "scheduler.stopped",

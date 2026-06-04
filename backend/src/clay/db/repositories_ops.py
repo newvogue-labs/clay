@@ -133,6 +133,12 @@ class OpsRepository:
         ).limit(limit)
         return list(self.session.scalars(query).all())
 
+    def latest_ingest_run(self) -> IngestRun | None:
+        """Return the most recent ``IngestRun`` by ``started_at``, or ``None``."""
+        return self.session.scalar(
+            select(IngestRun).order_by(IngestRun.started_at.desc()).limit(1),
+        )
+
     def _serialize_details(self, details: dict[str, Any] | None) -> str | None:
         if details is None:
             return None
