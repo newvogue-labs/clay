@@ -40,8 +40,15 @@ def db_session(sqlite_session_factory):
 def app_with_sqlite(sqlite_session_factory, sqlite_settings: IngestionSettings):
     app = create_app()
     async def override_db_session():
-        with sqlite_session_factory() as session:
+        session = sqlite_session_factory()
+        try:
             yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     app.dependency_overrides[get_db_session] = override_db_session
     app.dependency_overrides[get_ingestion_settings] = lambda: sqlite_settings

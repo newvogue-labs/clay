@@ -1,4 +1,4 @@
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -47,9 +47,16 @@ def get_session_factory() -> sessionmaker:
     return ingestion_session_factory
 
 
-async def get_db_session() -> Generator[Session, None, None]:
-    with ingestion_session_factory() as session:
+async def get_db_session() -> AsyncGenerator[Session, None]:
+    session = ingestion_session_factory()
+    try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def get_market_ingestion_service() -> MarketIngestionService:
