@@ -62,6 +62,7 @@ from typing import Awaitable, Callable
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.base import STATE_RUNNING
 from datetime import UTC
 from sqlalchemy.orm import sessionmaker
 
@@ -150,12 +151,28 @@ class ClayScheduler:
             },
             timezone=UTC,
         )
-        self._running = False
 
     @property
     def is_running(self) -> bool:
-        """True after ``start()``, False after ``shutdown()`` (MP2 readiness)."""
-        return self._running
+        """Single source of truth: real state of the underlying
+        ``AsyncIOScheduler`` (FIX-D, hardening #6).
+
+        Returns ``True`` iff the inner scheduler's
+        ``state == STATE_RUNNING`` — i.e. jobs are firing. STRICT
+        equality on purpose: a paused scheduler is not ready (paused
+        jobs do not run, and Clay has no legitimate pause path —
+        ``.pause(`` / ``pause_job`` are not used anywhere in the
+        repo). The MP2 plan recorded this property as a
+        ``STATE_RUNNING`` mirror but the actual code shipped with
+        a hand-maintained mirror flag, which drifted if the inner
+        scheduler was stopped out of band (e.g. a crash in the
+        asyncio loop, an exception in ``start()`` before the flag
+        flipped, or a direct ``self._apscheduler.shutdown`` bypass).
+        Drift showed as ``/health/ready`` reporting
+        ``scheduler=running`` against a dead scheduler — a
+        false-healthy failure of the readiness gate.
+        """
+        return self._apscheduler.state == STATE_RUNNING
 
     def start(self) -> None:
         """Start the underlying scheduler, register jobs, mark this service HEALTHY.
@@ -180,7 +197,6 @@ class ClayScheduler:
         third job id.
         """
         self._apscheduler.start()
-        self._running = True
         self.add_health_tick_job()
         self.add_reliability_recheck_job()
         self.add_ops_retention_job()
@@ -507,7 +523,9 @@ class ClayScheduler:
         # Default B3b path: session-scheduler goes to ERROR,
         # audit on the transition only, anti-flood.
         self._registry.update_status(
-            self._SERVICE_ID, ServiceStatus.ERROR, error=str(exc),
+            self._SERVICE_ID,
+            ServiceStatus.ERROR,
+            error=str(exc),
         )
         if pre_status != ServiceStatus.ERROR:
             self._audit_writer.write(
@@ -520,8 +538,7 @@ class ClayScheduler:
                 },
             )
         logger.exception(
-            "clay.scheduler: scheduled job raised; "
-            "session-scheduler marked ERROR",
+            "clay.scheduler: scheduled job raised; session-scheduler marked ERROR",
         )
 
     def shutdown(self, wait: bool = True) -> None:
@@ -532,7 +549,6 @@ class ClayScheduler:
         """
         self._registry.update_status(self._SERVICE_ID, ServiceStatus.STOPPING)
         self._apscheduler.shutdown(wait=wait)
-        self._running = False
         self._registry.update_status(self._SERVICE_ID, ServiceStatus.STOPPED)
         self._audit_writer.write(
             "scheduler.stopped",
