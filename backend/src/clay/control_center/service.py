@@ -1,5 +1,3 @@
-import json
-from collections import deque
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
@@ -239,26 +237,15 @@ class ControlCenterService:
         ]
 
     def _read_audit_events(self, *, limit: int) -> list[AuditEventSnapshot]:
-        if not self.audit_writer.path.exists():
-            return []
-
-        with self.audit_writer.path.open("r", encoding="utf-8") as handle:
-            lines = deque(handle, maxlen=limit)
-
-        events: list[AuditEventSnapshot] = []
-        for raw_line in reversed(lines):
-            raw_line = raw_line.strip()
-            if not raw_line:
-                continue
-            payload = json.loads(raw_line)
-            events.append(
-                AuditEventSnapshot(
-                    timestamp=payload["timestamp"],
-                    event_type=payload["event_type"],
-                    payload=payload["payload"],
-                ),
+        events_raw = self.audit_writer.read_recent(limit=limit)
+        return [
+            AuditEventSnapshot(
+                timestamp=ev["timestamp"],
+                event_type=ev["event_type"],
+                payload=ev["payload"],
             )
-        return events
+            for ev in events_raw
+        ]
 
     def _build_config_snapshot(self) -> ActiveConfigurationSnapshot:
         snapshot = self.config_loader.snapshot()

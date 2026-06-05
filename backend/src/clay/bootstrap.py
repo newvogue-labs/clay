@@ -54,6 +54,7 @@ from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
 from clay.signal_engine.service import SignalEngineService
+from clay.settings.audit import AuditSettings
 from clay.settings.ingestion import IngestionSettings
 from clay.settings.scheduler import SchedulerSettings
 from clay.validation_lab.service import ValidationLabService
@@ -133,7 +134,12 @@ def build_services(
     """
     config_loader.ensure_default_configs()
     config_loader.load_all()
-    audit_writer = AuditWriter(config_loader.paths.state_dir)
+    audit_settings = AuditSettings()
+    audit_writer = AuditWriter(
+        config_loader.paths.state_dir,
+        max_bytes=audit_settings.max_bytes,
+        backup_count=audit_settings.backup_count,
+    )
     event_bus = EventBus()
 
     if scheduler_settings is None:
@@ -293,6 +299,7 @@ def build_services(
         "preflight_service": preflight_service,
         "scheduler_settings": scheduler_settings,
         "config_loader": config_loader,
+        "audit_settings": audit_settings,
         "audit_writer": audit_writer,
         "event_bus": event_bus,
         "supervisor": supervisor,
@@ -332,6 +339,7 @@ _services = build_services(
 
 alpha_readiness_service = _services["alpha_readiness_service"]
 ai_control_service = _services["ai_control_service"]
+audit_settings = _services["audit_settings"]
 audit_writer = _services["audit_writer"]
 config_loader = _services["config_loader"]
 context_connector_manager = _services["context_connector_manager"]
