@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text
+from sqlalchemy import CheckConstraint, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from clay.db.base import Base
@@ -15,8 +15,8 @@ class IngestRun(Base):
     source_name: Mapped[str] = mapped_column(String(64), index=True)
     source_type: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(32), index=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     details_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -28,7 +28,7 @@ class ConnectorStatusHistory(Base):
     connector_id: Mapped[str] = mapped_column(String(64), index=True)
     connector_type: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(32), index=True)
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    observed_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
     details_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -39,10 +39,12 @@ class SourceHealthEvent(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     source_name: Mapped[str] = mapped_column(String(64), index=True)
     severity: Mapped[str] = mapped_column(String(32), index=True)
-    lifecycle_status: Mapped[str] = mapped_column(String(32), index=True, default="active")
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(32), index=True, default="active"
+    )
     message: Mapped[str] = mapped_column(Text)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     resolution_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -51,13 +53,20 @@ class SourceHealthEvent(Base):
 # state that lives in: ai_control, session_control, workspace, validation_lab,
 # reliability. Five of these tables are singletons (CHECK id = 1).
 #
-# Slice A2.5 (2026-06-01): the datetime columns on the 6 new tables below
+# Slice A2.5 (2026-06-01): all datetime columns on the runtime-state tables
 # are typed as ``UTCDateTime`` (see ``clay.db.types``) so that round-trips
 # against SQLite preserve a UTC ``tzinfo`` (PostgreSQL would already do
-# this; SQLite returns naive ``datetime`` otherwise). The 3 legacy
-# ``ops``-schema tables above intentionally keep raw
-# ``DateTime(timezone=True)`` to avoid a behavioural change for code and
-# tests that depend on them.
+# this; SQLite returns naive ``datetime`` otherwise).
+#
+# Slice FIX-B (2026-06-04): the 3 legacy ``ops``-schema tables above
+# (``ingest_runs``, ``connector_status_history``, ``source_health_events``)
+# are also migrated to ``UTCDateTime``. Their on-disk column type does
+# NOT change (UTCDateTime.impl = DateTime(timezone=True)), so no alembic
+# migration is required — the autogenerate diff is empty. Pre-fix, the
+# raw ``DateTime(timezone=True)`` columns round-tripped as naive on
+# SQLite, which caused latent TypeError on every code path that
+# compared the value with ``datetime.now(UTC)`` (notably
+# ``/health/ready`` last-ingest staleness and ``OpsRetentionJob.run``).
 
 
 class AIAssignment(Base):
@@ -77,11 +86,19 @@ class AIControlState(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    last_reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime, nullable=True
+    )
     pending_review_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    pending_review_role_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    pending_review_model_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    pending_review_created_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    pending_review_role_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    pending_review_model_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    pending_review_created_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime, nullable=True
+    )
 
 
 class SessionState(Base):
@@ -98,10 +115,18 @@ class SessionState(Base):
     strategy_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     paused_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
-    pending_replacement_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    pending_current_symbol: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    pending_proposed_symbol: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    pending_created_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    pending_replacement_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    pending_current_symbol: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )
+    pending_proposed_symbol: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )
+    pending_created_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime, nullable=True
+    )
 
 
 class WorkspaceFocus(Base):
@@ -138,4 +163,6 @@ class ReliabilityState(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    last_rechecked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_rechecked_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime, nullable=True
+    )
