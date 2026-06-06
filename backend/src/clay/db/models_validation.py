@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from clay.db.base import Base
@@ -28,10 +28,13 @@ class ValidationRun(Base):
 
 class ActivationReview(Base):
     __tablename__ = "activation_reviews"
-    __table_args__ = {"schema": "validation"}
+    __table_args__ = (
+        UniqueConstraint("review_id", name="activation_reviews_review_id_key"),
+        {"schema": "validation"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    review_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    review_id: Mapped[str] = mapped_column(String(64))
     target_type: Mapped[str] = mapped_column(String(32), index=True)
     target_id: Mapped[str] = mapped_column(String(64), index=True)
     proposed_value: Mapped[str] = mapped_column(String(64))
