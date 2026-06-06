@@ -6,7 +6,6 @@ from clay.config.loader import ConfigLoader
 from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
-from clay.runtime.states import RuntimeState
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.signal_engine.service import SignalEngineService
@@ -130,3 +129,201 @@ def test_signal_engine_switches_to_defensive_when_runtime_is_degraded(db_session
     assert snapshot.workspace_posture == "restricted_by_degraded"
     assert snapshot.strategy_mode_proposal == "defensive"
     assert any(signal.response_action == "switch_to_defensive" for signal in snapshot.signals)
+
+
+# === G6-obs: observability fields (Finding M, L, R3) ===
+# Эти тесты проверяют, что новые read-only диагностические поля
+# присутствуют и заполняются корректно. 0 изменений в gate/can_start/порогах.
+
+
+def test_signal_engine_emits_applied_penalties_for_provider_mix(db_session) -> None:
+    engine = build_signal_engine()
+    seed_signal_data(db_session)
+
+    snapshot = engine.build_snapshot(db_session)
+
+    btc = next(signal for signal in snapshot.signals if signal.symbol == "BTCUSDT")
+    sol = next(signal for signal in snapshot.signals if signal.symbol == "SOLUSDT")
+
+    # Finding M: ai-conflict от hardcoded INITIAL_ASSIGNMENTS → applied_penalties
+    # содержит структурированную запись с trigger/delta/note.
+    assert btc.applied_penalties, "BTCUSDT должен иметь applied_penalties (ai-conflict)"
+    ai_conflict = next(
+        (p for p in btc.applied_penalties if p.trigger == "ai-conflict"),
+        None,
+    )
+    assert ai_conflict is not None
+    assert ai_conflict.delta == -0.08
+    assert "provider-mix" in ai_conflict.note
+    assert "chief=" in ai_conflict.note
+    # Конфликтующие провайдеры (на live INITIAL_ASSIGNMENTS — Anthropic + Google).
+    assert "news-sentiment-agent=" in ai_conflict.note
+    assert "forecast-model=" in ai_conflict.note
+
+    # SOLUSDT: thin-context + ai-conflict → минимум 2 penalty.
+    sol_triggers = {p.trigger for p in sol.applied_penalties}
+    assert "ai-conflict" in sol_triggers
+    assert any(t.startswith("thin-context") for t in sol_triggers)
+
+
+def test_signal_engine_reports_stale_timeframes(db_session) -> None:
+    engine = build_signal_engine()
+    now = datetime.now(UTC)
+    market_repository = MarketRepository(db_session)
+    context_repository = ContextRepository(db_session)
+    ops_repository = OpsRepository(db_session)
+
+    # Seed BTCUSDT 3 timeframes: 5m + 15m fresh, 1h stale (latest_bar_open_time = now-3h).
+    for timeframe, age_minutes in [("5m", 3), ("15m", 10), ("1h", 180)]:
+        market_repository.upsert_market_bars(
+            [
+                {
+                    "symbol": "BTCUSDT",
+                    "timeframe": timeframe,
+                    "open": 70500.0,
+                    "high": 70600.0,
+                    "low": 70400.0,
+                    "close": 70540.0,
+                    "volume": 260.0,
+                    "quote_volume": 18360400.0,
+                    "source": "binance_spot",
+                    "bar_open_time": now - timedelta(minutes=age_minutes + 15),
+                    "bar_close_time": now - timedelta(minutes=age_minutes),
+                }
+            ]
+        )
+        market_repository.upsert_freshness_status(
+            symbol="BTCUSDT",
+            timeframe=timeframe,
+            source="binance_spot",
+            freshness_state="fresh",
+            evaluated_at=now,
+            latest_bar_open_time=now - timedelta(minutes=age_minutes),
+            is_stale=False,
+        )
+    context_repository.store_news_items(
+        [
+            {
+                "source_name": "demo_news_feed",
+                "headline": "BTC keeps leadership",
+                "summary": "Momentum stays constructive.",
+                "published_at": now - timedelta(minutes=25),
+                "symbol": "BTCUSDT",
+                "source_url": "https://example.invalid/news/btc",
+            }
+        ]
+    )
+    context_repository.store_sentiment_snapshots(
+        [
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "BTCUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.81,
+                "captured_at": now - timedelta(minutes=10),
+            }
+        ]
+    )
+    ops_repository.record_connector_status(
+        connector_id="demo-news",
+        connector_type="news",
+        status="healthy",
+        observed_at=now,
+    )
+    db_session.commit()
+
+    snapshot = engine.build_snapshot(db_session)
+
+    btc = next(signal for signal in snapshot.signals if signal.symbol == "BTCUSDT")
+
+    # Finding L: stale_timeframes содержит ТОЛЬКО "1h" (5m/15m fresh).
+    assert btc.stale_timeframes == ["1h"]
+
+    # Гардрейл: ranking/response_action вычислены (т.е. snapshot собран без падений);
+    # саму политику first-row-wins этот тест не валидирует — это by-design (G6-R R1).
+    assert btc.ranking_score >= 0.0
+    assert btc.state in {"active", "weakening", "absent", "invalidated"}
+
+
+def test_signal_engine_flags_low_quote_volume(db_session) -> None:
+    engine = build_signal_engine()
+    now = datetime.now(UTC)
+    market_repository = MarketRepository(db_session)
+    context_repository = ContextRepository(db_session)
+    ops_repository = OpsRepository(db_session)
+
+    # BTCUSDT: low quote-volume. close=70540, volume=10 → quote_volume=705,400 (< 1M).
+    # SOLUSDT: high quote-volume. close=179, volume=100000 → quote_volume=17,900,000 (> 1M).
+    for symbol, close, volume in [("BTCUSDT", 70540.0, 10.0), ("SOLUSDT", 179.0, 100_000.0)]:
+        market_repository.upsert_market_bars(
+            [
+                {
+                    "symbol": symbol,
+                    "timeframe": "15m",
+                    "open": close * 0.99,
+                    "high": close * 1.01,
+                    "low": close * 0.985,
+                    "close": close,
+                    "volume": volume,
+                    "quote_volume": close * volume,
+                    "source": "binance_spot",
+                    "bar_open_time": now - timedelta(minutes=15),
+                    "bar_close_time": now - timedelta(minutes=1),
+                }
+            ]
+        )
+        market_repository.upsert_freshness_status(
+            symbol=symbol,
+            timeframe="15m",
+            source="binance_spot",
+            freshness_state="fresh",
+            evaluated_at=now,
+            latest_bar_open_time=now - timedelta(minutes=15),
+            is_stale=False,
+        )
+    context_repository.store_news_items(
+        [
+            {
+                "source_name": "demo_news_feed",
+                "headline": "BTC keeps leadership",
+                "summary": "Momentum stays constructive.",
+                "published_at": now - timedelta(minutes=25),
+                "symbol": "BTCUSDT",
+                "source_url": "https://example.invalid/news/btc",
+            }
+        ]
+    )
+    context_repository.store_sentiment_snapshots(
+        [
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "BTCUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.81,
+                "captured_at": now - timedelta(minutes=10),
+            }
+        ]
+    )
+    ops_repository.record_connector_status(
+        connector_id="demo-news",
+        connector_type="news",
+        status="healthy",
+        observed_at=now,
+    )
+    db_session.commit()
+
+    snapshot = engine.build_snapshot(db_session)
+
+    btc = next(signal for signal in snapshot.signals if signal.symbol == "BTCUSDT")
+    sol = next(signal for signal in snapshot.signals if signal.symbol == "SOLUSDT")
+
+    # R3: BTCUSDT thin → low_quote_volume=True, leader_quote_volume=705,400.
+    assert round(btc.leader_quote_volume, 2) == 705_400.0
+    assert btc.low_quote_volume is True
+
+    # SOLUSDT liquid → low_quote_volume=False, leader_quote_volume=17,900,000.
+    assert round(sol.leader_quote_volume, 2) == 17_900_000.0
+    assert sol.low_quote_volume is False
+
+    # Гардрейл: liquidity_summary (rank-based) остаётся в своей семантике —
+    # этот тест НЕ ассертит liquidity_summary напрямую, т.к. она не наша цель.

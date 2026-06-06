@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from clay.signal_engine.models import AppliedPenalty
+
 
 PreflightCheckStatus = Literal["ok", "hard_fail"]
 SessionLifecycleState = Literal["idle", "pre_session", "active_session", "paused", "review"]
@@ -30,6 +32,10 @@ class SessionBriefingSignal(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     ranking_score: float = Field(ge=0.0, le=1.0)
     setup_summary: str
+    applied_penalties: list[AppliedPenalty] = Field(default_factory=list)
+    stale_timeframes: list[str] = Field(default_factory=list)
+    leader_quote_volume: float = 0.0
+    low_quote_volume: bool = False
 
 
 class SessionBriefingSnapshot(BaseModel):

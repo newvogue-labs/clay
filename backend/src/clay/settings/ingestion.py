@@ -44,6 +44,12 @@ class IngestionSettings(BaseSettings):
     context_freshness_news_hours: int = 8
     context_freshness_sentiment_hours: int = 4
 
+    # === G6-obs: low quote-volume indicator (Finding R3) ===
+    # Грубый индикатор ликвидности в USD-обороте: preferred-bar quote_volume
+    # (close * volume) ниже порога → low_quote_volume=True в briefing.
+    # НЕ используется как gate — только observability-флаг. Env-tunable.
+    low_quote_volume_threshold: float = 1_000_000.0
+
     def market_freshness_thresholds(self) -> dict[str, timedelta]:
         return {
             "5m": timedelta(minutes=self.market_freshness_5m_minutes),

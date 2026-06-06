@@ -223,6 +223,7 @@ def build_services(
         preflight_service=preflight_service,
         config_loader=config_loader,
         ai_control_service=ai_control_service,
+        ingestion_settings=ingestion_settings,
     )
     workspace_service = WorkspaceService(
         runtime_manager=runtime_manager,

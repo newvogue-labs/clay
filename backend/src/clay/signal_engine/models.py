@@ -9,6 +9,12 @@ class RiskTriggerSnapshot(BaseModel):
     response_action: str
 
 
+class AppliedPenalty(BaseModel):
+    trigger: str
+    delta: float
+    note: str
+
+
 class EvaluatedSignalSnapshot(BaseModel):
     signal_id: str
     symbol: str
@@ -33,6 +39,10 @@ class EvaluatedSignalSnapshot(BaseModel):
     invalidation_hint: str
     analyst_note: str
     last_updated_at: str
+    applied_penalties: list[AppliedPenalty] = Field(default_factory=list)
+    stale_timeframes: list[str] = Field(default_factory=list)
+    leader_quote_volume: float = 0.0
+    low_quote_volume: bool = False
 
 
 class SignalEngineSnapshot(BaseModel):

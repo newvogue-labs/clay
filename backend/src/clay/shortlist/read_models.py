@@ -8,6 +8,8 @@ from clay.shortlist.models import ShortlistMetricRow
 def build_shortlist_metrics(
     bars: list[MarketBar],
     freshness_rows: list[MarketFreshnessStatus],
+    *,
+    low_quote_volume_threshold: float = 0.0,
 ) -> list[ShortlistMetricRow]:
     if not bars:
         return []
@@ -15,16 +17,20 @@ def build_shortlist_metrics(
     max_volume = max(bar.volume for bar in bars) or 1.0
     now = datetime.now(UTC)
     freshness_by_symbol: dict[str, str] = {}
+    stale_timeframes_by_symbol: dict[str, list[str]] = {}
     for row in freshness_rows:
-        current = freshness_by_symbol.get(row.symbol, "fresh")
-        if current != "fresh":
-            continue
-        freshness_by_symbol[row.symbol] = resolve_market_freshness_status(
+        evaluated_status = resolve_market_freshness_status(
             stored_status=row.freshness_state,
             timeframe=row.timeframe,
             latest_bar_open_time=row.latest_bar_open_time,
             now=now,
         ).status
+        if evaluated_status != "fresh":
+            stale_timeframes_by_symbol.setdefault(row.symbol, []).append(row.timeframe)
+        current = freshness_by_symbol.get(row.symbol, "fresh")
+        if current != "fresh":
+            continue
+        freshness_by_symbol[row.symbol] = evaluated_status
 
     rows: list[ShortlistMetricRow] = []
     for bar in bars:
@@ -38,6 +44,11 @@ def build_shortlist_metrics(
         else:
             liquidity_summary = "low"
 
+        quote_volume = round(bar.close * bar.volume, 4)
+        low_quote_volume = (
+            low_quote_volume_threshold > 0.0 and quote_volume < low_quote_volume_threshold
+        )
+
         rows.append(
             ShortlistMetricRow(
                 symbol=bar.symbol,
@@ -45,6 +56,9 @@ def build_shortlist_metrics(
                 rolling_volatility_score=rolling_volatility_score,
                 liquidity_summary=liquidity_summary,
                 availability_status=freshness_by_symbol.get(bar.symbol, "unknown"),
+                stale_timeframes=sorted(stale_timeframes_by_symbol.get(bar.symbol, [])),
+                leader_quote_volume=quote_volume,
+                low_quote_volume=low_quote_volume,
             ),
         )
 

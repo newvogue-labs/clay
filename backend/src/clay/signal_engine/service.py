@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from clay.ai_control.service import AIControlService
+from clay.ai_control.models import AssignmentSnapshot
 from clay.config.loader import ConfigLoader
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
@@ -13,12 +15,17 @@ from clay.db.repositories_ops import OpsRepository
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.runtime.states import RuntimeState
+from clay.settings.ingestion import IngestionSettings
 from clay.shortlist.read_models import build_shortlist_metrics
 from clay.signal_engine.models import (
+    AppliedPenalty,
     EvaluatedSignalSnapshot,
     RiskTriggerSnapshot,
     SignalEngineSnapshot,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 TIMEFRAME_PRIORITY = {
@@ -43,11 +50,13 @@ class SignalEngineService:
         preflight_service: PreflightService,
         config_loader: ConfigLoader,
         ai_control_service: AIControlService,
+        ingestion_settings: IngestionSettings | None = None,
     ) -> None:
         self.runtime_manager = runtime_manager
         self.preflight_service = preflight_service
         self.config_loader = config_loader
         self.ai_control_service = ai_control_service
+        self.ingestion_settings = ingestion_settings or IngestionSettings()
 
     def build_snapshot(self, session: Session) -> SignalEngineSnapshot:
         runtime_snapshot = self.runtime_manager.snapshot()
@@ -89,7 +98,11 @@ class SignalEngineService:
         bars = market_repo.list_latest_bars(limit=50)
         freshness_rows = market_repo.list_freshness_statuses()
         preferred_bars = self._pick_preferred_bars(bars)
-        shortlist_rows = build_shortlist_metrics(preferred_bars, freshness_rows)
+        shortlist_rows = build_shortlist_metrics(
+            preferred_bars,
+            freshness_rows,
+            low_quote_volume_threshold=self.ingestion_settings.low_quote_volume_threshold,
+        )
         news_rows = context_repo.latest_news(limit=20)
         sentiment_rows = context_repo.latest_sentiment(limit=20)
         connector_rows = ops_repo.latest_connector_statuses()
@@ -145,7 +158,11 @@ class SignalEngineService:
                 degraded_penalty=risk_config.degraded_confidence_penalty,
                 ai_penalty=ai_penalty,
             )
-            ranking_score = self._apply_ranking_penalty(base_ranking, risk_triggers)
+            ranking_score, applied_penalties = self._apply_ranking_penalty(
+                base_ranking=base_ranking,
+                risk_triggers=risk_triggers,
+                ai_assignments=ai_snapshot.assignments,
+            )
             confidence = self._resolve_confidence(
                 ranking_score=ranking_score,
                 sentiment_score=sentiment_score,
@@ -159,52 +176,81 @@ class SignalEngineService:
                 now=now,
             )
 
+            signal = EvaluatedSignalSnapshot(
+                signal_id=f"sig-{row.symbol.lower()}",
+                symbol=row.symbol,
+                display_name=self._display_name(row.symbol),
+                direction=direction,
+                state=state,
+                confidence=confidence,
+                ranking_score=ranking_score,
+                confidence_penalty=confidence_penalty,
+                strategy_mode=self._resolve_strategy_mode(ranking_score, risk_triggers),
+                response_action=response_action,
+                setup_summary=self._build_setup_summary(
+                    symbol=row.symbol,
+                    direction=direction,
+                    state=state,
+                    liquidity=row.liquidity_summary,
+                    response_action=response_action,
+                ),
+                technical_context=[
+                    f"Liquidity {row.liquidity_summary}",
+                    f"Volatility score {row.rolling_volatility_score:.2f}",
+                    f"Availability {market_status}",
+                ],
+                execution_notes=self._build_execution_notes(
+                    state=state,
+                    response_action=response_action,
+                    direction=direction,
+                ),
+                risk_triggers=risk_triggers,
+                risk_posture=self._build_risk_posture(response_action),
+                risk_reward_hint=self._build_risk_reward_hint(direction=direction, ranking_score=ranking_score),
+                action_guidance=self._build_action_guidance(response_action),
+                directional_bias=direction,
+                entry_hint=self._price_hint(bar.close, direction, mode="entry"),
+                target_hint=self._price_hint(bar.close, direction, mode="target"),
+                invalidation_hint=self._price_hint(bar.close, direction, mode="invalidation"),
+                analyst_note=self._build_analyst_note(
+                    symbol=row.symbol,
+                    state=state,
+                    response_action=response_action,
+                    ranking_score=ranking_score,
+                ),
+                last_updated_at=bar.bar_close_time.isoformat(),
+                applied_penalties=applied_penalties,
+                stale_timeframes=row.stale_timeframes,
+                leader_quote_volume=row.leader_quote_volume,
+                low_quote_volume=row.low_quote_volume,
+            )
+            if applied_penalties:
+                logger.info(
+                    "signal.ranking_capped symbol=%s base=%.2f capped=%.2f penalties=%s",
+                    row.symbol,
+                    base_ranking,
+                    ranking_score,
+                    "; ".join(
+                        f"{p.trigger}:{p.delta:+.2f}({p.note})"
+                        for p in applied_penalties
+                    ),
+                )
+            if row.stale_timeframes:
+                logger.info(
+                    "signal.stale_timeframes_detected symbol=%s stale_tfs=%s",
+                    row.symbol,
+                    ",".join(row.stale_timeframes),
+                )
+            if row.low_quote_volume:
+                logger.info(
+                    "signal.low_quote_volume_detected symbol=%s leader_quote_volume=%.2f threshold=%.2f",
+                    row.symbol,
+                    row.leader_quote_volume,
+                    self.ingestion_settings.low_quote_volume_threshold,
+                )
             candidates.append(
                 SignalCandidate(
-                    signal=EvaluatedSignalSnapshot(
-                        signal_id=f"sig-{row.symbol.lower()}",
-                        symbol=row.symbol,
-                        display_name=self._display_name(row.symbol),
-                        direction=direction,
-                        state=state,
-                        confidence=confidence,
-                        ranking_score=ranking_score,
-                        confidence_penalty=confidence_penalty,
-                        strategy_mode=self._resolve_strategy_mode(ranking_score, risk_triggers),
-                        response_action=response_action,
-                        setup_summary=self._build_setup_summary(
-                            symbol=row.symbol,
-                            direction=direction,
-                            state=state,
-                            liquidity=row.liquidity_summary,
-                            response_action=response_action,
-                        ),
-                        technical_context=[
-                            f"Liquidity {row.liquidity_summary}",
-                            f"Volatility score {row.rolling_volatility_score:.2f}",
-                            f"Availability {market_status}",
-                        ],
-                        execution_notes=self._build_execution_notes(
-                            state=state,
-                            response_action=response_action,
-                            direction=direction,
-                        ),
-                        risk_triggers=risk_triggers,
-                        risk_posture=self._build_risk_posture(response_action),
-                        risk_reward_hint=self._build_risk_reward_hint(direction=direction, ranking_score=ranking_score),
-                        action_guidance=self._build_action_guidance(response_action),
-                        directional_bias=direction,
-                        entry_hint=self._price_hint(bar.close, direction, mode="entry"),
-                        target_hint=self._price_hint(bar.close, direction, mode="target"),
-                        invalidation_hint=self._price_hint(bar.close, direction, mode="invalidation"),
-                        analyst_note=self._build_analyst_note(
-                            symbol=row.symbol,
-                            state=state,
-                            response_action=response_action,
-                            ranking_score=ranking_score,
-                        ),
-                        last_updated_at=bar.bar_close_time.isoformat(),
-                    ),
+                    signal=signal,
                     market_status=market_status,
                     context_status=context_status,
                 )
@@ -325,16 +371,53 @@ class SignalEngineService:
             penalty += degraded_penalty
         return round(min(0.8, penalty), 2)
 
-    def _apply_ranking_penalty(self, base_ranking: float, risk_triggers: list[RiskTriggerSnapshot]) -> float:
+    def _apply_ranking_penalty(
+        self,
+        *,
+        base_ranking: float,
+        risk_triggers: list[RiskTriggerSnapshot],
+        ai_assignments: list[AssignmentSnapshot],
+    ) -> tuple[float, list[AppliedPenalty]]:
         ranking = base_ranking
+        applied: list[AppliedPenalty] = []
+        chief_provider = next(
+            (row.provider for row in ai_assignments if row.role_id == "chief-agent"),
+            "unknown",
+        )
         for trigger in risk_triggers:
             if trigger.response_action == "lower_confidence":
                 ranking -= 0.08
+                if trigger.trigger_id == "ai-conflict":
+                    conflicts = [
+                        f"{row.role_id}={row.provider}"
+                        for row in ai_assignments
+                        if row.review_required
+                    ]
+                    note = f"provider-mix: chief={chief_provider} vs " + ", ".join(conflicts)
+                else:
+                    note = f"trigger={trigger.trigger_id} severity={trigger.severity}"
+                applied.append(
+                    AppliedPenalty(trigger=trigger.trigger_id, delta=-0.08, note=note),
+                )
             elif trigger.response_action == "block_signal":
                 ranking -= 0.2
+                applied.append(
+                    AppliedPenalty(
+                        trigger=trigger.trigger_id,
+                        delta=-0.2,
+                        note=f"trigger={trigger.trigger_id} severity={trigger.severity}",
+                    ),
+                )
             elif trigger.response_action == "switch_to_defensive":
                 ranking -= 0.15
-        return round(max(0.0, min(1.0, ranking)), 2)
+                applied.append(
+                    AppliedPenalty(
+                        trigger=trigger.trigger_id,
+                        delta=-0.15,
+                        note=f"trigger={trigger.trigger_id} severity={trigger.severity}",
+                    ),
+                )
+        return round(max(0.0, min(1.0, ranking)), 2), applied
 
     def _resolve_confidence(
         self,

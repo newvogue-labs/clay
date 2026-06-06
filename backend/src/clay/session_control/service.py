@@ -545,6 +545,10 @@ class SessionControlService:
                 confidence=signal.confidence,
                 ranking_score=signal.ranking_score,
                 setup_summary=signal.setup_summary,
+                applied_penalties=signal.applied_penalties,
+                stale_timeframes=signal.stale_timeframes,
+                leader_quote_volume=signal.leader_quote_volume,
+                low_quote_volume=signal.low_quote_volume,
             )
             for signal in signal_snapshot.signals[:3]
         ]

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ShortlistMetricRow(BaseModel):
@@ -7,3 +7,6 @@ class ShortlistMetricRow(BaseModel):
     rolling_volatility_score: float
     liquidity_summary: str
     availability_status: str
+    stale_timeframes: list[str] = Field(default_factory=list)
+    leader_quote_volume: float = 0.0
+    low_quote_volume: bool = False

@@ -157,7 +157,13 @@ def test_storage_backed_read_routes_return_seeded_data(
     )
     db_session.commit()
 
-    shortlist_payload = asyncio.run(get_shortlist_metrics(db_session, limit=20))
+    shortlist_payload = asyncio.run(
+        get_shortlist_metrics(
+            session=db_session,
+            settings=IngestionSettings(),
+            limit=20,
+        ),
+    )
     market_payload = asyncio.run(
         get_latest_market_bars(
             db_session,
