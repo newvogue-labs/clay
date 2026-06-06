@@ -127,9 +127,16 @@ SENTIMENT_SOURCE_NAME = "demo_sentiment_seed"
 # is the volume of the newest (most recent) bar; older bars are scaled
 # linearly 30%..98% of peak so the newest bar's
 # ``rolling_volume_score = bar.volume / max(all volumes) = 1.0``.
+#
+# Peak volumes are sized ABOVE the live DB's historical max for the
+# symbol across all timeframes, so the newest seeded bar owns the
+# ``max_volume`` slot in ``build_shortlist_metrics`` and gets
+# ``rolling_volume_score = 1.0``. Without this, the seed loses the
+# ``max_volume`` race to historical bars and the score drops to ~0.
 SYMBOL_PROFILES: dict[str, tuple[float, float]] = {
-    "BTCUSDT": (70540.0, 260.0),
-    "SOLUSDT": (179.1, 95.0),
+    "BTCUSDT": (70540.0, 50000.0),
+    "ETHUSDT": (3500.0, 200000.0),
+    "SOLUSDT": (179.1, 2000000.0),
 }
 
 
