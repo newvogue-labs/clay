@@ -336,6 +336,36 @@ class SessionControlService:
         )
         return self.build_snapshot(session)
 
+    def close_review(self, session: Session) -> SessionControlSnapshot:
+        """Explicit operator-driven exit from REVIEW back to BACKGROUND_MONITORING.
+
+        Closes the REVIEW-stuck gap: ``complete_session`` transitions the
+        runtime to ``REVIEW`` and clears the in-memory active session, but
+        no code path projects the runtime back to ``BACKGROUND_MONITORING``.
+        Without this method, a second ``start_session`` after ``complete``
+        returns 409 because ``can_start`` requires
+        ``runtime_state != RuntimeState.REVIEW``. The only pre-existing
+        workaround was a process restart.
+
+        Operator-driven (not a side-effect of ``complete_session``) so
+        that ``REVIEW`` remains a real, observable state for post-complete
+        review of a session.
+        """
+        state = self.runtime_manager.snapshot().state
+        if state != RuntimeState.REVIEW:
+            raise ValueError("session is not in review")
+        previous_state = state.value
+        self.runtime_manager.transition_to(RuntimeState.BACKGROUND_MONITORING)
+        # Idempotent: ``ops.session_state`` is already all-NULL after
+        # ``complete_session``; the call keeps the write-order contract
+        # uniform across the mutators.
+        self._persist_session_state(session)
+        self._write_and_publish(
+            "session.review_closed",
+            {"previous_state": previous_state},
+        )
+        return self.build_snapshot(session)
+
     def review_pair_replacement(
         self,
         session: Session,

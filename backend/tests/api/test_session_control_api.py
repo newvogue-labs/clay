@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from clay.ai_control.service import AIControlService
 from clay.api.routes.session_control import (
     apply_pair_replacement,
+    close_review,
     complete_session,
     get_session_overview,
     pause_session,
@@ -193,3 +194,10 @@ def test_session_route_flow_handles_lifecycle_and_pair_replacement(db_session) -
 
     completed = asyncio.run(complete_session(db_session, service))
     assert completed["lifecycle"]["lifecycle_state"] == "review"
+
+    closed = asyncio.run(close_review(db_session, service))
+    assert closed["lifecycle"]["lifecycle_state"] == "idle"
+    assert closed["lifecycle"]["can_start"] is True
+
+    restarted = asyncio.run(start_session(db_session, service))
+    assert restarted["lifecycle"]["lifecycle_state"] == "active_session"

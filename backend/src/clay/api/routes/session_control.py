@@ -67,6 +67,18 @@ async def complete_session(
     return snapshot.model_dump(mode="json")
 
 
+@router.post("/review/close")
+async def close_review(
+    session: Annotated[Session, Depends(get_db_session)],
+    service: Annotated[SessionControlService, Depends(get_session_control_service)],
+) -> dict[str, object]:
+    try:
+        snapshot = service.close_review(session)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return snapshot.model_dump(mode="json")
+
+
 @router.post("/replacement/review")
 async def review_pair_replacement(
     command: PairReplacementReviewCommand,
