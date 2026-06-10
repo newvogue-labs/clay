@@ -76,6 +76,10 @@
 - [ADR-010 — Chief-agent на Gemini free-tier](adrs/adr-010-chief-agent-gemini-free-tier.md)
 - [ADR-011 — Forecast: локальная количественная модель](adrs/adr-011-local-quant-forecast-model.md)
 - [ADR-012 — News/sentiment: demo-источник для v1](adrs/adr-012-news-sentiment-demo-source-v1.md)
+- `build_specs/deploy5-ai-model-layer.md`
+- `implementation_plans/deploy5-ai-model-layer-implementation-plan.md`
+- `runbooks/runbook-003-killswitch-egress.md`
+- `runbooks/runbook-004-litellm-gateway.md`
 
 ## Как использовать
 

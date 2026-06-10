@@ -369,6 +369,18 @@
 **Dependencies:** `E1`, `E2`  
 **Deliverable:** AI orchestration spec
 
+### E5-DEPLOY5. AI Model Layer (deployment increment)
+
+- **5a:** LLM adapter (httpx, OpenAI-compat) + LiteLLM podman gateway + CLAY_LLM_BASE_URL + smoke (no external) + fix 2 pre-existing fails
+- **5b:** chief-agent live (run_agent + async job ai-agent-cycle + persist ops + kill-switch TUN-down 0-leak)
+- **5c:** subagents (market-scanner live; news-sentiment на demo per ADR-012)
+- **5d:** forecast quant (dataset из market.market_bars → train → local inference; absorbs ML-track)
+- **5e:** validation_lab A/B + governed activation (model_assignment)
+- **cross-cut:** data-exfil policy + geo-allowlist (never-US) + egress-аудит + kill-switch на шлюз
+
+Refs: ADR-005, ADR-009..012; build_specs/deploy5-ai-model-layer.md  
+Dependencies: E1, E2, E5
+
 ---
 
 ## E6. Signal Lifecycle, Ranking And Risk-Control
