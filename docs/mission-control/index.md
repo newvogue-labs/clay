@@ -36,6 +36,10 @@
 - `build_specs/e3-trading-screen-and-live-signal-workspace.md`
   Build-spec по главному рабочему экрану CLAY: `Trading Workspace`, `single focused pair` baseline, live-state behavior и UI-facing data contracts.
 
+## Архитектура
+
+- [DEPLOY-5 — AI Model Layer](../architecture/deploy5-ai-model-layer.md) — план v1.0 слоя вызова моделей (решения 1A, 2A, 3 Gemini, 4B)
+
 ## Подпапки
 
 - `build_specs/`
@@ -68,6 +72,10 @@
 - `runbooks/runbook-001-preflight-degraded-mode.md`
 - `runbooks/runbook-002-alpha-operator-path.md`
 - `implementation_plans/e1-runtime-foundation-control-plane-implementation-plan.md`
+- [ADR-009 — Внешние LLM только через локальный шлюз за TUN](adrs/adr-009-external-llm-egress-gateway.md)
+- [ADR-010 — Chief-agent на Gemini free-tier](adrs/adr-010-chief-agent-gemini-free-tier.md)
+- [ADR-011 — Forecast: локальная количественная модель](adrs/adr-011-local-quant-forecast-model.md)
+- [ADR-012 — News/sentiment: demo-источник для v1](adrs/adr-012-news-sentiment-demo-source-v1.md)
 
 ## Как использовать
 
