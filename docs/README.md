@@ -13,6 +13,8 @@
 - `mission-control/` - полный snapshot папки `CLAY_Mission_Control` из Obsidian.
 - `ui-references/` - распакованные visual reference exports от Gemini для UI-pass.
 - `development/` - handoff-документы, текущий статус разработки, точки остановки и следующие шаги.
+- `architecture/` - архитектурные планы и ADRs по слоям.
+  - [DEPLOY-5 — AI Model Layer](architecture/deploy5-ai-model-layer.md)
 
 ## Источник Snapshot
 
