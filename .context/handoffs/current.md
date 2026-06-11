@@ -1,24 +1,26 @@
 ---
 date: 2026-06-11
 from: Emma
-status: DEPLOY TRACK — 5b-iii CLOSED целиком.
-pytests: "440"
+status: 5b-iii CLOSED целиком. 3 cloud × полный цикл.
+pytests: "441"
 pyright_src: "33 (baseline)"
 ruff: "13 (src baseline)"
 live_db: "5432 — НЕ ТРОГАТЬ"
-podman_db: "5433 — TS2.27.1 (0015 head)"
-tun: "UP — NL exit"
+podman_db: "5433 — TS2.27.1 (0015 head) — inet_server_port()=5432 (Podman mapping)"
+tun: "UP — UK (YottaSrc) exit"
 killswitch: "active (71 reject pkts)"
 scheduler: "ON — CLAY_SCHEDULER_ENABLED=true"
 litellm_models: "5 — gemma4-e2b, local-ollama, gemini-2.5-flash, minimax-m3, gemini-3.1-flash-lite"
+model_registry: "7 — minimax-m3, openai-gpt-5.4-mini, anthropic-claude-sonnet-4.5, gemini-2.5-flash, forecast-lite-v1, gemini-3.1-flash-lite, gemma4:e2b-it-qat"
 ---
 
 # Deploy-трек — 5b-iii CLOSED
 
-## Коммиты (HEAD `6969224`)
+## Коммиты (HEAD `73b59ac`)
 
 | SHA | Message |
 |-----|---------|
+| `73b59ac` | feat(ai-control): add gemini-3.1-flash-lite registry, assign forecast-model (5b-iii.5b) |
 | `6969224` | docs(mission-control): dual-transport routing, provider policy, quota runbook (5b-iii) |
 | `bbf6623` | feat(ai-control): add minimax-m3 cloud model, assign chief-agent (5b-iii.4b) |
 | `a4489ac` | feat(ai): LiteLLM cloud ModelClient + per-call transport routing via model registry |
@@ -34,8 +36,10 @@ litellm_models: "5 — gemma4-e2b, local-ollama, gemini-2.5-flash, minimax-m3, g
 - **5b-iii.4b:** minimax-m3 in registry, chief-agent назначен ✅ `bbf6623`
 - **5b-iii.4c:** live-smoke chief-agent→minimax-m3 ✅ 2 цикла, content_len=1115/1718, error=NULL
 - **5b-iii-docs:** runbook, ADR addendum, config examples, backlog ✅ `6969224`
-- **5b-iii.5a:** Gemini 3.1 Flash Lite host-config ✅ 0 коммитов
-- **5b-iii целиком ЗАКРЫТ:** dual-transport доказан live на обоих плечах
+- **5b-iii.5a:** Gemini 3.1 Flash Lite host-config ✅ 0 коммитов (0.69s — рекорд шлюза)
+- **5b-iii.5b:** gemini-3.1-flash-lite в реестр + forecast-model переназначение ✅ `73b59ac`
+- **5b-iii.5c:** attended smoke forecast-model полный цикл ✅ 2 цикла, content=283/317, error=NULL
+- **5b-iii целиком ЗАКРЫТ:** 3 cloud × полный цикл, dual-transport live на обоих плечах
 
 ## Открыто / следующий
 

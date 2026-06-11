@@ -4,9 +4,9 @@
 - **Trading Layer (FSM):** ✅ MVP-ready (Finding G CLOSED).
 - **DEPLOY TRACK:** ✅ G6-obs → DEPLOY-0/0.1/1/2/3/3.5a/3.5a-V2/3.5b/3.5c/3.5d/4 closed.
 - **DEPLOY-5-RECON + DOCS α1/α2:** ✅ CLOSED.
-- **DEPLOY-5 Phase 3 (code):** ✅ **5b-iii CLOSED целиком.** 9 коммитов, 3 провайдера live.
-- **HEAD:** `6969224` — docs(mission-control): dual-transport routing, provider policy, quota runbook (5b-iii)
-- **origin/main:** `3a325b0` запушено (10 коммитов не запушены).
+- **DEPLOY-5 Phase 3 (code):** ✅ **5b-iii CLOSED целиком.** 3 cloud-провайдера × полный цикл. Dual-transport live на обоих плечах. 10 коммитов.
+- **HEAD:** `73b59ac` — feat(ai-control): add gemini-3.1-flash-lite registry, assign forecast-model (5b-iii.5b)
+- **origin/main:** `3a325b0` запушено (11 коммитов не запушены).
 
 ## DEPLOY TRACK
 
@@ -24,7 +24,7 @@
 - **DEPLOY-5-RECON** (R1–R9): ✅ CLOSED.
 - **DEPLOY-5-DOCS-α1** (ADR-009..012): ✅ CLOSED.
 - **DEPLOY-5-DOCS-α2** (build_spec + impl_plan + runbooks + backlog): ✅ CLOSED.
-- **DEPLOY-5 Phase 3 code (5b-iii):** ✅ **ЗАКРЫТ.**
+- **DEPLOY-5 Phase 3 code (5b-iii):** ✅ **ЗАКРЫТ целиком.**
   - 5b-iii.1: LiteLLMModelClient + RoutingModelClient ✅ `a4489ac`
   - 5b-iii.2: host-config Gemini boundary-live ✅ 0 коммитов
   - 5b-iii.3: attended smoke (429, Gemini free-tier RPD exhausted) ❌ STOP
@@ -33,6 +33,8 @@
   - 5b-iii.4c: attended smoke chief-agent→minimax-m3 ✅ 2 цикла
   - 5b-iii-docs: runbook + ADR + backlog ✅ `6969224`
   - 5b-iii.5a: Gemini 3.1 Flash Lite host-config ✅ 0 коммитов
+  - 5b-iii.5b: gemini-3.1-flash-lite в реестр + forecast-model ✅ `73b59ac`
+  - 5b-iii.5c: attended smoke forecast-model ✅ 2 цикла, 0 ошибок
 - **5c (subagents):** 📋 следующий (recon-слайс)
 - **DEPLOY-CUTOVER** (pg_dump live→podman): 📋 отложен.
 
@@ -55,7 +57,7 @@
 - **Ollama:** system-сервис, `OLLAMA_HOST=127.0.0.1`, `OLLAMA_CONTEXT_LENGTH=65536`, `OLLAMA_NUM_PARALLEL=1`, порт 11434
 - **Dual-transport:** RoutingModelClient per-call по transport-полю registry. Cloud: LiteLLM → 3 провайдера. Local: Ollama native `/api/chat`.
 - **3 live провайдера:** Ollama (gemma4 local), TokenRouter (MiniMax-M3), Google (Gemini 3.1 Flash Lite, Gemini 2.5 Flash fallback)
-- **test:** 440 passed (0 failed). Ruff/Pyright baseline.
+- **test:** 441 passed (+1 transport test). Ruff/Pyright baseline.
 - **keys:** 2 ключа в `~/.config/clay/litellm/litellm.env` (600): GEMINI_API_KEY, TOKENROUTER_API_KEY
 - **env open issue:** `IngestionSettings.env_file` отсутствует → bootstrap дефолтит на live 5432. Для attended smoke и тестов обязателен явный `CLAY_DATABASE_URL`.
 
