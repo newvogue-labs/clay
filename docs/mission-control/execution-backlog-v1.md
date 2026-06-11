@@ -381,6 +381,10 @@
 Refs: ADR-005, ADR-009..012; build_specs/deploy5-ai-model-layer.md  
 Dependencies: E1, E2, E5
 
+**Backlog (зафиксировано 2026-06-11 после 5b-ii):**
+- [ ] **Governance:** добавить локальную модель `gemma4:e2b-it-qat` в реестр (`AIControlService._build_model_registry`) штатным PR, назначить `chief-agent → gemma4:e2b-it-qat` через review→apply (обязательно перед go-live `CLAY_SCHEDULER_AI_AGENT_ENABLED`).
+- [ ] **Retention:** добавить retention/индекс для `ops.ai_agent_runs` — отдельный слайс.
+
 ---
 
 ## E6. Signal Lifecycle, Ranking And Risk-Control

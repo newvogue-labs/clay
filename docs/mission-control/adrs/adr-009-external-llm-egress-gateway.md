@@ -34,3 +34,36 @@ Clay работает в жёсткой privacy-постуре: kill-switch (`me
 
 - **(A) Только локальные модели** (Ollama / local quant), без внешнего egress вовсе. Отклонено для v1: на GTX 1660 SUPER (6GB) качество reasoning chief-agent недостаточно. **Право пересмотра в сторону (A) сохраняется** — по мере тестов слой шлюза можно свернуть к полностью локальному без изменения контракта адаптера.
 - Прямые вендор-SDK в Clay. Отклонено: размазывает ключи, ломает единый egress-chokepoint, противоречит ADR-005.
+
+---
+
+## Addendum (2026-06-11): Ратифицировано по итогам 5b-ii
+
+### Dual-transport
+
+Решение, не описанное в теле ADR, ратифицировано post-factum:
+
+| Транспорт | Модели | Путь | Причина |
+| --- | --- | --- | --- |
+| **Native Ollama** `/api/chat` | `gemma4:e2b-it-qat`, локальные | `AgentRunner → OllamaNativeClient` → `127.0.0.1:11434` loopback | Ollama #15288 — OpenAI `/v1` с `think:false` возвращает пустой `content` на моделях с thinking-шаблоном. Native API с `think:true` возвращает раздельные `thinking` + `content`. |
+| **LiteLLM gateway** | Cloud-модели (Gemini, ADR-010) | `LLMAdapter` → `127.0.0.1:4000` → TUN → kill-switch → провайдер | Единый egress-chokepoint, fail-closed при падении TUN. |
+
+Локальный транспорт не создаёт неконтролируемого egress — loopback, TUN не участвует.
+
+### Параметры модели
+
+- `num_ctx=65536` при 100% GPU ≈ 2.5 GB VRAM на GTX 1660 SUPER (6 GB).
+- `OLLAMA_NUM_PARALLEL=1` (один запрос за раз, OOM-prevention).
+- Модель: `gemma4:e2b-it-qat` (4.3 GB, QAT q4_0, E2B instruction-tuned).
+- `think:true` **всегда включён** — через `think:false` формат ответа ломается.
+
+### Отвергнутые engine'ы
+
+- **vLLM / SGLang:** multi-user серверы, требуют >6 GB VRAM для gemma4, OOM на текущем GPU.
+- **llama.cpp:** **санкционированный upgrade-путь** при необходимости (подтверждён ADR-011 как fallback-движок для forecast-lite). В текущей архитектуре не используется.
+
+### Governance
+
+- Runner (`AgentRunner.run_agent`) **только читает** `assignments` через `ServiceModelResolver`.
+- Validation (`_validate_role_and_model`) и apply (`apply_assignment`) живут в `AIControlService`.
+- Этот ADR **не меняет** правило: изменение назначения модели — через штатный review→apply путь, не через прямой DB insert (запрещён вне attended-smoke).

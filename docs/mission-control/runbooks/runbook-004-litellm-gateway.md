@@ -14,6 +14,8 @@ OpenAI-API-контракт, и развязку версий/зависимос
 
 ## 2. Архитектурная граница
 
+### Внешние провайдеры (Gemini, ADR-010) — через LiteLLM
+
 ```
 
 clay backend (py3.14, src/clay/llm/LLMAdapter)
@@ -33,6 +35,28 @@ egress boundary (singbox_tun + kill-switch, runbook-003) → провайдер
 ```
 
 `LLMAdapter` импортирует litellm **не** в процесс — связь только по HTTP.
+
+### Локальная модель (Gemma 4) — native Ollama /api/chat
+
+```
+
+clay backend (AgentRunner → OllamaNativeClient)
+
+│  HTTP POST /api/chat  (stream:false, think:true)
+
+▼
+
+Ollama 127.0.0.1:11434   (gemma4:e2b-it-qat, num_ctx=65536)
+
+│  loopback (TUN/kill-switch не участвует)
+
+```
+
+**Причина обхода LiteLLM:** OpenAI-совместимый `/v1` эндпоинт Ollama возвращает
+пустой `content` для моделей с thinking-шаблоном (Ollama #15288) при `think:false`.
+Native `/api/chat` с `think:true` возвращает раздельные `thinking` + `content`.
+Это **намеренное решение** (ADR-009 addendum, 2026-06-11) — локальный транспорт
+не создаёт неконтролируемого egress, так как идёт по loopback без TUN.
 
 ## 3. Почему pinned Python 3.13 (хотя на хосте 3.14)
 
@@ -82,7 +106,7 @@ loginctl enable-linger "$USER"
 | unit active | `systemctl --user is-active clay-litellm.service` | `active` |
 | liveliness (local-only) | `curl -s http://127.0.0.1:4000/health/liveliness` | `200` |
 | base_url адаптера | `echo "$CLAY_LLM_BASE_URL"` | `http://127.0.0.1:4000` |
-| pytest | `cd backend && uv run pytest -q` | `410 passed` |
+| pytest | `cd backend && uv run pytest -q` | `430 passed` |
 | рантайм-egress | аудит трафика на `/health/liveliness` | `0` внешних |
 
 > `/health/liveliness` — **локальный** пинг (без провайдеров). Полный `/health`
@@ -97,7 +121,73 @@ loginctl enable-linger "$USER"
 требует **либо** локально спуленной не-cloud модели (`ollama pull llama3.2`),
 **либо** реальных провайдерских ключей (см. §8).
 
-## 7. Эксплуатация
+## 7. AI agent cycle (chief-agent)
+
+Периодический async-джоб, зарегистрированный в `ClayScheduler` при
+`CLAY_SCHEDULER_AI_AGENT_ENABLED=true` (default **false**). Выполняет
+один полный цикл «наблюдение → размышление → запись».
+
+### Флаги
+
+| Переменная | Default | Описание |
+| --- | --- | --- |
+| `CLAY_SCHEDULER_AI_AGENT_ENABLED` | `false` | Включить цикл. **Opt-in.** |
+| `CLAY_SCHEDULER_AI_AGENT_INTERVAL_SECONDS` | `300` | Интервал между стартами цикла (сек). |
+| `CLAY_SCHEDULER_AI_AGENT_ROLE_ID` | `chief-agent` | Роль, под которой runner резолвит модель. |
+
+### Путь данных
+
+```
+scheduler tick (interval)
+  → AIAgentCycleJob.run_once()
+    → asyncio.to_thread → build_snapshot(session)     # AI-control snapshot
+    → _render_context(snapshot)                        # 7 plain-text секций
+    → AgentRunner.run_agent(role_id, context)          # ModelResolver → ModelClient
+      → локальный транспорт: OllamaNativeClient
+        → POST /api/chat (127.0.0.1:11434)
+    → asyncio.to_thread → AIAgentRun → session.commit  # ops.ai_agent_runs
+```
+
+### Модель и ресурсы
+
+- **Модель:** `gemma4:e2b-it-qat` (Google Gemma 4, E2B instruct, QAT q4_0, 4.3 GB).
+- **Ollama:** `OLLAMA_CONTEXT_LENGTH=65536`, `OLLAMA_NUM_PARALLEL=1`.
+- **VRAM (GTX 1660 SUPER 6 GB):** idle ~0.6 GB → пик ~2.6 GB (подтверждено live 2026-06-11).
+- **Latency:** первый цикл ~19s (загрузка модели в VRAM), последующие ~6s (горячий кеш).
+
+### ⚠️ Governance gate (обязателен перед go-live)
+
+Текущее штатное назначение роли `chief-agent` — `openai-gpt-5.4` (cloud-заглушка).
+**Перед постоянной активацией** `CLAY_SCHEDULER_AI_AGENT_ENABLED=true` необходимо:
+
+1. Добавить локальную модель в реестр моделей (`AIControlService._build_model_registry`) — через PR.
+2. Переназначить `chief-agent → gemma4:e2b-it-qat` штатным governance-путем
+   (`review_assignment → apply_assignment`, через API control center).
+
+Прямые DB-insert'ы в `ops.ai_assignments` допустимы **только** в attended-smoke.
+
+### Procedura attended smoke (кратко)
+
+```bash
+# 1. Флип .env
+export CLAY_SCHEDULER_AI_AGENT_ENABLED=true
+export CLAY_SCHEDULER_AI_AGENT_INTERVAL_SECONDS=60
+
+# 2. Старт
+uv run --env-file .env python -m clay
+
+# 3. Проверка через 2-3 цикла
+curl -s 127.0.0.1:8000/health/ready                     # healthy
+psql 'postgresql://clay:pass@127.0.0.1:5433/clay' -c '
+  SELECT id, created_at, role_id, model_id,
+         length(content), length(thinking), error
+  FROM ops.ai_agent_runs ORDER BY id DESC LIMIT 5;'
+
+# 4. Revert
+# CLAY_SCHEDULER_AI_AGENT_ENABLED=false
+```
+
+## 8. Эксплуатация
 
 ```
 
@@ -109,7 +199,7 @@ systemctl --user restart clay-litellm.service
 
 ```
 
-## 8. Секреты и провайдерские ключи
+## 9. Секреты и провайдерские ключи
 
 - Ключи в git **не хранятся** (reference-конфиг обезличен).
 - Бэкап ключей старой podman-инсталляции:
@@ -117,7 +207,7 @@ systemctl --user restart clay-litellm.service
 - Для 5b: восстановить ключи из бэкапа **или** завести Gemini free-tier (ADR-010),
   добавить запись в `model_list`, протестировать boundary-live за TUN + kill-switch.
 
-## 9. Fallback — podman (контингент)
+## 10. Fallback — podman (контингент)
 
 Host-native — основной путь. Если он недоступен, образ оставлен как fallback:
 
@@ -142,7 +232,7 @@ ghcr.io/berriai/litellm:main-stable \
 Podman-вариант используется **только** при отказе host-native; держать оба
 одновременно на `:4000` нельзя.
 
-## 10. Reference-артефакты в репо
+## 11. Reference-артефакты в репо
 
 - `deploy/litellm/config.yaml.example` — обезличенный шаблон конфига.
 - `deploy/litellm/clay-litellm.service` — шаблон systemd --user unit.

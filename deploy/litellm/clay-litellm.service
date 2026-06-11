@@ -1,5 +1,8 @@
-# Reference-копия systemd --user unit. Реальный путь установки:
-#   ~/.config/systemd/user/clay-litellm.service
+# Копия host-юнита ~/.config/systemd/user/clay-litellm.service.
+# Источник истины — хост. Этот файл — обезличенный reference для деплоя.
+#
+# Реальный путь установки: ~/.config/systemd/user/clay-litellm.service
+# См. runbook-004-litellm-gateway.md
 [Unit]
 Description=Clay LiteLLM gateway (external LLM egress boundary, ADR-009)
 After=network-online.target
