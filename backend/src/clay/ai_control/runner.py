@@ -20,12 +20,14 @@ Transport decision:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 import httpx
 
-from clay.llm import ChatMessage
+from clay.llm import ChatCompletionRequest, ChatMessage, LLMAdapter
+from clay.llm import ChatCompletionResponse as _ChatCompletionResponse
 
 DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT_SECONDS = 120.0
@@ -186,6 +188,91 @@ class OllamaNativeClient:
             model=data.get("model", model),
             raw=data,
         )
+
+class LiteLLMModelClient:
+    """ModelClient backed by the LiteLLM gateway via LLMAdapter.
+
+    Wraps ``LLMAdapter.chat_completion()`` (OpenAI-compatible /v1 endpoint).
+    ``thinking`` is always ``None`` — cloud models do not expose separate
+    thinking traces through this path. Inject ``adapter`` with a custom
+    ``httpx.AsyncBaseTransport`` for offline tests.
+    """
+
+    def __init__(self, adapter: LLMAdapter) -> None:
+        self._adapter = adapter
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        think: bool = True,
+        num_predict: int | None = None,
+    ) -> ModelResponse:
+        request = ChatCompletionRequest(
+            model=model,
+            messages=messages,
+            max_tokens=num_predict,
+        )
+        try:
+            response: _ChatCompletionResponse = await self._adapter.chat_completion(request)
+        except httpx.HTTPError as exc:
+            raise ModelUnavailableError(
+                f"LiteLLM gateway call failed for model {model!r} "
+                f"at {self._adapter._settings.base_url}: {exc}"
+            ) from exc
+        choice = response.choices[0] if response.choices else None
+        content = choice.message.content if choice else ""
+        return ModelResponse(content=content, thinking=None)
+
+
+class RoutingModelClient:
+    """Composite ModelClient that dispatches per-call by transport.
+
+    Holds both a local and a cloud ``ModelClient``. On each ``chat()`` call
+    it looks up the transport for ``model_id`` via the injected
+    ``transport_lookup`` and delegates to the appropriate client.
+
+    ``transport_lookup(model_id) -> "local" | "cloud"`` — any other return
+    value or ``ModelUnavailableError`` is propagated fail-loud.
+
+    Lifespan wiring stays trivial: build two clients, wrap in this, pass to
+    ``AgentRunner``.
+    """
+
+    def __init__(
+        self,
+        *,
+        local_client: ModelClient,
+        cloud_client: ModelClient,
+        transport_lookup: Callable[[str], str],
+    ) -> None:
+        self._local = local_client
+        self._cloud = cloud_client
+        self._lookup = transport_lookup
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        think: bool = True,
+        num_predict: int | None = None,
+    ) -> ModelResponse:
+        transport = self._lookup(model)
+        if transport == "local":
+            return await self._local.chat(
+                messages, model=model, think=think, num_predict=num_predict
+            )
+        if transport == "cloud":
+            return await self._cloud.chat(
+                messages, model=model, think=think, num_predict=num_predict
+            )
+        raise ModelUnavailableError(
+            f"unknown transport {transport!r} for model {model!r}; "
+            f"expected 'local' or 'cloud'"
+        )
+
 
 class AgentRunner:
     """Runs one agent turn for a given role.

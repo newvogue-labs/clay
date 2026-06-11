@@ -48,6 +48,7 @@ class ModelVersion:
     display_name: str
     provider: str
     source: str
+    transport: str  # "local" | "cloud" — per-call routing hint for RoutingModelClient
     training_date: str
     metrics_summary: str
     notes: str
@@ -567,6 +568,21 @@ class AIControlService:
             ),
         }
 
+    def transport_for(self, model_id: str) -> str:
+        """Return ``"local"`` or ``"cloud"`` for *model_id*.
+
+        Raises ``ModelUnavailableError`` if the model is not in the registry
+        (fail-loud — never silently fall back to a default transport).
+        """
+        entry = self.models.get(model_id)
+        if entry is None:
+            from clay.ai_control.runner import ModelUnavailableError
+            raise ModelUnavailableError(
+                f"model {model_id!r} not found in registry; "
+                f"no transport can be resolved"
+            )
+        return entry.transport
+
     def _build_model_registry(self) -> dict[str, ModelVersion]:
         return {
             "openai-gpt-5.4": ModelVersion(
@@ -574,6 +590,7 @@ class AIControlService:
                 display_name="GPT-5.4",
                 provider="OpenAI",
                 source="cloud",
+                transport="cloud",
                 training_date="2026-02-01",
                 metrics_summary="Strong synthesis, stable reasoning, high operator-facing clarity.",
                 notes="Preferred for final synthesis and review-card generation.",
@@ -587,6 +604,7 @@ class AIControlService:
                 display_name="GPT-5.4 Mini",
                 provider="OpenAI",
                 source="cloud",
+                transport="cloud",
                 training_date="2026-02-01",
                 metrics_summary="Lower cost scanner-grade reasoning with good latency.",
                 notes="Good default for scanner workloads and light reconciliation.",
@@ -600,6 +618,7 @@ class AIControlService:
                 display_name="Claude Sonnet 4.5",
                 provider="Anthropic",
                 source="cloud",
+                transport="cloud",
                 training_date="2026-01-15",
                 metrics_summary="Strong context synthesis and nuanced sentiment summaries.",
                 notes="Best fit for news-heavy review and sentiment framing.",
@@ -613,6 +632,7 @@ class AIControlService:
                 display_name="Gemini 2.5 Flash",
                 provider="Google",
                 source="cloud",
+                transport="cloud",
                 training_date="2026-01-20",
                 metrics_summary="Fast forecast-oriented inference with acceptable explanation quality.",
                 notes="Default forecast assistant for v1 validation loops.",
@@ -626,6 +646,7 @@ class AIControlService:
                 display_name="Forecast Lite v1",
                 provider="Local",
                 source="local",
+                transport="local",
                 training_date="2025-12-10",
                 metrics_summary="Compact local fallback for degraded operation.",
                 notes="Not a first-choice model, but safe for fallback posture.",
@@ -633,5 +654,19 @@ class AIControlService:
                 compatible_roles=("forecast-model",),
                 fallback_ready=True,
                 capability_tags=("forecast", "fallback"),
+            ),
+            "gemma4:e2b-it-qat": ModelVersion(
+                model_id="gemma4:e2b-it-qat",
+                display_name="Gemma 4 2B IT QAT",
+                provider="Google (local Ollama)",
+                source="local",
+                transport="local",
+                training_date="2026-03-01",
+                metrics_summary="Dev-local reasoning agent with thinking trace support.",
+                notes="Primary dev model for ai-agent-cycle. Native Ollama API.",
+                activation_status="active",
+                compatible_roles=("chief-agent", "forecast-model", "market-scanner"),
+                fallback_ready=False,
+                capability_tags=("reasoning", "thinking"),
             ),
         }

@@ -68,9 +68,13 @@ from clay.bootstrap import (
 )
 from clay.ai_control.runner import (
     AgentRunner,
+    LiteLLMModelClient,
     OllamaNativeClient,
+    RoutingModelClient,
     ServiceModelResolver,
 )
+from clay.llm import LLMAdapter
+from clay.settings.llm import LLMSettings
 from clay.scheduler.ai_agent_job import AIAgentCycleJob
 from clay.scheduler.service import ClayScheduler
 from clay.settings.ollama import OllamaSettings
@@ -119,8 +123,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if scheduler_settings.ai_agent_enabled:
             ollama_settings = OllamaSettings()
             ollama_client = OllamaNativeClient.from_settings(ollama_settings)
+            llm_settings = LLMSettings()
+            llm_client = LiteLLMModelClient(adapter=LLMAdapter(llm_settings))
+            router = RoutingModelClient(
+                local_client=ollama_client,
+                cloud_client=llm_client,
+                transport_lookup=_ai_control_service.transport_for,
+            )
             resolver = ServiceModelResolver(_ai_control_service)
-            runner = AgentRunner(model_resolver=resolver, model_client=ollama_client)
+            runner = AgentRunner(model_resolver=resolver, model_client=router)
             ai_agent_cycle_job = AIAgentCycleJob(
                 runner=runner,
                 session_factory=_session_factory,
