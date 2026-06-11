@@ -1,79 +1,148 @@
-# Runbook-004 — LiteLLM gateway (локальный шлюз моделей)
+# Runbook-004 — LiteLLM Gateway (внешний LLM egress-boundary Clay)
 
-Дата: 2026-06-10
-Статус: active
-Связанный эпик: `E5` · `DEPLOY-5`
-Связано: ADR-009, ADR-010, runbook-003 (kill-switch/egress)
+> **Статус:** ✅ host-native установка применена и зелёная (DEPLOY-5 / 5a-ii).
+> **ADR:** [ADR-009 — External LLM Egress Gateway](../adrs/009-external-llm-egress-gateway.md)
+> **Связанные:** [ADR-010 (Gemini free-tier)](../adrs/010-chief-agent-gemini-free-tier.md), runbook-003 (kill-switch).
 
-## Назначение
+## 1. Назначение
 
-Единая точка LLM-egress: запуск, конфигурация, проверка и восстановление локального шлюза LiteLLM, через который Clay делает все внешние вызовы моделей. Вендор-ключи живут в шлюзе, не в Clay.
+LiteLLM — **единственная** точка исходящего трафика к LLM-провайдерам. Код Clay
+ходит к моделям только через OpenAI-совместимый HTTP-эндпоинт шлюза
+(`http://127.0.0.1:4000`), напрямую к провайдерам не обращается. Это даёт:
+централизованный egress-контроль (kill-switch + geo-allowlist), единый
+OpenAI-API-контракт, и развязку версий/зависимостей от backend.
 
-## Режим установки (решение)
+## 2. Архитектурная граница
 
-**Primary — host-native** (рекомендуется):
-- LiteLLM в изолированном venv (`uv` или `pipx`), не трогая системный Python.
-- Запуск как `systemd --user` сервис от emma → процесс имеет **uid 1000** → **напрямую попадает под kill-switch** (`meta skuid 1000`).
-- Плюсы: нет podman-сетевого слоя (pasta/slirp4netns), чище биндинг `127.0.0.1:4000`, стабильнее подключение, ровнее покрытие kill-switch.
-- Инструкция: https://github.com/BerriAI/litellm/
+```
 
-**Fallback — podman** (задокументирован, не основной):
-- Образ `ghcr.io/berriai/litellm:main-stable`; запуск через `podman` / `podman-compose 1.6.0` (Docker не установлен).
-- При rootless-podman egress идёт через user-mode сетевой стек (pasta/slirp4netns) — лишний NAT-хоп; ОБЯЗАТЕЛЬНО проверить, что маскарад на enp3s0 сохраняет uid 1000 (покрытие kill-switch).
-- Рассматривать, если нужен reproducible-образ / изоляция важнее стабильности.
+clay backend (py3.14, src/clay/llm/LLMAdapter)
 
-> Решение revisable. См. ADR-009 (egress gateway). Привязка в обоих режимах — только `127.0.0.1:4000`.
+│  HTTP, OpenAI-compat  POST /v1/chat/completions
 
-## Когда применять
+▼
 
-- Первичный запуск шлюза.
-- После reboot (для host-native — `systemctl --user` autostart; для podman — перезапуск контейнера).
-- При ошибках 429/5xx от провайдеров.
-- При ротации ключей провайдеров.
+LiteLLM gateway  127.0.0.1:4000   (py3.13 managed-uv, отдельный процесс)
 
-## Роли
+│  провайдерские вызовы
 
-- **Оператор (Emma):** управляет ключами провайдеров и жизненным циклом шлюза; поднимает TUN до старта шлюза.
-- **Clay/агент:** знает только `CLAY_LLM_BASE_URL`; не хранит вендор-ключи; не перезапускает туннель.
+▼
 
-## Привязка и egress
+egress boundary (singbox_tun + kill-switch, runbook-003) → провайдер
 
-- Bind: `127.0.0.1:4000` (OpenAI-совместимый API).
-- Egress шлюза — через TUN; покрыт kill-switch (runbook-003), fail-closed при TUN down.
-- host-native: процесс uid 1000 → под правилом `meta skuid 1000` автоматически.
+```
 
-## Конфиг (config.yaml — в шлюзе)
+`LLMAdapter` импортирует litellm **не** в процесс — связь только по HTTP.
 
-- model_list: логические имена → провайдеры:
-  - chief-agent → Gemini free-tier (ADR-010)
-  - subagents → relay (FreeQwenApi) / локально
-  - forecast → локальная quant-модель (ADR-011), gemini опц. fallback
-  - last resort → Ollama (localhost:11434)
-- Ключи провайдеров — в env шлюза/секрет-файле, НЕ в `.env` Clay.
-- fallbacks: цепочка free-tier → relay → local.
+## 3. Почему pinned Python 3.13 (хотя на хосте 3.14)
 
-## Запуск (эскиз — детали на слайсе 5a)
+Осознанное решение, **не** баг:
 
-1. Оператор поднимает TUN.
-2. **host-native:** `uv`/`pipx` venv → `litellm --config config.yaml --port 4000 --host 127.0.0.1`; оформить `systemd --user` unit. **podman (fallback):** запустить контейнер, смонтировать config.yaml + секреты, bind 127.0.0.1:4000.
-3. Health: `curl 127.0.0.1:4000/health` (локально).
-4. Проверить egress через TUN (runbook-003).
-5. Smoke: один вызов логической модели.
+- Шлюз изолирован от Clay по HTTP-границе — общий интерпретатор не нужен.
+- litellm 1.88.1 и его C-расширения (pydantic-core, httpx, orjson, tokenizers)
+  не гарантированы на свежем 3.14 (нет части wheel'ов → риск в долгоживущем proxy).
+- `uv tool install --python 3.13` создаёт managed-интерпретатор, развязанный с
+  хостовым 3.14; апгрейд хоста 3.14→3.15 шлюз не сломает.
+- Эмпирически подтверждено: на 3.13 установка чистая, `/health/liveliness`=200.
 
-## Проверка
+## 4. Установка (host-native, основной путь)
 
-- `/health` отвечает.
-- Исходящий IP/страна корректны (never-US).
-- Логические имена резолвятся в провайдеров.
+```
 
-## Восстановление
+# 4.1 LiteLLM как изолированный uv-tool на managed Python 3.13
 
-- 429/5xx: backoff на стороне Clay + fallback-chain; при устойчивой ошибке провайдера — переключить логическое имя на fallback в config.yaml.
-- Шлюз упал: host-native — `systemctl --user restart`; podman — перезапуск контейнера (оператор); повторить проверку.
-- TUN down: шлюз fail-closed → Clay degraded → оператор поднимает TUN.
+uv tool install --python 3.13 'litellm[proxy]'   # → ~/.local/bin/litellm (1.88.1)
 
-## Безопасность
+# 4.2 конфиг (из reference-копии репо, без секретов)
 
-- Ключи только в шлюзе.
-- Контекст минимизирован/обезличен до отправ��и (data-exfil политика, ADR-009).
-- geo-allowlist (never-US) + egress-аудит.
+mkdir -p ~/.config/clay/litellm
+
+cp deploy/litellm/config.yaml.example ~/.config/clay/litellm/config.yaml
+
+# при необходимости отредактировать model_list под реальные ключи/модели
+
+# 4.3 systemd --user unit
+
+cp deploy/litellm/clay-litellm.service ~/.config/systemd/user/clay-litellm.service
+
+systemctl --user daemon-reload
+
+systemctl --user enable --now clay-litellm.service
+
+# 4.4 linger (чтобы --user сервис жил без активной сессии)
+
+loginctl enable-linger "$USER"
+
+```
+
+## 5. Гейты здоровья
+
+| Гейт | Команда | Эталон |
+| --- | --- | --- |
+| unit active | `systemctl --user is-active clay-litellm.service` | `active` |
+| liveliness (local-only) | `curl -s http://127.0.0.1:4000/health/liveliness` | `200` |
+| base_url адаптера | `echo "$CLAY_LLM_BASE_URL"` | `http://127.0.0.1:4000` |
+| pytest | `cd backend && uv run pytest -q` | `410 passed` |
+| рантайм-egress | аудит трафика на `/health/liveliness` | `0` внешних |
+
+> `/health/liveliness` — **локальный** пинг (без провайдеров). Полный `/health`
+> пингует модели → реальный провайдерский egress, поэтому отложен на 5b.
+
+## 6. Известный нюанс — `:cloud` модели
+
+Все локальные Ollama-модели — `:cloud`-варианты (напр. `deepseek-v4-flash:cloud`)
+и требуют подписки `ollama.com/upgrade`. Поэтому E2E через них даёт
+`500 litellm.APIConnectionError: "this model requires a subscription"` — это
+**ожидаемо**, шлюз при этом исправен (liveliness=200). Полноценный E2E (5b)
+требует **либо** локально спуленной не-cloud модели (`ollama pull llama3.2`),
+**либо** реальных провайдерских ключей (см. §8).
+
+## 7. Эксплуатация
+
+```
+
+systemctl --user status clay-litellm.service
+
+journalctl --user -u clay-litellm.service -n 100 --no-pager
+
+systemctl --user restart clay-litellm.service
+
+```
+
+## 8. Секреты и провайдерские ключи
+
+- Ключи в git **не хранятся** (reference-конфиг обезличен).
+- Бэкап ключей старой podman-инсталляции:
+  `~/.config/clay/_backup/old-podman-litellm-*.tar.gz` (chmod 600, содержит `.env`).
+- Для 5b: восстановить ключи из бэкапа **или** завести Gemini free-tier (ADR-010),
+  добавить запись в `model_list`, протестировать boundary-live за TUN + kill-switch.
+
+## 9. Fallback — podman (контингент)
+
+Host-native — основной путь. Если он недоступен, образ оставлен как fallback:
+
+```
+
+# образ сохранён локально (НЕ удалять):
+
+podman images | grep litellm   # ghcr.io/berriai/litellm:main-stable (~1.93GB)
+
+podman run -d --name clay-litellm \
+
+-p 127.0.0.1:4000:4000 \
+
+-v ~/.config/clay/litellm/config.yaml:/app/config.yaml:ro \
+
+ghcr.io/berriai/litellm:main-stable \
+
+--config /app/config.yaml --host 0.0.0.0 --port 4000
+
+```
+
+Podman-вариант используется **только** при отказе host-native; держать оба
+одновременно на `:4000` нельзя.
+
+## 10. Reference-артефакты в репо
+
+- `deploy/litellm/config.yaml.example` — обезличенный шаблон конфига.
+- `deploy/litellm/clay-litellm.service` — шаблон systemd --user unit.

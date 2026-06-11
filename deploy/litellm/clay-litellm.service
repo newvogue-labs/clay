@@ -1,0 +1,15 @@
+# Reference-копия systemd --user unit. Реальный путь установки:
+#   ~/.config/systemd/user/clay-litellm.service
+[Unit]
+Description=Clay LiteLLM gateway (external LLM egress boundary, ADR-009)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/litellm --config %h/.config/clay/litellm/config.yaml --host 127.0.0.1 --port 4000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,20 @@
+# LiteLLM gateway — единая точка внешнего egress LLM для Clay (ADR-009).
+# Host-native установка. См. docs/mission-control/runbooks/runbook-004-litellm-gateway.md
+# ВНИМАНИЕ: секретов тут нет и быть не должно. Реальные провайдерские ключи живут
+# только в хостовом окружении / бэкапе, в git НИКОГДА не коммитятся.
+
+model_list:
+  - model_name: local-ollama
+    litellm_params:
+      model: ollama/deepseek-v4-flash:cloud   # ":cloud" требует подписки ollama.com — для E2E нужна офлайн-модель или реальные ключи
+      api_base: http://127.0.0.1:11434
+  # Для офлайн-E2E (без подписки) спулить НЕ-cloud модель и добавить запись, напр.:
+  # - model_name: local-ollama-offline
+  #   litellm_params:
+  #     model: ollama/llama3.2
+  #     api_base: http://127.0.0.1:11434
+
+litellm_settings:
+  drop_params: true
+  telemetry: false
+# master_key: намеренно не задан — шлюз слушает только 127.0.0.1 (loopback-trust).
