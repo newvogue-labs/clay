@@ -42,7 +42,7 @@ INITIAL_ASSIGNMENTS: dict[str, str] = {
     "chief-agent": "minimax-m3",
     "market-scanner": "openai-gpt-5.4-mini",
     "news-sentiment-agent": "anthropic-claude-sonnet-4.5",
-    "forecast-model": "gemini-2.5-flash",
+    "forecast-model": "gemini-3.1-flash-lite",
 }
 
 

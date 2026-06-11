@@ -265,3 +265,18 @@ def test_transport_for_minimax_m3_is_cloud() -> None:
     assert "minimax-m3" in service.models
     assert service.models["minimax-m3"].transport == "cloud"
     assert service.transport_for("minimax-m3") == "cloud"
+
+
+def test_transport_for_gemini_3_1_flash_lite_is_cloud() -> None:
+    from clay.ai_control.service import AIControlService
+
+    service = AIControlService(
+        runtime_manager=None,  # type: ignore[arg-type]
+        preflight_service=None,  # type: ignore[arg-type]
+        config_loader=None,  # type: ignore[arg-type]
+        audit_writer=None,  # type: ignore[arg-type]
+        event_bus=None,  # type: ignore[arg-type]
+    )
+    assert "gemini-3.1-flash-lite" in service.models
+    assert service.models["gemini-3.1-flash-lite"].transport == "cloud"
+    assert service.transport_for("gemini-3.1-flash-lite") == "cloud"

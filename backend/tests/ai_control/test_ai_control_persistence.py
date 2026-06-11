@@ -517,7 +517,7 @@ def test_set_assignment_emits_audit_and_event_with_source_validation_lab(
         assert message.event_type == "ai.updated"
         assert message.payload == {
             "role_id": "forecast-model",
-            "previous_model_id": "gemini-2.5-flash",
+            "previous_model_id": "gemini-3.1-flash-lite",
             "model_id": "forecast-lite-v1",
             "source": "validation_lab",
         }
@@ -534,7 +534,7 @@ def test_set_assignment_emits_audit_and_event_with_source_validation_lab(
     assert len(set_assignment_audits) == 1
     assert set_assignment_audits[0]["payload"] == {
         "role_id": "forecast-model",
-        "previous_model_id": "gemini-2.5-flash",
+        "previous_model_id": "gemini-3.1-flash-lite",
         "model_id": "forecast-lite-v1",
         "source": "validation_lab",
     }
