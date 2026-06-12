@@ -153,3 +153,35 @@ HEAD `73b59ac`.
 - `clay:clay@5433` — неверен (subagent A). `clay:clay@5432` — live (FOOTGUN, дефолт IngestionSettings без env)
 - runbook-004 шаблон `clay:clay@5433` устарел — `clay` имеет пароль (scram-sha-256), не `clay`
 - env_file не добавлен — ломает тесты (подхватывает production .env). Герметизация singleton решена через environ
+
+## Сессия 2026-06-12 — 5c.3 + 5c.2
+
+### 5c.3 PREFLIGHT + host-config (Gemma 4 31B в gateway)
+- ✅ **P0 hermetic gate:** podman stop → 442 pytest (энв чист)
+- ✅ **P1 psql:** 4 строки, субагенты→gemma-4-31b
+- ✅ **P2 нода-probe:** Gemini 200, 50 models
+- ✅ config.yaml: gemma-4-31b→gemini/gemma-4-31b-it, restart → 6 моделей
+- ✅ boundary-live: 200, 1.4s
+- ✅ kill-switch flat, 0 коммитов
+- **5c.3 ЗАКРЫТ**
+
+### 5c.2 — multi-role scheduler + FOOTGUN D fix
+- ✅ Settings: `CLAY_SCHEDULER_AI_AGENT_ROLE_IDS` (JSON list, default ["chief-agent"])
+- ✅ AIAgentCycleJob: sequential multi-role, per-role isolation
+- ✅ FOOTGUN D: LiteLLMModelClient — content fallback to reasoning_content, fail-loud
+- ✅ ChatMessage: reasoning_content field
+- ✅ Tests: multi-role dispatch, isolation, FOOTGUN-D, ROLE_IDS parsing
+- ✅ **448 passed**, ruff 13, pyright 33
+- ✅ committed `c82acd5`
+
+## Итог
+
+| Track | Status |
+|-------|--------|
+| 5b-iii | ✅ CLOSED |
+| 3.5e | ✅ CLOSED |
+| DB-AUTOSTART | ✅ |
+| 5c.1 | ✅ CLOSED |
+| 5c.3 | ✅ CLOSED |
+| 5c.2 | ✅ CLOSED |
+| HEAD | `c82acd5` (16 unpushed) |
