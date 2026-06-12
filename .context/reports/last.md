@@ -126,4 +126,30 @@ HEAD `73b59ac`.
 | 5b-iii | ✅ CLOSED — dual-transport, 3 cloud × полный цикл, 441 pytest |
 | 3.5e | ✅ CLOSED — uid 945, always-on, fail-closed proven |
 | DB-AUTOSTART | ✅ restart=always + podman-restart + linger |
-| HEAD | `b59c7f3` (13 unpushed) |
+| 5c.1 | ✅ CLOSED — gemma-4-31b registry, role prompts, hermetic tests, 442 pytest |
+| HEAD | `00adb03` (14 unpushed) |
+
+## Сессия 2026-06-12 — 5c.1 (subagent roles)
+
+### Recon 5c.0 — forensics + findings
+- __P0:__ git HEAD `63bbd58` — легитимный коммит Emma (state/handoffs/reports), не мой
+- __P1:__ DB-назначения НЕ откатывались (subagent A дал ложные данные — неверный пароль `clay:clay@5433`)
+- __P2:__ Роли market-scanner/news-sentiment-agent уже определены в INITIAL_ASSIGNMENTS и _build_role_registry
+- __P3:__ FOOTGUN раскрыт: `IngestionSettings.env_file` отсутствует → pytest ходил в live 5432 через module-level singleton bootstrap. Тест зависит от ambient env — объяснение «вчера 441, сегодня 440»
+
+### 5c.1 — subagent roles на реальные модели + role-prompts + герметизация
+- ✅ **(0b)** Герметизация singleton под pytest: `os.environ.setdefault("CLAY_DATABASE_URL")` в tests/conftest.py + file-based SQLite с таблицами до загрузки bootstrap
+- ✅ Registry: добавлен `gemma-4-31b` (transport=cloud, provider=Google AI Studio, 1500 RPD, 256K ctx), удалены `openai-gpt-5.4-mini` и `anthropic-claude-sonnet-4.5`
+- ✅ INITIAL_ASSIGNMENTS: `market-scanner→gemma-4-31b`, `news-sentiment-agent→gemma-4-31b`
+- ✅ role_prompts: словарь (market-scanner + news-sentiment-agent) передан в AgentRunner в lifespan.py
+- ✅ _render_context: параметризован по `role_id` (сигнатура + вызов в run_once)
+- ✅ DB 5433 sync: UPDATE market-scanner→gemma-4-31b, news-sentiment-agent→gemma-4-31b (SELECT-пруф)
+- ✅ Тесты: обновлены затронутые (model_id замены во всех тестах), новый тест role_prompts dispatch + fallback
+- ✅ **442 passed**, ruff 13 (src baseline), pyright 33 (src baseline)
+- ✅ committed `00adb03 feat(ai_control): wire subagent roles to gemma-4-31b + role prompts + hermetic tests`
+
+### DSN ответ
+- Реальный пароль 5433: `clay:LjRVpJBOeveAm6ejI1hwd32BdIULVg2j@127.0.0.1:5433` (из `.env`)
+- `clay:clay@5433` — неверен (subagent A). `clay:clay@5432` — live (FOOTGUN, дефолт IngestionSettings без env)
+- runbook-004 шаблон `clay:clay@5433` устарел — `clay` имеет пароль (scram-sha-256), не `clay`
+- env_file не добавлен — ломает тесты (подхватывает production .env). Герметизация singleton решена через environ

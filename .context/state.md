@@ -8,8 +8,8 @@
 - **DEPLOY-5 Phase 3 (code):** ✅ **5b-iii CLOSED целиком.** 3 cloud-провайдера × полный цикл. Dual-transport live на обоих плечах.
 - **DEPLOY-3.5e (kill-switch):** ✅ **CLOSED.** Пользователь `clay` (uid 945). LiteLLM под uid 945. Always-on nft. Latch/udev — history.
 - **DB-AUTOSTART:** ✅ `restart=always` + `podman-restart` + linger.
-- **HEAD:** `b59c7f3` — docs(killswitch,gateway,backlog): rewrite runbook-003 for uid-945 isolation, update runbook-004 paths/launch/node rule/rate-limit, supersede backlog items (3.5e-docs)
-- **origin/main:** `3a325b0` запушено (13 коммитов не запушены).
+- **HEAD:** `00adb03` — feat(ai_control): wire subagent roles to gemma-4-31b + role prompts + hermetic tests
+- **origin/main:** `3a325b0` запушено (14 коммитов не запушены).
 
 ## DEPLOY TRACK
 
@@ -38,17 +38,15 @@
   - 5b-iii.5a: Gemini 3.1 Flash Lite host-config ✅ 0 коммитов
   - 5b-iii.5b: gemini-3.1-flash-lite в реестр + forecast-model ✅ `73b59ac`
   - 5b-iii.5c: attended smoke forecast-model ✅ 2 цикла, 0 ошибок
-- **5c (subagents):** 📋 следующий (recon-слайс)
+- **5c.1 (subagent roles):** ✅ **ЗАКРЫТ.** gemma-4-31b в registry, INITIAL_ASSIGNMENTS обновлены, role_prompts + параметризация _render_context, герметизация singleton под pytest, DB 5433 sync. Commit `00adb03`.
 - **DEPLOY-CUTOVER** (pg_dump live→podman): 📋 отложен.
 
 ## Pending
 
-- **5c recon:** субагенты — market-scanner и news-sentiment на demo-провайдерах
-- **Fix-slice FOOTGUN IngestionSettings:** добавить env_file или fail-loud на live 5432
-- **Provider pool free-tier:** список источников от Emma → recon → приоритезация
-- **Gemini 3.1 Flash Lite .5b** (model in registry + forecast-model assignment) + **.5c** (attended smoke)
-- **Push origin:** 10 коммитов не запушены
-- **G6-tune wave** — отложено
+- **5c.2 (multi-role scheduler):** 📋 variant A (list role_ids in 1 job)
+- **5c.3 (Gemma 4 31B host-config + gateway):** 📋 boundary-live тест
+- **5c.4 (live smoke оба субагента):** 📋 node selection (Binance ≠US + Gemini probe 200)
+- **Fix-slice FOOTGUN IngestionSettings:** env_file не добавлен (env_file ломает тесты production .env). Герметизация singleton решена через os.environ.setdefault в conftest.py.
 
 ## Critical Context
 
@@ -68,6 +66,10 @@
 
 | SHA | Message |
 |-----|---------|
+| `00adb03` | feat(ai_control): wire subagent roles to gemma-4-31b + role prompts + hermetic tests |
+| `63bbd58` | docs(context): update state, reports, handoff for 3.5e close + DB-autostart |
+| `b59c7f3` | docs(killswitch,gateway,backlog): rewrite runbook-003 for uid-945 isolation |
+| `73b59ac` | feat(ai-control): add gemini-3.1-flash-lite registry, assign forecast-model (5b-iii.5b) |
 | `6969224` | docs(mission-control): dual-transport routing, provider policy, quota runbook (5b-iii) |
 | `bbf6623` | feat(ai-control): add minimax-m3 cloud model, assign chief-agent (5b-iii.4b) |
 | `a4489ac` | feat(ai): LiteLLM cloud ModelClient + per-call transport routing via model registry |
