@@ -131,7 +131,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 transport_lookup=_ai_control_service.transport_for,
             )
             resolver = ServiceModelResolver(_ai_control_service)
-            runner = AgentRunner(model_resolver=resolver, model_client=router)
+            runner = AgentRunner(
+                model_resolver=resolver,
+                model_client=router,
+                role_prompts={
+                    "market-scanner": (
+                        "Ты — market-scanner торговой системы Clay. "
+                        "По данным секций market/shortlist выдели: 2–3 наиболее активных символа "
+                        "(объём/движение), аномалии свежести данных, кратко riski. "
+                        "Формат: маркированный список, ≤150 слов, без советов купить/продать."
+                    ),
+                    "news-sentiment-agent": (
+                        "Ты — news-sentiment-agent системы Clay. "
+                        "По секциям news/sentiment: суммируй тональность по символам "
+                        "(positive/neutral/negative + одна строка обоснования), "
+                        "отметь расхождения news vs sentiment-показателей. ≤150 слов."
+                    ),
+                },
+            )
             ai_agent_cycle_job = AIAgentCycleJob(
                 runner=runner,
                 session_factory=_session_factory,

@@ -52,7 +52,7 @@ def test_active_session_marks_review_as_critical(
     service.runtime_manager.transition_to(RuntimeState.ACTIVE_SESSION)
 
     review = service.review_assignment(
-        "chief-agent", "anthropic-claude-sonnet-4.5", session=db_session
+        "chief-agent", "gemma4:e2b-it-qat", session=db_session
     )
     assert review.severity == "critical"
     assert review.approval_required is True

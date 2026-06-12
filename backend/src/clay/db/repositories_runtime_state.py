@@ -40,8 +40,8 @@ TModel = TypeVar("TModel")
 
 INITIAL_ASSIGNMENTS: dict[str, str] = {
     "chief-agent": "minimax-m3",
-    "market-scanner": "openai-gpt-5.4-mini",
-    "news-sentiment-agent": "anthropic-claude-sonnet-4.5",
+    "market-scanner": "gemma-4-31b",
+    "news-sentiment-agent": "gemma-4-31b",
     "forecast-model": "gemini-3.1-flash-lite",
 }
 

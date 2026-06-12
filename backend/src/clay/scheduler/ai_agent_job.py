@@ -26,7 +26,7 @@ from clay.db.models_ops import AIAgentRun
 logger = logging.getLogger(__name__)
 
 
-def _render_context(snapshot: AIControlSnapshot) -> str:
+def _render_context(snapshot: AIControlSnapshot, role_id: str | None = None) -> str:
     """Deterministic plain-text rendering of the 7 AIControlSnapshot sections.
 
     Every section is always present (empty → ``none``) for prompt stability.
@@ -151,7 +151,7 @@ class AIAgentCycleJob:
 
         async with self._lock:
             snapshot = await asyncio.to_thread(self._build_snapshot)
-            context = _render_context(snapshot)
+            context = _render_context(snapshot, self._role_id)
             try:
                 result = await self._runner.run_agent(self._role_id, context)
             except ModelUnavailableError as exc:

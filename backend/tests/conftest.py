@@ -1,12 +1,30 @@
+import os
+import tempfile
+
+# Герметизация: module-level singleton в bootstrap не должен ходить в реальный PG.
+# Создаём file-based SQLite с таблицами, выставляем URL в environ ДО импорта
+# clay-модулей, чтобы IngestionSettings() в bootstrap.py подхватил SQLite,
+# а не live 5432. setdefault — не перезаписывает явно заданный env (CI, smoke).
+_tmp_db_path = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
+os.environ.setdefault("CLAY_DATABASE_URL", f"sqlite+pysqlite:///{_tmp_db_path}")
+
+# Импортируем модели для регистрации в Base.metadata до create_all
+from clay.db import Base, build_engine, build_session_factory
+from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation  # noqa: F401
+from clay.settings.ingestion import IngestionSettings
+
+# Создаём таблицы в bootstrap-БД (ai_assignments, ai_control_state и т.д.)
+# чтобы AIControlService.__init__ с session_factory не упал на "no such table".
+_bs_engine = build_engine(IngestionSettings(database_url=os.environ["CLAY_DATABASE_URL"]))
+Base.metadata.create_all(_bs_engine)
+_bs_engine.dispose()
+
 from pathlib import Path
 
 import pytest
 
 from clay.api.dependencies import get_db_session, get_ingestion_settings
 from clay.api.main import create_app
-from clay.db import Base, build_engine, build_session_factory
-from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation  # noqa: F401
-from clay.settings.ingestion import IngestionSettings
 
 
 @pytest.fixture

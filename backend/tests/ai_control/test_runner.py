@@ -14,6 +14,7 @@ import httpx
 
 from clay.ai_control.runner import (
     AgentRunner,
+    DEFAULT_SYSTEM_PROMPT,
     ModelResponse,
     ModelUnavailableError,
     OllamaNativeClient,
@@ -214,3 +215,25 @@ def test_ollama_client_from_settings_uses_settings_values() -> None:
     resp = asyncio.run(client.chat([ChatMessage(role="user", content="hi")], model="m"))
     assert resp.content == "ok"
     assert captured["body"]["options"]["num_ctx"] == 65536
+
+
+class StubClient:
+    async def chat(self, messages, *, model, think=True, num_predict=None):
+        return ModelResponse(content="stub")
+
+
+def test_agent_runner_role_prompts_dispatch_and_fallback() -> None:
+    resolver = StubResolver({"test-role": "test-model"})
+
+    role_prompts = {
+        "known-role": "Ты известная роль.",
+    }
+    runner = AgentRunner(
+        model_resolver=resolver,
+        model_client=StubClient(),
+        role_prompts=role_prompts,
+    )
+
+    assert runner._system_prompt_for("known-role") == "Ты известная роль."
+    assert runner._system_prompt_for("unknown-role") == DEFAULT_SYSTEM_PROMPT
+    assert runner._system_prompt_for("") == DEFAULT_SYSTEM_PROMPT

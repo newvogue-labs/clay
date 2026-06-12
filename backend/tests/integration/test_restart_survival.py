@@ -100,7 +100,7 @@ def test_full_restart_survives_all_six_persisted_areas(tmp_path: Path) -> None:
     # 1a. ai_assignments (operator path): review + apply.
     with session_factory() as session:
         review = ai_control.review_assignment(
-            "chief-agent", "anthropic-claude-sonnet-4.5", session=session
+            "chief-agent", "gemma4:e2b-it-qat", session=session
         )
         ai_control.apply_assignment(review.review_id, session=session)
         session.commit()  # A3 contract: apply_assignment flushes, caller commits.

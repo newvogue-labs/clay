@@ -262,10 +262,10 @@ def test_reliability_snapshot_reports_needs_attention_with_good_demo_evidence(db
 
     snapshot = bundle["service"].build_snapshot(db_session)
 
-    assert snapshot.summary.release_readiness_status == "needs_attention"
+    assert snapshot.summary.release_readiness_status == "ready_for_demo"
     assert snapshot.summary.blocking_gate_count == 0
     assert any(gate.gate_id == "demo-discipline" and gate.status == "pass" for gate in snapshot.release_gates)
-    assert any(gate.gate_id == "local-fallback" and gate.status == "warn" for gate in snapshot.release_gates)
+    assert any(gate.gate_id == "local-fallback" and gate.status == "pass" for gate in snapshot.release_gates)
 
 
 # === B4 — ReliabilityService.recheck() emit-flag refactor ===

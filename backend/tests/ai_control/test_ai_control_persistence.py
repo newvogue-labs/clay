@@ -118,8 +118,8 @@ def test_restart_survives_apply_assignment(
     assert service2.assignments["forecast-model"] == "forecast-lite-v1"
     # Other roles kept their initial mapping.
     assert service2.assignments["chief-agent"] == "minimax-m3"
-    assert service2.assignments["market-scanner"] == "openai-gpt-5.4-mini"
-    assert service2.assignments["news-sentiment-agent"] == "anthropic-claude-sonnet-4.5"
+    assert service2.assignments["market-scanner"] == "gemma-4-31b"
+    assert service2.assignments["news-sentiment-agent"] == "gemma-4-31b"
     # Apply cleared the pending review, so the new service starts clean.
     assert service2._pending_review is None
 
@@ -129,14 +129,14 @@ def test_restart_picks_up_db_state_directly_via_repository(
 ) -> None:
     service1 = build_service(sqlite_session_factory)
     review = service1.review_assignment(
-        "chief-agent", "anthropic-claude-sonnet-4.5", session=db_session
+        "chief-agent", "gemma4:e2b-it-qat", session=db_session
     )
     service1.apply_assignment(review.review_id, session=db_session)
     db_session.commit()
 
     with sqlite_session_factory() as session:
         repo = AIAssignmentRepository(session)
-        assert repo.read_all()["chief-agent"] == "anthropic-claude-sonnet-4.5"
+        assert repo.read_all()["chief-agent"] == "gemma4:e2b-it-qat"
 
 
 # === Restart-survival: pending review (review without apply)
@@ -158,7 +158,7 @@ def test_restart_survives_pending_review_without_apply(
     assert service2._pending_review.role_id == "market-scanner"
     assert service2._pending_review.model_id == "minimax-m3"
     # In-memory assignments are still the defaults (apply was not called).
-    assert service2.assignments["market-scanner"] == "openai-gpt-5.4-mini"
+    assert service2.assignments["market-scanner"] == "gemma-4-31b"
 
 
 def test_pending_review_in_db_matches_in_memory_review(
@@ -166,7 +166,7 @@ def test_pending_review_in_db_matches_in_memory_review(
 ) -> None:
     service = build_service(sqlite_session_factory)
     review = service.review_assignment(
-        "news-sentiment-agent", "anthropic-claude-sonnet-4.5", session=db_session
+        "news-sentiment-agent", "gemma-4-31b", session=db_session
     )
     db_session.commit()
 
@@ -176,7 +176,7 @@ def test_pending_review_in_db_matches_in_memory_review(
         assert row is not None
         assert row.pending_review_id == review.review_id
         assert row.pending_review_role_id == "news-sentiment-agent"
-        assert row.pending_review_model_id == "anthropic-claude-sonnet-4.5"
+        assert row.pending_review_model_id == "gemma-4-31b"
         assert row.pending_review_created_at is not None
         assert row.pending_review_created_at.tzinfo is not None
 
@@ -214,7 +214,7 @@ def test_last_reviewed_at_is_restored_after_restart(
 ) -> None:
     service1 = build_service(sqlite_session_factory)
     service1.review_assignment(
-        "chief-agent", "anthropic-claude-sonnet-4.5", session=db_session
+        "chief-agent", "gemma4:e2b-it-qat", session=db_session
     )
     db_session.commit()
 
@@ -268,16 +268,16 @@ def test_multiple_restarts_preserve_all_assignment_changes(
 
     service2 = build_service(sqlite_session_factory)
     review2 = service2.review_assignment(
-        "chief-agent", "anthropic-claude-sonnet-4.5", session=db_session
+        "chief-agent", "gemma4:e2b-it-qat", session=db_session
     )
     service2.apply_assignment(review2.review_id, session=db_session)
     db_session.commit()
 
     service3 = build_service(sqlite_session_factory)
     assert service3.assignments == {
-        "chief-agent": "anthropic-claude-sonnet-4.5",
-        "market-scanner": "openai-gpt-5.4-mini",
-        "news-sentiment-agent": "anthropic-claude-sonnet-4.5",
+        "chief-agent": "gemma4:e2b-it-qat",
+        "market-scanner": "gemma-4-31b",
+        "news-sentiment-agent": "gemma-4-31b",
         "forecast-model": "forecast-lite-v1",
     }
 
@@ -368,7 +368,7 @@ def test_set_assignment_does_not_touch_ai_control_state_pending_or_last_reviewed
     # (a pending review that pre-dates the set_assignment call).
     review = service.review_assignment(
         role_id="chief-agent",
-        model_id="anthropic-claude-sonnet-4.5",
+        model_id="gemma4:e2b-it-qat",
         session=db_session,
     )
     # Review sets last_reviewed_at AND the 4 pending_review_* columns.
@@ -398,7 +398,7 @@ def test_set_assignment_does_not_touch_ai_control_state_pending_or_last_reviewed
         # All four pending_review_* columns must remain populated.
         assert state_after.pending_review_id == snapshot_pending_review_id
         assert state_after.pending_review_role_id == "chief-agent"
-        assert state_after.pending_review_model_id == "anthropic-claude-sonnet-4.5"
+        assert state_after.pending_review_model_id == "gemma4:e2b-it-qat"
         assert state_after.pending_review_created_at is not None
         # last_reviewed_at must be unchanged (still the operator review time).
         assert state_after.last_reviewed_at == snapshot_last_reviewed_at
@@ -430,12 +430,12 @@ def test_set_assignment_validates_role_and_model(
             session=db_session,
         )
 
-    # Incompatible pair: ``openai-gpt-5.4-mini`` is only compatible with
+    # Incompatible pair: ``gemma-4-31b`` is only compatible with
     # ``market-scanner``, not ``chief-agent``.
     with pytest.raises(ValueError, match="not compatible"):
         service.set_assignment(
             role_id="chief-agent",
-            model_id="openai-gpt-5.4-mini",
+            model_id="gemma-4-31b",
             session=db_session,
         )
 
