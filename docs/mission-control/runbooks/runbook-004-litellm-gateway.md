@@ -138,6 +138,8 @@ systemctl daemon-reload && systemctl enable --now clay-litellm
 
 Ошибка одной роли **не блокирует** остальные (per-role isolation, 5c.4 live-пруф).
 
+> **Порядок ROLE_IDS:** субагенты → chief последним (например `["market-scanner", "news-sentiment-agent", "forecast-model", "chief-agent"]`), чтобы chief в своём тике видел результаты текущего тика.
+
 **Overlap-protection:** `max_instances=1` + APScheduler Lock — **не ослаблять**.
 Если тик длиннее интервала, APScheduler логгирует `maximum number of running
 instances reached` и скипает следующий (raw-пруф 5c.4).

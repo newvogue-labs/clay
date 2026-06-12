@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from clay.db.models_ops import ConnectorStatusHistory, IngestRun, SourceHealthEvent
+from clay.db.models_ops import AIAgentRun, ConnectorStatusHistory, IngestRun, SourceHealthEvent
 
 
 class OpsRepository:
@@ -138,6 +138,28 @@ class OpsRepository:
         return self.session.scalar(
             select(IngestRun).order_by(IngestRun.started_at.desc()).limit(1),
         )
+
+    def list_latest_agent_runs(self, role_ids: list[str]) -> dict[str, AIAgentRun]:
+        if not role_ids:
+            return {}
+
+        stmt = (
+            select(AIAgentRun)
+            .where(
+                AIAgentRun.role_id.in_(role_ids),
+                AIAgentRun.error.is_(None),
+                AIAgentRun.content.isnot(None),
+                AIAgentRun.content != "",
+            )
+            .order_by(AIAgentRun.created_at.desc())
+        )
+        rows = list(self.session.scalars(stmt).all())
+
+        result: dict[str, AIAgentRun] = {}
+        for row in rows:
+            if row.role_id not in result:
+                result[row.role_id] = row
+        return result
 
     def _serialize_details(self, details: dict[str, Any] | None) -> str | None:
         if details is None:

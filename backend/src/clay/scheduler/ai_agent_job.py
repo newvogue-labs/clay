@@ -16,20 +16,28 @@ import asyncio
 from datetime import UTC, datetime
 import logging
 
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from clay.ai_control.models import AIControlSnapshot
 from clay.ai_control.runner import AgentRunner, ModelUnavailableError
 from clay.ai_control.service import AIControlService
 from clay.db.models_ops import AIAgentRun
+from clay.db.repositories_ops import OpsRepository
 
 logger = logging.getLogger(__name__)
 
 
-def _render_context(snapshot: AIControlSnapshot, role_id: str | None = None) -> str:
+def _render_context(
+    snapshot: AIControlSnapshot,
+    role_id: str | None = None,
+    session: Session | None = None,
+) -> str:
     """Deterministic plain-text rendering of the 7 AIControlSnapshot sections.
 
     Every section is always present (empty → ``none``) for prompt stability.
+    When ``role_id == "chief-agent"`` and ``session`` is provided, appends a
+    ``=== subagent_reports ===`` section with the latest outputs from every
+    subagent role (5c.5).
     """
 
     def _maybe_list(items: list[object]) -> str:
@@ -111,6 +119,38 @@ def _render_context(snapshot: AIControlSnapshot, role_id: str | None = None) -> 
     else:
         lines.append("  none")
 
+    if role_id == "chief-agent" and session is not None:
+        if snapshot.roles:
+            all_role_ids = [r.role_id for r in snapshot.roles]
+        else:
+            all_role_ids = [
+                "market-scanner",
+                "news-sentiment-agent",
+                "forecast-model",
+            ]
+        subagent_role_ids = [rid for rid in all_role_ids if rid != "chief-agent"]
+
+        repo = OpsRepository(session)
+        runs = repo.list_latest_agent_runs(subagent_role_ids)
+
+        lines.append("")
+        lines.append("=== subagent_reports ===")
+
+        if not runs:
+            lines.append("  no recent reports")
+        else:
+            now = datetime.now(UTC)
+            for rid in subagent_role_ids:
+                run = runs.get(rid)
+                if run is None:
+                    continue
+                age_min = int((now - run.created_at).total_seconds() / 60)
+                content_text = run.content or ""
+                if len(content_text) > 2000:
+                    content_text = content_text[:2000] + "...[truncated]"
+                lines.append(f"  [{rid}] ({age_min} min ago):")
+                lines.append(f"    {content_text}")
+
     return "\n".join(lines)
 
 
@@ -154,7 +194,11 @@ class AIAgentCycleJob:
         async with self._lock:
             snapshot = await asyncio.to_thread(self._build_snapshot)
             for role_id in self._role_ids:
-                context = _render_context(snapshot, role_id)
+                if role_id == "chief-agent":
+                    with self._session_factory() as s:
+                        context = _render_context(snapshot, role_id, session=s)
+                else:
+                    context = _render_context(snapshot, role_id)
                 try:
                     result = await self._runner.run_agent(role_id, context)
                 except ModelUnavailableError as exc:
