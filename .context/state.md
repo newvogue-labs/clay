@@ -8,8 +8,8 @@
 - **DEPLOY-5 Phase 3 (code):** ✅ **5b-iii CLOSED целиком.** 3 cloud-провайдера × полный цикл. Dual-transport live на обоих плечах.
 - **DEPLOY-3.5e (kill-switch):** ✅ **CLOSED.** Пользователь `clay` (uid 945). LiteLLM под uid 945. Always-on nft. Latch/udev — history.
 - **DB-AUTOSTART:** ✅ `restart=always` + `podman-restart` + linger.
-- **HEAD:** `a8c360b` — docs(context): update state, reports for 5c.3 + 5c.2 close
-- **origin/main:** `3a325b0` запушено (16 коммитов не запушены).
+- **HEAD:** `c0a53f5` — fix(api): SSE heartbeat + shared stream helper (FOOTGUN F)
+- **origin/main:** `c0a53f5` запушено (0 отставания).
 
 ## DEPLOY TRACK
 
@@ -46,12 +46,18 @@
 
 ## Pending
 
-- **docs-5c:** 📋 **текущий.** runbook-004 DSN fix, multi-role docs, FOOTGUN D/E, ADR-010 addendum, incident-log, backlog. docs-only, 0 src/tests.
-- **Fix-slice FOOTGUN A (IngestionSettings):** 📋 повышенный приоритет (до постоянного включения флагов). env_file не добавлен.
+- **docs-5c:** ✅ **CLOSED.** runbook-004 DSN fix, multi-role docs, FOOTGUN D/E, ADR-010 addendum, incident-log. Commit `8065297`.
+- **Fix-slice FOOTGUN A:** ✅ **CLOSED.** `database_url` required. Commit `4d6da5a`.
+- **5c.5.1 (subagent→chief context):** ✅ **CLOSED.** Repo-метод + рендер + 14 тестов. Commit `daa079c`.
 - **FOOTGUN E (candidate):** 📋 LiteLLMModelClient — захватывать status+body ответа в error.
-- **5c.5 (consumer→signal_engine):** 📋 продуктовое решение с Emma.
+- **5c.5.2 attend-smoke:** ✅ **CLOSED.** Пруф синтеза chief доказан (runs 31–34, ID 34 chief→minimax-m3, 3387 chars, ссылается на 3 субагентов). 5c.5 целиком закрыт.
+- **UI-DATA-RECON:** ✅ **CLOSED.** SSE-роуты 200 с пустыми стримами → FOOTGUN F.
+- **FOOTGUN F-a (SSE heartbeat):** ✅ **CLOSED.** `sse.py` helper + heartbeat 15s + рефакторинг 10 стримов + events.py. Commit `c0a53f5`.
+- **docs-5c.5:** ✅ **CLOSED.** roles-taxonomy.md, ADR-010 addendum 3, runbook-004 re-smoke, backlog sync. Commit `7e88747`.
+- **FOOTGUN E:** 📋 LiteLLMModelClient — захватывать status+body ответа в error.
+- **SSE-RECON:** 📋 Emma проводит аудит SSE-кода → UI-трек нарезка.
 - **Provider pool free-tier:** 📋 Emma → список → recon → приоритезация.
-- **Retention/index `ai_agent_runs`:** 📋 база растёт (26 строк, ~1152/день@300s×4).
+- **Retention/index `ai_agent_runs`:** 📋 база растёт (~1152/день@300s×4).
 
 ## Critical Context
 
@@ -62,7 +68,8 @@
 - **Ollama:** system-сервис, `OLLAMA_HOST=127.0.0.1`, `OLLAMA_CONTEXT_LENGTH=65536`, `OLLAMA_NUM_PARALLEL=1`, порт 11434
 - **Dual-transport:** RoutingModelClient per-call по transport-полю registry. Cloud: LiteLLM → 3 провайдера. Local: Ollama native `/api/chat`.
 - **3 live провайдера:** Ollama (gemma4 local), TokenRouter (MiniMax-M3), Google (Gemini 3.1 Flash Lite, Gemini 2.5 Flash fallback)
-- **test:** 448 passed (+6 multi-role/FOOTGUN-D tests). Ruff 13/Pyright 33 baseline.
+- **test:** 463 passed. Ruff 13/Pyright 33 baseline.
+- **SSE heartbeat:** новый `clay/events/sse.py` — `sse_event_stream()` с keep-alive каждые 15s. Все 11 stream-роутов на нём.
 - **keys:** 2 ключа в `~/.config/clay/litellm/litellm.env` (600): GEMINI_API_KEY, TOKENROUTER_API_KEY. Gemma-4-31b использует тот же GEMINI_API_KEY.
 - **Тик 4 ролей ≈ 52s sequential.** Правило интервала: `interval ≥ 2× длительность тика` (300s → запас ×5.7).
 - **Last smoke:** 26 runs (17 success / 9 error) в 5433. Per-role isolation proven live.
@@ -71,6 +78,11 @@
 
 | SHA | Message |
 |-----|---------|
+| `c0a53f5` | fix(api): SSE heartbeat + shared stream helper (FOOTGUN F) |
+| `7e88747` | docs(ai_control): roles taxonomy + hierarchy v1 notes (5c.5) |
+| `daa079c` | feat(ai_control): feed subagent outputs into chief context (5c.5) |
+| `4d6da5a` | fix(settings): require explicit CLAY_DATABASE_URL (FOOTGUN A) |
+| `8065297` | docs(runbook): 5c multi-role + DSN fix + footguns D/E |
 | `a8c360b` | docs(context): update state, reports for 5c.3 + 5c.2 close |
 | `c82acd5` | feat(scheduler): multi-role ai agent cycle + reasoning_content fallback |
 | `57bfc9a` | docs(context): update state, reports for 5c.1 close + 5c.3 host-config |

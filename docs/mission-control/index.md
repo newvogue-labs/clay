@@ -16,7 +16,7 @@
   Стартовый промпт для нового planning-чата.
 
 - `blueprint-v1.md`
-  Главный инженерный blueprint системы `v1`.
+  Главный инженерный blueprint системы `v1`. §9–§10 — канон AI-слоя (роли, provider-pool, degraded-mode).
 
 - `execution-backlog-v1.md`
   Декомпозиция blueprint в эпики, задачи и подзадачи для дальнейшей разработки.
@@ -38,7 +38,7 @@
 
 ## Архитектура
 
-- [DEPLOY-5 — AI Model Layer](../architecture/deploy5-ai-model-layer.md) — план v1.0 слоя вызова моделей (решения 1A, 2A, 3 Gemini, 4B)
+- ~~[DEPLOY-5 — AI Model Layer](../architecture/deploy5-ai-model-layer.md)~~ **SUPERSEDED (2026-06-13).** Live-правда — `blueprint-v1.md` §9–§10.
 
 ## Подпапки
 
@@ -76,8 +76,12 @@
 - [ADR-010 — Chief-agent на Gemini free-tier](adrs/adr-010-chief-agent-gemini-free-tier.md)
 - [ADR-011 — Forecast: локальная количественная модель](adrs/adr-011-local-quant-forecast-model.md)
 - [ADR-012 — News/sentiment: demo-источник для v1](adrs/adr-012-news-sentiment-demo-source-v1.md)
-- `build_specs/deploy5-ai-model-layer.md`
-- `implementation_plans/deploy5-ai-model-layer-implementation-plan.md`
+- [ADR-013 — Provider-Pool как resource-manager](adrs/adr-013-provider-pool-resource-manager.md)
+- [ADR-014 — config_snapshots: версионирование промптов](adrs/adr-014-config-snapshots-prompt-versioning.md)
+- [ADR-015 — Degraded-mode AI-слоя](adrs/adr-015-degraded-mode.md)
+- **ADR-006 — reserved-gap** (намеренный пропуск нумерации)
+- ~~`build_specs/deploy5-ai-model-layer.md`~~ **SUPERSEDED**
+- ~~`implementation_plans/deploy5-ai-model-layer-implementation-plan.md`~~ **SUPERSEDED** (live-правда — blueprint §9–§10)
 - `runbooks/runbook-003-killswitch-egress.md`
 - `runbooks/runbook-004-litellm-gateway.md`
 

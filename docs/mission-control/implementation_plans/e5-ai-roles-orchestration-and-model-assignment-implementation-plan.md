@@ -1,3 +1,6 @@
+> **Live-правда AI-слоя консолидирована в `blueprint-v1.md` §9–§10.**
+> Этот документ — детальная planning-chain E5, сохраняется как история.
+
 # E5 AI Roles, Orchestration And Model Assignment Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -14,7 +17,7 @@
 
 This plan assumes the working application repository will live at:
 
-`/home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app`
+`~/Projects/clay/app`
 
 Important:
 
@@ -79,7 +82,7 @@ Important:
 - [ ] **Step 1: Write the failing contract tests**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/tests/ai_orchestration/test_registry_models.py
+# ~/Projects/clay/app/backend/tests/ai_orchestration/test_registry_models.py
 from clay_mc.ai_orchestration.models import ModelVersionRecord
 
 
@@ -101,7 +104,7 @@ def test_model_version_record_contains_role_compatibility_and_capabilities() -> 
 ```
 
 ```ts
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/src/features/ai-control/ai-assignments-store.test.ts
+// ~/Projects/clay/app/frontend/src/features/ai-control/ai-assignments-store.test.ts
 import { describe, expect, it } from 'vitest'
 import type { AssignmentSummary } from '../../types/ai-orchestration'
 
@@ -128,10 +131,10 @@ describe('ai assignment contracts', () => {
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/ai_orchestration/test_registry_models.py -v
 
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm test ai-assignments-store.test.ts --run
 ```
 
@@ -140,7 +143,7 @@ Expected: FAIL because the `ai_orchestration` domain contracts do not exist yet.
 - [ ] **Step 3: Implement shared AI orchestration contracts**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/src/clay_mc/ai_orchestration/models.py
+# ~/Projects/clay/app/backend/src/clay_mc/ai_orchestration/models.py
 from pydantic import BaseModel
 
 
@@ -164,7 +167,7 @@ class ModelVersionRecord(BaseModel):
 ```
 
 ```ts
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/src/types/ai-orchestration.ts
+// ~/Projects/clay/app/frontend/src/types/ai-orchestration.ts
 export interface AssignmentSummary {
   roleName: 'chief_agent' | 'market_scanner' | 'news_sentiment_agent' | 'forecast_model' | 'local_fallback_text'
   providerName: string
@@ -191,10 +194,10 @@ export interface ConflictSummary {
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/ai_orchestration/test_registry_models.py -v
 
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm test ai-assignments-store.test.ts --run
 ```
 
@@ -203,7 +206,7 @@ Expected: PASS with the minimum `E5` vocabulary now encoded in backend and front
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app
+cd ~/Projects/clay/app
 git add backend/src/clay_mc/ai_orchestration frontend/src/types/ai-orchestration.ts backend/tests/ai_orchestration frontend/src/features/ai-control/ai-assignments-store.test.ts
 git commit -m "feat: add e5 ai orchestration contracts"
 ```
@@ -219,7 +222,7 @@ git commit -m "feat: add e5 ai orchestration contracts"
 - [ ] **Step 1: Write the failing assignment validation tests**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/tests/ai_orchestration/test_assignment_validation.py
+# ~/Projects/clay/app/backend/tests/ai_orchestration/test_assignment_validation.py
 import pytest
 
 from clay_mc.ai_orchestration.assignments import AssignmentValidationError, validate_assignment
@@ -255,7 +258,7 @@ def test_validate_assignment_rejects_incompatible_model() -> None:
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/ai_orchestration/test_assignment_validation.py -v
 ```
 
@@ -264,7 +267,7 @@ Expected: FAIL because assignment validation does not exist yet.
 - [ ] **Step 3: Implement registry and validation helpers**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/src/clay_mc/ai_orchestration/assignments.py
+# ~/Projects/clay/app/backend/src/clay_mc/ai_orchestration/assignments.py
 class AssignmentValidationError(ValueError):
     pass
 
@@ -291,7 +294,7 @@ def validate_assignment(role_name: str, model_record: dict[str, object]) -> dict
 ```
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/src/clay_mc/ai_orchestration/provider_contracts.py
+# ~/Projects/clay/app/backend/src/clay_mc/ai_orchestration/provider_contracts.py
 from pydantic import BaseModel
 
 
@@ -308,7 +311,7 @@ class ProviderInvocationResult(BaseModel):
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/ai_orchestration/test_assignment_validation.py -v
 ```
 
@@ -317,7 +320,7 @@ Expected: PASS. Then add follow-up tests proving `fallback_only` and `degraded_f
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app
+cd ~/Projects/clay/app
 git add backend/src/clay_mc/ai_orchestration backend/tests/ai_orchestration/test_assignment_validation.py
 git commit -m "feat: add ai registry and assignment validation"
 ```
@@ -333,7 +336,7 @@ git commit -m "feat: add ai registry and assignment validation"
 - [ ] **Step 1: Write the failing assignments API tests**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/tests/api/test_ai_assignments_api.py
+# ~/Projects/clay/app/backend/tests/api/test_ai_assignments_api.py
 from fastapi.testclient import TestClient
 
 from clay_mc.api.main import app
@@ -362,7 +365,7 @@ def test_ai_assignment_review_endpoint_returns_review_card() -> None:
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/api/test_ai_assignments_api.py -v
 ```
 
@@ -371,7 +374,7 @@ Expected: FAIL because the AI assignment routes do not exist yet.
 - [ ] **Step 3: Implement the AI assignment routes**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/src/clay_mc/api/routes/ai_assignments.py
+# ~/Projects/clay/app/backend/src/clay_mc/api/routes/ai_assignments.py
 from fastapi import APIRouter
 
 
@@ -414,7 +417,7 @@ def get_assignment_review(role_name: str) -> dict[str, object]:
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/api/test_ai_assignments_api.py -v
 ```
 
@@ -423,7 +426,7 @@ Expected: PASS. Extend the payload to include provider/model metadata, compatibi
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app
+cd ~/Projects/clay/app
 git add backend/src/clay_mc/api backend/tests/api/test_ai_assignments_api.py
 git commit -m "feat: add ai assignments review api"
 ```
@@ -442,7 +445,7 @@ git commit -m "feat: add ai assignments review api"
 - [ ] **Step 1: Write the failing frontend route tests**
 
 ```tsx
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/src/features/ai-control/ai-control-route.test.tsx
+// ~/Projects/clay/app/frontend/src/features/ai-control/ai-control-route.test.tsx
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -464,7 +467,7 @@ describe('AIControlRoute', () => {
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm test ai-control-route.test.tsx --run
 ```
 
@@ -473,7 +476,7 @@ Expected: FAIL because the AI control route does not exist yet.
 - [ ] **Step 3: Implement the route shell and panels**
 
 ```tsx
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/src/features/ai-control/ai-control-route.tsx
+// ~/Projects/clay/app/frontend/src/features/ai-control/ai-control-route.tsx
 export function AIControlRoute() {
   return (
     <main className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.9fr)]">
@@ -496,7 +499,7 @@ export function AIControlRoute() {
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm test ai-control-route.test.tsx --run
 ```
 
@@ -505,7 +508,7 @@ Expected: PASS. Then wire `TanStack Query` bootstrap loading from `GET /ai/assig
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app
+cd ~/Projects/clay/app
 git add frontend/src/api frontend/src/stores frontend/src/features/ai-control
 git commit -m "feat: add ai control route shell"
 ```
@@ -525,7 +528,7 @@ git commit -m "feat: add ai control route shell"
 - [ ] **Step 1: Write the failing conflict/fallback tests**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/tests/ai_orchestration/test_conflict_summary.py
+# ~/Projects/clay/app/backend/tests/ai_orchestration/test_conflict_summary.py
 from clay_mc.ai_orchestration.conflicts import build_conflict_summary
 
 
@@ -539,7 +542,7 @@ def test_build_conflict_summary_includes_confidence_penalty() -> None:
 ```
 
 ```tsx
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/src/features/ai-control/ai-control-route.test.tsx
+// ~/Projects/clay/app/frontend/src/features/ai-control/ai-control-route.test.tsx
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -560,10 +563,10 @@ describe('AIControlRoute degraded semantics', () => {
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/ai_orchestration/test_conflict_summary.py -v
 
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm test ai-control-route.test.tsx --run
 ```
 
@@ -572,7 +575,7 @@ Expected: FAIL because the conflict and fallback layers do not exist yet.
 - [ ] **Step 3: Implement conflict and fallback helpers plus UI panels**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/src/clay_mc/ai_orchestration/conflicts.py
+# ~/Projects/clay/app/backend/src/clay_mc/ai_orchestration/conflicts.py
 def build_conflict_summary(roles_involved: list[str], conflict_type: str) -> dict[str, object]:
     return {
         "conflict_id": "conf-1",
@@ -585,7 +588,7 @@ def build_conflict_summary(roles_involved: list[str], conflict_type: str) -> dic
 ```
 
 ```tsx
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/src/features/ai-control/components/conflict-summary-panel.tsx
+// ~/Projects/clay/app/frontend/src/features/ai-control/components/conflict-summary-panel.tsx
 export function ConflictSummaryPanel() {
   return (
     <section>
@@ -596,7 +599,7 @@ export function ConflictSummaryPanel() {
 ```
 
 ```tsx
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/src/features/ai-control/components/fallback-status-banner.tsx
+// ~/Projects/clay/app/frontend/src/features/ai-control/components/fallback-status-banner.tsx
 export function FallbackStatusBanner() {
   return (
     <section>
@@ -611,10 +614,10 @@ export function FallbackStatusBanner() {
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/ai_orchestration/test_conflict_summary.py -v
 
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm test ai-control-route.test.tsx --run
 ```
 
@@ -623,7 +626,7 @@ Expected: PASS. Then add follow-up coverage showing missing forecast input or fa
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app
+cd ~/Projects/clay/app
 git add backend/src/clay_mc/ai_orchestration frontend/src/features/ai-control backend/tests/ai_orchestration/test_conflict_summary.py
 git commit -m "feat: add ai conflict and fallback surfaces"
 ```
@@ -642,7 +645,7 @@ git commit -m "feat: add ai conflict and fallback surfaces"
 - [ ] **Step 1: Write the failing stream and review/apply tests**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/tests/api/test_ai_stream.py
+# ~/Projects/clay/app/backend/tests/api/test_ai_stream.py
 from fastapi.testclient import TestClient
 
 from clay_mc.api.main import app
@@ -658,7 +661,7 @@ def test_ai_stream_returns_event_stream_response() -> None:
 ```
 
 ```ts
-// /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend/tests/e2e/ai-control.spec.ts
+// ~/Projects/clay/app/frontend/tests/e2e/ai-control.spec.ts
 import { expect, test } from '@playwright/test'
 
 test('model assignment change shows review card before apply', async ({ page }) => {
@@ -674,10 +677,10 @@ test('model assignment change shows review card before apply', async ({ page }) 
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/api/test_ai_stream.py -v
 
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm exec playwright test frontend/tests/e2e/ai-control.spec.ts
 ```
 
@@ -686,7 +689,7 @@ Expected: FAIL because the stream endpoint and end-to-end review flow are not im
 - [ ] **Step 3: Implement stream endpoint and review/apply glue**
 
 ```python
-# /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend/src/clay_mc/api/routes/ai_stream.py
+# ~/Projects/clay/app/backend/src/clay_mc/api/routes/ai_stream.py
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
@@ -709,10 +712,10 @@ def get_ai_events_stream() -> StreamingResponse:
 Run:
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/backend
+cd ~/Projects/clay/app/backend
 uv run pytest tests/api/test_ai_stream.py -v
 
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app/frontend
+cd ~/Projects/clay/app/frontend
 pnpm exec playwright test frontend/tests/e2e/ai-control.spec.ts
 ```
 
@@ -721,7 +724,7 @@ Expected: PASS. Then add coverage showing degraded fallback switches and manual 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/app
+cd ~/Projects/clay/app
 git add backend/src/clay_mc/api/routes/ai_stream.py backend/src/clay_mc/ai_orchestration/streaming.py backend/tests/api/test_ai_stream.py frontend/src/features/ai-control frontend/tests/e2e/ai-control.spec.ts README.md
 git commit -m "feat: add ai streaming and review apply flow"
 ```

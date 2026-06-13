@@ -1,3 +1,6 @@
+> **Live-правда AI-слоя консолидирована в `blueprint-v1.md` §9–§10.**
+> Этот документ — детальная planning-chain E5, сохраняется как история.
+
 # E5 Build Spec — AI Roles, Orchestration And Model Assignment
 
 Дата: 2026-04-15

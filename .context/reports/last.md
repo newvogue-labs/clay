@@ -207,17 +207,65 @@ HEAD `73b59ac`.
 
 ### 5c.4 ЗАКРЫТ ОКОНЧАТЕЛЬНО. Трек 5c (субагенты) доказан end-to-end на 4 ролях.
 
-## Следующий: docs-5c
+## Сессия 2026-06-12 — docs-5c + fix-A + 5c.5.1
+
+### docs-5c — документация трека 5c
+- ✅ runbook-004: DSN-шаблон починен, pkexec su форма, multi-role, overlap-protection, интервал правило
+- ✅ FOOTGUN D (закрыт) + E (candidate) секция
+- ✅ ADR-010 addendum: multi-role variant A, reasoning fallback, RPD budget
+- ✅ incident-log.md: INC-001 pytest→5432
+- ✅ backlog: FOOTGUN A/E, retention, 5c.5, restart-policy ✅, 5c.4 ✅
+- ✅ `.env`→5432: корневой .env синхронизирован с backend/.env
+- ✅ Commit `8065297`, docs-only, 0 src/tests
+
+### fix-A — FOOTGUN A (IngestionSettings.database_url required)
+- ✅ `database_url: str` — убран дефолт `clay:clay@localhost:5432`, поле REQUIRED
+- ✅ Аудит import-time точек: bootstrap.py:182/335, db/session.py:19, signal_engine/service.py:59
+- ✅ 4 `# type: ignore[reportCallIssue]` (pydantic-settings false positives)
+- ✅ Негатив-тест: `test_unset_env_raises_readable_error` (ValidationError)
+- ✅ **449 passed**, ruff 13, pyright 33
+- ✅ Commit `4d6da5a`
+
+### 5c.5.1 — выводы субагентов в контекст chief-agent
+- ✅ Repo-метод `list_latest_agent_runs` в OpsRepository (DISTINCT ON role_id, error NULL + content NOT NULL)
+- ✅ Секция «=== subagent_reports ===» в _render_context (только для chief-agent)
+- ✅ session проброшен в _render_context через AIAgentCycleJob.run_once (AgentRunner не тронут)
+- ✅ Docs-нота: порядок ROLE_IDS (субагенты → chief последним)
+- ✅ 14 тестов: latest-per-role, рендер 3/1/0 отчётов, кап 2000, регрессион-пин
+- ✅ **463 passed**, ruff 13, pyright 33
+- ✅ Commit `daa079c`
+
+## Сессия 2026-06-13 — docs-5c.5 + FOOTGUN F-a fix
+
+### Слайс 1 — docs-5c.5 (docs-only)
+- ✅ `docs/mission-control/roles-taxonomy.md` — 4 яруса, 13 ролей
+- ✅ ADR-010 Addendum 3 — иерархия v1, smoke-пруф runs 31–34
+- ✅ runbook-004: re-smoke процедура при cloud RPD исчерпании, FOOTGUN F нота
+- ✅ backlog sync: 4 задачи (INFO-лог, LIMIT+retention, FOOTGUN E, FOOTGUN F)
+- ✅ 4 файла, 198 insertions, docs-only
+- ✅ Commit `7e88747`, push origin/main
+
+### Слайс 2 — SSE-RECON (read-only, 0 коммитов)
+- ✅ Исходники 3 стримов: `workspace_stream.py`, `control_center_stream.py`, `reliability_stream.py`
+- ✅ EventBus: in-memory fan-out (`asyncio.Queue`), 12 call-sites
+- ✅ Frontend: слушает `.ready` + `.refresh` события, snapshot на маунте (не только по SSE)
+- ✅ Диагноз: нет heartbeat → reconnect-шум (271 ошибка, Status code: null)
+- ❌ F-b (snapshot error → LOADING навсегда) — опровергнут кодом хука (try/catch → isLoading=false)
+
+### Слайс 3 — FOOTGUN F-a fix (backend-only)
+- ✅ `backend/src/clay/events/sse.py` — `encode_sse()` + `sse_event_stream()` с heartbeat 15s (`asyncio.wait_for` → `:keep-alive`)
+- ✅ 10 stream-роутов + events.py отрефакторены на helper (−192 строк дублирования)
+- ✅ `X-Accel-Buffering: no` добавлен во все стримы
+- ✅ **463 passed**, ruff 0, pyright 0
+- ✅ Proof-1: curl stream → CORS, `.ready`, `:keep-alive` через 15s
+- ✅ Proof-2: `/control-center/overview` 200, `/workspace/trading` 200, `/reliability/overview` 200 (F-b снят)
+- ✅ Commit `c0a53f5`, push origin/main
 
 ## Итог
 
 | Track | Status |
 |-------|--------|
-| 5b-iii | ✅ CLOSED |
-| 3.5e | ✅ CLOSED |
-| DB-AUTOSTART | ✅ |
-| 5c.1 | ✅ CLOSED |
-| 5c.3 | ✅ CLOSED |
-| 5c.2 | ✅ CLOSED |
-| 5c.4 | ✅ CLOSED |
-| HEAD | `a8c360b` (16 unpushed) |
+| docs-5c.5 | ✅ CLOSED |
+| SSE-RECON | ✅ CLOSED |
+| FOOTGUN F-a | ✅ CLOSED |
+| HEAD | `c0a53f5` (0 unpushed) |

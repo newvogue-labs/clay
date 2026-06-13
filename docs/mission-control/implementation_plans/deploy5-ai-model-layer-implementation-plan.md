@@ -1,3 +1,7 @@
+> **STATUS: SUPERSEDED (2026-06-13).** Написан до реализации кода;
+> live-правда AI-слоя — в `blueprint-v1.md` §9–§10 и `runbooks/runbook-004`.
+> Документ сохранён как исторический контекст deploy5 (слайсы 5a–5e).
+
 # DEPLOY-5 — AI Model Layer Implementation Plan
 
 > **For agentic workers:** Implement slice-by-slice per build spec. Each slice passes its gate before next begins.

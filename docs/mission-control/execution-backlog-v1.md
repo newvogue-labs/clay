@@ -381,18 +381,26 @@
 Refs: ADR-005, ADR-009..012; build_specs/deploy5-ai-model-layer.md  
 Dependencies: E1, E2, E5
 
-**Backlog (обновлено 2026-06-12 после 5c.4):**
-- [x] **Governance (закрыто 5b-iii.4b):** placeholder `openai-gpt-5.4` удалён; chief-agent → `minimax-m3` (cloud, TokenRouter) — штатное назначение в коде и БД.
-- [x] **Gemini full-cycle smoke (закрыто 5b-iii.5c):** заменён на Flash Lite (RPD 500 vs 20). Матрица 3 cloud × полный цикл доказана.
-- [x] **Kill-switch 3.5e (закрыто):** миграция якоря с uid 1000 на uid 945 (clay). Always-on, latch/udev удалены.
-- [x] **5c.4 multi-role smoke (закрыто):** 4 роли, 3 cloud-провайдера, FOOTGUN D live, per-role isolation proven.
-- [ ] **Fix-слайс FOOTGUN A (IngestionSettings):** повышенный приоритет (до постоянного включения флагов). `.env` не читается pydantic-settings без `env_file`. Варианты: (а) добавить `env_file` в `model_config`; (б) fail-loud при дефолте на live 5432; (в) явный `CLAY_DATABASE_URL` в systemd-юните.
-- [ ] **FOOTGUN E (LiteLLMModelClient):** захватывать HTTP status + тело ответа в error-текст при 400 Bad Request (сейчас пустая строка причины).
-- [ ] **Provider pool free-tier:** Emma → список сайтов-источников → recon → приоритезация → LiteLLM fallback-цепочки.
-- [ ] **clay_timescaledb restart-policy:** ✅ CLOSED (restart=always + podman-restart + linger).
-- [ ] **DNS metadata-leak для uid clay:** 127.0.0.53 (systemd-resolved) доступен через `lo`. Опциональное ужесточение.
-- [ ] **Retention/index `ops.ai_agent_runs`:** база растёт (26 строк, ~1152/день@300s×4). Добавить retention policy + индекс.
-- [ ] **5c.5 consumer→signal_engine:** продуктовое решение с Emma.
+**Backlog (обновлено 2026-06-13 после docs-консолидации):**
+
+Закрыто:
+- [x] **Governance (закрыто 5b-iii.4b):** placeholder `openai-gpt-5.4` удалён; chief-agent → `minimax-m3`.
+- [x] **Gemini full-cycle smoke (закрыто 5b-iii.5c):** заменён на Flash Lite (RPD 500 vs 20).
+- [x] **Kill-switch 3.5e (закрыто):** миграция якоря с uid 1000 на uid 945 (clay).
+- [x] **5c.4 multi-role smoke (закрыто):** 4 роли, 3 cloud-провайдера, per-role isolation proven.
+- [x] **FOOTGUN A (закрыт 4d6da5a):** `database_url` required, негатив-тест.
+- [x] **FOOTGUN D (закрыт c82acd5):** reasoning_content fallback.
+- [x] **FOOTGUN F (закрыт c0a53f5):** SSE heartbeat + shared stream helper.
+- [x] **clay_timescaledb restart-policy:** restart=always + podman-restart + linger.
+- [x] **5c.5 consumer→signal_engine:** закрыто (5c.5.1 subagent→chief + 5c.5.2 smoke).
+
+Текущие приоритеты (в порядке выполнения):
+1. **Provider-pool (stateful, схема `ops`)** — следующий код-слайс после docs-консолидации.
+2. **Retention/индекс `ai_agent_runs`** — рост ~1150 строк/день@300s×4; `list_latest_agent_runs` без LIMIT.
+3. **FOOTGUN E** — `LiteLLMModelClient` захватывать HTTP status + body в error (пустая 400 при гео/transient).
+4. **Расширение ролей:** risk-manager → bull/bear || devils-advocate лайт → расклейка news/sentiment → regime-detector + reflection → onchain/macro/liquidity.
+5. **UI-трек Фазы 1–3** (observability → run-now → чат-окно + промпты в DB) — после фикса SSE/publisher.
+6. **Хвосты:** замена тестовых ключей (TokenRouter + Gemini) — Emma; решение о постоянном включении флагов (300s, 4 роли) — Emma; DNS metadata-leak для uid clay — опционально.
 
 ---
 
@@ -678,6 +686,8 @@ Dependencies: E1, E2, E5
 5. `E5` AI roles, orchestration and model assignment
 6. `E6` Signal lifecycle, ranking and risk-control
 7. `E7` Session lifecycle
+
+Текущий AI-трек (2026-06-13): см. E5-DEPLOY5 «Backlog» выше — provider-pool → retention → FOOTGUN E → расширение ролей → UI-трек.
 
 Именно эти эпики дают первую рабочую “ось” системы.
 

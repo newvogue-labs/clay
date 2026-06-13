@@ -9,7 +9,7 @@
 
 ## Разделы
 
-- `planning/` - минимальный набор planning-документов, который уже был импортирован в implementation repository.
+- `planning/` ~~существовал~~ — апрельские дубли консолидированы в `mission-control/` (2026-06-13). Канон AI-слоя — blueprint §9–§10.
 - `mission-control/` - полный snapshot папки `CLAY_Mission_Control` из Obsidian.
 - `ui-references/` - распакованные visual reference exports от Gemini для UI-pass.
 - `development/` - handoff-документы, текущий статус разработки, точки остановки и следующие шаги.
