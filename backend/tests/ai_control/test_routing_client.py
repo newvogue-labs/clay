@@ -210,6 +210,62 @@ def test_litellm_client_raises_model_unavailable_on_connect_error() -> None:
     assert raised
 
 
+# ---- FOOTGUN E: gateway error capture (status+body) -----------------------
+
+
+def test_litellm_client_429_body_in_error_message() -> None:
+    """FOOTGUN E: 429 with body → error contains status code + body fragment."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error": {"message": "Rate limit exceeded", "retry_after": 60}})
+
+    adapter = LLMAdapter(
+        LLMSettings(base_url="http://test:4000"),
+        transport=httpx.MockTransport(handler),
+    )
+    client = LiteLLMModelClient(adapter=adapter)
+    with pytest.raises(ModelUnavailableError) as excinfo:
+        asyncio.run(client.chat([ChatMessage(role="user", content="x")], model="m"))
+    msg = str(excinfo.value)
+    assert "429" in msg
+    assert "Rate limit exceeded" in msg
+
+
+def test_litellm_client_400_empty_body_in_error_message() -> None:
+    """FOOTGUN E: 400 empty body → error contains '400' without crash."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, text="")
+
+    adapter = LLMAdapter(
+        LLMSettings(base_url="http://test:4000"),
+        transport=httpx.MockTransport(handler),
+    )
+    client = LiteLLMModelClient(adapter=adapter)
+    with pytest.raises(ModelUnavailableError) as excinfo:
+        asyncio.run(client.chat([ChatMessage(role="user", content="x")], model="m"))
+    msg = str(excinfo.value)
+    assert "400" in msg
+    # Should not crash on empty body
+    assert msg
+
+
+def test_litellm_client_connect_error_has_type_name() -> None:
+    """FOOTGUN E: ConnectError without response → error contains type name, no AttributeError."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused to backend")
+
+    adapter = LLMAdapter(
+        LLMSettings(base_url="http://test:4000"),
+        transport=httpx.MockTransport(handler),
+    )
+    client = LiteLLMModelClient(adapter=adapter)
+    with pytest.raises(ModelUnavailableError) as excinfo:
+        asyncio.run(client.chat([ChatMessage(role="user", content="x")], model="m"))
+    msg = str(excinfo.value)
+    assert "ConnectError" in msg or "connection refused" in msg
+    # Ensure no AttributeError is raised trying to access .response
+    assert "AttributeError" not in msg
+
+
 # ---- Registry transport_for -----------------------------------------------
 
 

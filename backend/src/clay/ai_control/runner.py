@@ -44,6 +44,26 @@ class ModelUnavailableError(RuntimeError):
     to another provider or to stale/empty output.
     """
 
+
+def _format_gateway_error(exc: httpx.HTTPError, *, model: str, base_url: str) -> str:
+    """Format an ``httpx.HTTPError`` into a descriptive error message.
+
+    For HTTPStatusError (4xx/5xx) includes status code + truncated body.
+    For transport errors (ConnectError, Timeout) includes exception type and message.
+    Body is capped at 500 characters.
+    """
+    status = getattr(exc, "response", None)
+    if status is not None:
+        body = (status.text or "")[:500]
+        return (
+            f"gateway HTTP {status.status_code} for model {model!r} "
+            f"at {base_url}: {body}"
+        )
+    return (
+        f"gateway call failed for model {model!r} at {base_url}: "
+        f"[{type(exc).__name__}] {exc}"
+    )
+
 @dataclass(slots=True)
 class ModelResponse:
     """Normalized result of a single model call."""
@@ -178,8 +198,7 @@ class OllamaNativeClient:
                 data = resp.json()
         except httpx.HTTPError as exc:
             raise ModelUnavailableError(
-                f"Ollama native API call failed for model {model!r} "
-                f"at {self._base_url}: {exc}"
+                _format_gateway_error(exc, model=model, base_url=self._base_url)
             ) from exc
         message = data.get("message", {}) or {}
         return ModelResponse(
@@ -218,8 +237,9 @@ class LiteLLMModelClient:
             response: _ChatCompletionResponse = await self._adapter.chat_completion(request)
         except httpx.HTTPError as exc:
             raise ModelUnavailableError(
-                f"LiteLLM gateway call failed for model {model!r} "
-                f"at {self._adapter._settings.base_url}: {exc}"
+                _format_gateway_error(
+                    exc, model=model, base_url=self._adapter._settings.base_url
+                )
             ) from exc
         choice = response.choices[0] if response.choices else None
         content = (choice.message.content or None) if choice else None
