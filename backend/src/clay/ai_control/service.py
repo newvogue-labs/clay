@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
+
+from clay.db.models_ops import AIAgentRun
 
 from clay.ai_control.models import (
     AIControlSnapshot,
@@ -13,9 +18,13 @@ from clay.ai_control.models import (
     ConflictSnapshot,
     FallbackSnapshot,
     ModelVersionSnapshot,
+    RPDBudget,
+    RegistryVersionInfo,
     ReviewCardSnapshot,
     RoleDefinitionSnapshot,
+    RoleRunSummary,
 )
+from clay.db.repositories_ops import OpsRepository
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
 from clay.db.repositories_runtime_state import (
@@ -64,6 +73,18 @@ class PendingReview:
     role_id: str
     model_id: str
     created_at: datetime
+
+
+# Static RPD limit map for free-tier models (см. blueprint §10.4).
+# Models without a limit (TokenRouter, local) have None.
+RPD_LIMITS: dict[str, int | None] = {
+    "gemma-4-31b": 1500,
+    "gemini-3.1-flash-lite": 500,
+    "gemini-2.5-flash": 20,
+    "minimax-m3": None,
+    "forecast-lite-v1": None,
+    "gemma4:e2b-it-qat": None,
+}
 
 
 class AIControlService:
@@ -132,7 +153,6 @@ class AIControlService:
         # itself only reads the in-memory state restored at __init__, so
         # a missing session is still valid (e.g. ``signal_engine`` calls
         # us without one).
-        now = datetime.now(UTC)
         conflicts = self._build_conflicts()
         assignments = self._build_assignments(conflicts=conflicts)
         degraded_roles = [row.role_id for row in assignments if row.assignment_health == "degraded"]
@@ -140,6 +160,10 @@ class AIControlService:
         chief_model = self.models[self.assignments["chief-agent"]]
 
         pending_review = self._build_review_card(self._pending_review) if self._pending_review else None
+
+        runs_summary = self._build_runs_summary(session)
+        rpd_budgets = self._build_rpd_budgets(session)
+        registry_version = self._build_registry_version()
 
         return AIControlSnapshot(
             summary=AIControlSummary(
@@ -185,6 +209,86 @@ class AIControlService:
             conflicts=conflicts,
             fallback=self._build_fallback_snapshot(degraded_roles=degraded_roles, fallback_active=fallback_active),
             pending_review=pending_review,
+            runs_summary=runs_summary,
+            rpd_budgets=rpd_budgets,
+            registry_version=registry_version,
+        )
+
+    def _build_runs_summary(
+        self, session: Session | None
+    ) -> list[RoleRunSummary]:
+        if session is None:
+            return []
+        now = datetime.now(UTC)
+        since_24h = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        role_ids = list(self.roles.keys())
+        latest = OpsRepository(session).list_latest_agent_runs(role_ids)
+        stats = OpsRepository(session).agent_runs_stats(role_ids, since=since_24h)
+        result: list[RoleRunSummary] = []
+        for role_id in role_ids:
+            run = latest.get(role_id)
+            role_stats = stats.get(role_id, {"total": 0, "errored": 0})
+            total = role_stats["total"]
+            errored = role_stats["errored"]
+            result.append(
+                RoleRunSummary(
+                    role_id=role_id,
+                    latest_run_id=run.id if run else None,
+                    latest_run_created_at=run.created_at.isoformat() if run else None,
+                    latest_has_error=run.error is not None if run else False,
+                    latest_content_length=len(run.content or "") if run else 0,
+                    total_24h=total,
+                    errored_24h=errored,
+                    error_rate_24h=errored / total if total > 0 else 0.0,
+                )
+            )
+        return result
+
+    def _build_rpd_budgets(
+        self, session: Session | None
+    ) -> list[RPDBudget]:
+        if session is None:
+            return []
+        now = datetime.now(UTC)
+        since_24h = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        result: list[RPDBudget] = []
+        for model_id in self.models:
+            limit = RPD_LIMITS.get(model_id)
+            stmt = select(func.count(AIAgentRun.id)).where(
+                AIAgentRun.model_id == model_id,
+                AIAgentRun.created_at >= since_24h,
+            )
+            used = 0
+            if session is not None:
+                used = session.scalar(stmt) or 0
+            remaining = (limit - used) if limit is not None else None
+            result.append(
+                RPDBudget(
+                    model_id=model_id,
+                    limit=limit,
+                    used_24h=used,
+                    remaining=remaining,
+                )
+            )
+        return result
+
+    def _build_registry_version(self) -> RegistryVersionInfo:
+        sorted_models = sorted(
+            self.models.values(),
+            key=lambda m: m.model_id,
+        )
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                [
+                    (m.model_id, m.transport, m.provider, m.activation_status)
+                    for m in sorted_models
+                ],
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()[:12]
+        return RegistryVersionInfo(
+            fingerprint=fingerprint,
+            model_count=len(self.models),
         )
 
     def review_assignment(

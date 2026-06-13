@@ -5,6 +5,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func, select
+
 from clay.db.models_ops import AIAgentRun, ConnectorStatusHistory, IngestRun, SourceHealthEvent
 
 
@@ -159,6 +161,36 @@ class OpsRepository:
         for row in rows:
             if row.role_id not in result:
                 result[row.role_id] = row
+        return result
+
+    def agent_runs_stats(
+        self, role_ids: list[str], *, since: datetime
+    ) -> dict[str, dict[str, int]]:
+        """Return per-role stats within *since* window.
+
+        Returns dict[role_id, {total: int, errored: int}].
+        """
+        if not role_ids:
+            return {}
+
+        total_stmt = (
+            select(
+                AIAgentRun.role_id,
+                func.count(AIAgentRun.id).label("total"),
+                func.count(AIAgentRun.error).label("errored"),
+            )
+            .where(
+                AIAgentRun.role_id.in_(role_ids),
+                AIAgentRun.created_at >= since,
+            )
+            .group_by(AIAgentRun.role_id)
+        )
+        rows = self.session.execute(total_stmt).all()
+        result: dict[str, dict[str, int]] = {
+            role_id: {"total": 0, "errored": 0} for role_id in role_ids
+        }
+        for row in rows:
+            result[row.role_id] = {"total": int(row.total), "errored": int(row.errored)}
         return result
 
     def _serialize_details(self, details: dict[str, Any] | None) -> str | None:

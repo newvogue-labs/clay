@@ -12,12 +12,19 @@ import {
   Zap,
 } from 'lucide-react'
 
+import { useAIControl } from '../ai-control/use-ai-control'
+
 type SettingsPageProps = {
   isLightTheme: boolean
   onToggleTheme: () => void
 }
 
 export function SettingsPage({ isLightTheme, onToggleTheme }: SettingsPageProps) {
+  const { snapshot } = useAIControl()
+  const chiefAssignment = snapshot?.assignments.find((a) => a.role_id === 'chief-agent')
+  const marketScannerAssignment = snapshot?.assignments.find((a) => a.role_id === 'market-scanner')
+  const chiefModel = chiefAssignment?.model_display_name ?? 'Loading\u2026'
+  const marketModel = marketScannerAssignment?.model_display_name ?? 'Loading\u2026'
   return (
     <div aria-label="settings-page" className="screen-page settings-page" data-screen="settings">
       <header className="screen-page-header">
@@ -119,8 +126,8 @@ export function SettingsPage({ isLightTheme, onToggleTheme }: SettingsPageProps)
             <h3>Model Defaults</h3>
             <Zap className="h-4 w-4 text-clay-accent" />
           </div>
-          <SettingsRow label="Chief Agent" value="GPT-5.4" />
-          <SettingsRow label="Market Analyst" value="Gemini 3.1 Pro" />
+          <SettingsRow label="Chief Agent" value={chiefModel} />
+          <SettingsRow label="Market Analyst" value={marketModel} />
           <SettingsRow label="Fallback Policy" value="Review Required" />
         </section>
       </div>

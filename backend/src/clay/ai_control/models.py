@@ -89,6 +89,29 @@ class FallbackSnapshot(BaseModel):
     operator_message: str
 
 
+class RoleRunSummary(BaseModel):
+    role_id: str
+    latest_run_id: int | None
+    latest_run_created_at: str | None
+    latest_has_error: bool
+    latest_content_length: int
+    total_24h: int
+    errored_24h: int
+    error_rate_24h: float
+
+
+class RPDBudget(BaseModel):
+    model_id: str
+    limit: int | None
+    used_24h: int
+    remaining: int | None
+
+
+class RegistryVersionInfo(BaseModel):
+    fingerprint: str
+    model_count: int
+
+
 class AIControlSnapshot(BaseModel):
     summary: AIControlSummary
     roles: list[RoleDefinitionSnapshot]
@@ -97,6 +120,9 @@ class AIControlSnapshot(BaseModel):
     conflicts: list[ConflictSnapshot]
     fallback: FallbackSnapshot
     pending_review: ReviewCardSnapshot | None
+    runs_summary: list[RoleRunSummary] = []
+    rpd_budgets: list[RPDBudget] = []
+    registry_version: RegistryVersionInfo | None = None
 
 
 class AssignmentReviewCommand(BaseModel):
