@@ -95,16 +95,30 @@ def proposed(reconciler: ConfigReconciler) -> ProposedConfig:
 # ── 1. Happy path ────────────────────────────────────────────────────
 
 
+def _cp_side_effect(*args, **kwargs):
+    """subprocess.run side-effect: actually copy file for cp commands."""
+    import shutil
+
+    cmd = list(kwargs.get("args") or args[0])
+    try:
+        cp_idx = cmd.index("cp")
+    except ValueError:
+        pass
+    else:
+        src, dst = cmd[cp_idx + 1], cmd[cp_idx + 2]
+        shutil.copy2(src, dst)
+    return MagicMock(returncode=0)
+
+
 def test_apply_happy_path(
     writer: ConfigWriter, proposed: ProposedConfig, live_path: Path
 ) -> None:
     diff_proposed = _different_yaml()
 
     with (
-        patch("subprocess.run") as mock_run,
+        patch("subprocess.run", side_effect=_cp_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_run.return_value = MagicMock(returncode=0)
         mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
 
         report = writer.apply_live(diff_proposed, force=True)
