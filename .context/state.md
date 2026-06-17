@@ -27,6 +27,8 @@
 | `a0b5f17` | feat(ai-control): ConfigWriter shadow + apply_live + degraded-mode (S3c-1/2/3) |
 | `2e68a76` | docs(adr): ADR-015 degraded-mode — never-empty invariant, fail-loud (S3c-3) |
 | `6def8b5` | docs(runbook): update runbook-004 + backlog for FOOTGUN E+F, S3c host changes |
+| `9dc40cd` | docs(context): update state, reports, handoff for S3c-3 + rehearsal |
+| `9388bec` | test(ai-control): fix apply_happy_path backup.exists() with real cp side-effect (S3c-2 test-gap) |
 
 ## Pending
 
