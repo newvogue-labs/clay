@@ -687,7 +687,9 @@ Dependencies: E1, E2, E5
 6. `E6` Signal lifecycle, ranking and risk-control
 7. `E7` Session lifecycle
 
-Текущий AI-трек (2026-06-13): см. E5-DEPLOY5 «Backlog» выше — provider-pool → retention → FOOTGUN E → расширение ролей → UI-трек.
+Текущий AI-трек (2026-06-16): см. E5-DEPLOY5 «Backlog» выше — provider-pool (stateful) → retention/индекс ai_agent_runs → расширение ролей → UI-трек.
+  - ✅ FOOTGUN E: закрыт `2084cee` (_format_gateway_error — status_code + тело + транспортные ошибки, +3 hermetic теста)
+  - ✅ FOOTGUN F: закрыт `c0a53f5` (SSE heartbeat 15s, единый sse_event_stream, рефакторинг 11 стримов)
 
 Именно эти эпики дают первую рабочую “ось” системы.
 

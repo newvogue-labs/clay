@@ -292,26 +292,23 @@ Gemma 4 31B через Gemini API возвращает `content: null`, а
 **Live-пруф (5c.4):** 3 непустых gemma-4-31b content (357/544/556 chars),
 error=NULL.
 
-### FOOTGUN E (candidate, открыт)
+### FOOTGUN E ✅ закрыт (commit `2084cee`)
 
-При гео/transient-сбое Gemini LiteLLM возвращает `400 Bad Request`
-с пустым/неинформативным телом. В `ai_agent_runs.error` попадает
-строка без причины (только `LiteLLM gateway call failed... 400:`).
+**Фикс:** `_format_gateway_error()` — захватывает HTTP status +
+тело ответа (`response.text[:500]`) в error-текст, а для транспортных
+ошибок (ConnectError/Timeout) — тип исключения. Применён к
+`LiteLLMModelClient` и `OllamaNativeClient` except-блокам.
 
-**План фикса:** `LiteLLMModelClient` — захватывать HTTP status +
-тело ответа в error-текст для диагностируемости. Отдельный fix-слайс.
+**Live-пруф:** 3 hermetic теста: 429 с body, 400 пустое тело, ConnectError.
+`ai_agent_runs.error` теперь содержит `"gateway HTTP 429: ..."` / `"[ConnectError] ..."`.
 
-### FOOTGUN F (candidate, investigating)
+### FOOTGUN F ✅ закрыт (commit `c0a53f5`)
 
-SSE-роуты `/workspace/trading/stream`, `/control-center/stream`,
-`/reliability/stream` возвращают `200 text/event-stream`, но **не эмитят
-событий** — frontend висит в LOADING, ожидая первого `data:`.
+**Фикс:** рефакторинг 11 SSE-роутов — единый `sse_event_stream()` в
+`clay/events/sse.py` с heartbeat (keep-alive) каждые 15s. `encode_sse()`
+для форматирования Server-Sent Events. −192 строк кода.
 
-**Диагноз:** роуты существуют, CORS настроен, SSE-соединение открывается,
-но publisher (механизм, который должен класть события в очередь) никем
-не вызывается. Пустой стрим = вечная загрузка UI.
-
-**Статус:** investigating. См. SSE-RECON-отчёт 2026-06-13.
+**Live-пруф:** все стримы эмитят heartbeat, frontend получает события.
 
 ## 15. Процедура re-smoke при исчерпании cloud-квот
 
