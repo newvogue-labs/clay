@@ -1,22 +1,18 @@
 ---
-date: 2026-06-13
+date: 2026-06-17
 from: Emma
-session: Сессия 8 — docs-5c.5 + SSE-RECON + FOOTGUN F-a (CLOSED)
+session: Сессия 12 — S3b + S3c-1/1R/2/2R/3 ✅ ALL CLOSED
 ---
 
-## Закрыто в этой сессии
+## Закрыто в этой/предыдущей сессии
 
-- **docs-5c.5:** roles-taxonomy.md, ADR-010 addendum 3, runbook-004 re-smoke, backlog sync. `7e88747`
-- **SSE-RECON:** диагноз FOOTGUN F — 10/10 дублированных SSE-генераторов без heartbeat. Frontend не виноват (snapshot на маунте, try/catch)
-- **FOOTGUN F-a:** `clay/events/sse.py` с heartbeat 15s, рефакторинг 11 стримов, −192 строк. `c0a53f5`
+- **S3b:** ✅ CLOSED. ConfigReconciler render + parity diff. 14 tests. `Equivalent: True`.
+- **S3c-1:** ✅ CLOSED. ConfigWriter shadow (validate/write_shadow/backup/noop-skip). 24 tests.
+- **S3c-1R:** ✅ CLOSED. Recon канонического пути + FOOTGUN H снят. System-unit User=clay, канонический путь `/etc/clay/litellm/config.yaml`.
+- **S3c-2:** ✅ CLOSED. apply_live (backup→write→restart→health→rollback). 10 tests. No-op live run: `Applied: False`.
+- **S3c-2R (rehearsal — force):** ✅ CLOSED. `Applied=True`, `Restart OK`, `Health OK`, `Rolled back=False`. Поймано 2 бага (backup PermissionError + temp 0600) — починено.
+- **S3c-3:** ✅ CLOSED. `evaluate_pool_health()`, `DegradedModeError`, `reconcile()`, ADR-015 Accepted. 12 tests.
 
 ## Следующий шаг
 
-Emma проводит аудит SSE-кода и нарезает UI-трек. Жду task-packet.
-
-## Ключевые артефакты
-
-- HEAD `c0a53f5`, 0 unpushed
-- 463 pytest, ruff 13, pyright 33
-- Новый модуль: `clay/events/sse.py` — `encode_sse()`, `sse_event_stream()`
-- roles-taxonomy.md ratified (4 яруса, 13 ролей)
+**Scheduler-петля (вариант A, раз в N мин):** Подключить reconcile-петлю к scheduler. Развилка: uid (emma vs clay) → sudoers правило, ревью-заметка S3c-2. После — **S4** (полный сид пула).
