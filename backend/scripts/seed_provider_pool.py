@@ -9,6 +9,7 @@ config.yaml so ConcreteProviderPoolRepository can query them.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 from sqlalchemy import text
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session
 from clay.db.session import build_session_factory
 
 
-EXPECTED_TS_VERSION = "2.27.1"
+EXPECTED_TS_VERSION = os.environ.get("EXPECTED_TS_VERSION", "2.27.1")
 
 PROVIDERS = [
     {
