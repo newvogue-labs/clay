@@ -37,16 +37,20 @@
 | `1756d7b` | feat(ai-control): live migration 0016 on 5432 + seed (4/3/7) + backup |
 | `c6d5c9a` | feat(ai-control): S3d-1 helper-based root write-path + ADR-016 + rehearsal |
 
-## Commits (текущая сессия — S3d-2)
+## Commits (S3d-2 + S3d-3)
 
 | SHA | Message |
 |-----|---------|
-| *(не закоммичено)* | feat(scheduler): S3d-2 provider-pool-reconcile scheduler job (flag-gated) |
+| `4e5bc3b` | feat(scheduler): S3d-2 provider-pool-reconcile job (flag-gated) |
+| `72572e0` | docs: S3d-3 activate reconcile loop + S3 closed |
+
+## S3 status: ✅ ПОЛНОСТЬЮ ЗАКРЫТ
+
+S3 (stateful provider-pool: schema → API → reconcile → degraded → live-миграция → write-path → auto-cycle) CLOSED.
 
 ## Pending
 
-- **S3d-3 (включение флага):** 🔜 Следующий шаг — `CLAY_PROVIDER_POOL_RECONCILE_ENABLED=true` в `.env`, перезапуск backend, 2 цикла noop.
-- **S4 (полный сид пула):** 📋 Развернуть провайдерские ключи и деплои из live-инфры.
+- **S4 (полный сид пула):** 🔜 Развернуть провайдерские ключи и деплои из live-инфры. Ожидает архитектора.
 - **Retention/index `ai_agent_runs`:** 📋 Package с latency/token/cost capture (Ф1b).
 - **UI-Фаза 2-3** (write/governance, чат-окно, промпты в БД): 📋 ADR-014.
 - **Deploy-cutover** (pg_dump live→podman): 📋 отложен.
@@ -58,7 +62,8 @@
 - **LiteLLM:** system-юнит (User=clay), порт 4000. reload = `sudo systemctl restart clay-litellm.service`.
 - **Dual-transport:** RoutingModelClient per-call по transport-полю registry.
 - **3 live провайдера:** Ollama (local), NVIDIA NIM (Minimax-M3), Google (Gemini).
-- **test:** 566 passed (+4 S3d-2). Ruff 0. One-shot proof: green (noop).
+- **test:** 566 passed (+4 S3d-2). Ruff 0. Клиент: `curl -s http://127.0.0.1:8000/health` для проверки.
 - **КОНВЕРГЕНЦИЯ-FOOTGUN:** Пароль 5432 (live) = `clay`. Pre-flight TS 2.27.1 защищает от случайного alembic на live.
 - **FOOTGUN H (RESTART-REVERT):** ❌ СНЯТ. Runtime-модели (7 шт, NVIDIA) из файла `/etc/clay/litellm/config.yaml`. Restart безопасен.
-- **S3d-2 job:** `provider-pool-reconcile` registered via `ClayScheduler.add_provider_pool_reconcile_job()`. Flag-gated (`provider_pool_reconcile_enabled=False` по умолчанию). Sync job на ThreadPoolExecutor, interval 300s. One-shot proof: Applied=False, 0 install/restart/bak.
+- **S3d-3 reconcile loop:** ACTIVE. `CLAY_SCHEDULER_PROVIDER_POOL_RECONCILE_ENABLED=true` в `.env`. Sync job, ThreadPoolExecutor, interval 300s. kill-switch: флаг OFF + рестарт backend.
+- **Backend:** запущен под emma (`python -m clay`), порт 8000. Рестарт: `kill PID && cd backend && export $(cat .env | xargs) && uv run python -m clay`.
