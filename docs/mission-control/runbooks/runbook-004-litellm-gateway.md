@@ -69,7 +69,7 @@ sudo -u clay env HOME=/var/lib/clay uv tool install --python 3.13 'litellm[proxy
 # Окружение: /var/lib/clay/.local/share/uv/tools/litellm/
 
 # Конфиги:
-/etc/clay/litellm/config.yaml        (clay:clay, 640)
+/etc/clay/litellm/config.yaml        (clay:clay, 0644, ADR-016)
 /etc/clay/litellm/litellm.env        (clay:clay, 600) — ключи провайдеров
 ```
 
@@ -366,3 +366,47 @@ psql "$CLAY_DATABASE_URL" \
 
 Без REVERT следующий штатный тик после восстановления cloud-квоты
 пойдёт через локальную модель — неверное поведение.
+
+## 16. ADR-016 host-setup (S3d-1, 2026-06-18)
+
+### Helper `/usr/local/sbin/clay-config-install`
+
+```bash
+root:root 0755
+/usr/local/sbin/clay-config-install
+```
+
+Контракт:
+- принимает ровно один аргумент — путь к подготовленному shadow-файлу;
+- назначение захардкожено: `/etc/clay/litellm/config.yaml`;
+- делает: (1) базовая YAML-валидация (model_list, router_settings);
+  (2) timestamped backup → `.bak-<ISO8601>` (clay:clay 0644);
+  (3) атомарный install: temp-файл → chown clay:clay → chmod 0644 → mv -f;
+- **не рестартит**;
+- печатает путь к backup на stdout.
+
+### sudoers (`/etc/sudoers.d/99-clay-litellm`)
+
+```
+emma ALL=(root) NOPASSWD: /usr/bin/systemctl restart clay-litellm.service
+emma ALL=(root) NOPASSWD: /usr/local/sbin/clay-config-install
+```
+
+### Canonical config
+
+```
+/etc/clay/litellm/config.yaml  clay:clay 0644  (reconciler-owned, ADR-016)
+/etc/clay/litellm/litellm.env  clay:clay 0600  (НЕ тронут — живые ключи)
+```
+
+## 17. Event log: live-миграции
+
+### S3d-pre (2026-06-18) — первая запись в боевую базу 5432
+
+- **Миграция:** `0016_provider_pool` на live 5432 (было 0015)
+- **Сид:** 4 провайдера / 3 ключа / 7 деплоев (upsert, идемпотентно)
+- **Pre-flight:** extversion 2.26.3 ✅, version 0015 ✅, provider=NULL ✅
+- **Backup:** `/home/emma/clay-backups/live5432-preS3d-20260618T085352Z.dump` (494 KB)
+- **Post:** version 0016 ✅, 4/4 таблицы NOT NULL ✅, hypertable provider_health ✅
+- **LiteLLM:** НЕ тронут, моделей 7/7, config.yaml НЕ менялся
+- **Флаг RECONCILE:** OFF

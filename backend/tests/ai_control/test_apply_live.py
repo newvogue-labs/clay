@@ -95,18 +95,25 @@ def proposed(reconciler: ConfigReconciler) -> ProposedConfig:
 # ── 1. Happy path ────────────────────────────────────────────────────
 
 
-def _cp_side_effect(*args, **kwargs):
-    """subprocess.run side-effect: actually copy file for cp commands."""
+def _helper_side_effect(*args, **kwargs):
+    """Mock subprocess.run for helper-based write-path.
+
+    - clay-config-install → prints backup path, copies file for exists()
+    - everything else (systemctl) → returncode=0
+    """
     import shutil
+    from datetime import UTC, datetime
 
     cmd = list(kwargs.get("args") or args[0])
-    try:
-        cp_idx = cmd.index("cp")
-    except ValueError:
-        pass
-    else:
-        src, dst = cmd[cp_idx + 1], cmd[cp_idx + 2]
-        shutil.copy2(src, dst)
+    cmd_str = " ".join(str(c) for c in cmd)
+
+    if "clay-config-install" in cmd_str:
+        shadow = Path(cmd[-1])
+        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        bak = shadow.with_name(f"config.yaml.bak-{ts}")
+        if shadow.exists():
+            shutil.copy2(str(shadow), str(bak))
+        return MagicMock(returncode=0, stdout=str(bak) + "\n")
     return MagicMock(returncode=0)
 
 
@@ -116,7 +123,7 @@ def test_apply_happy_path(
     diff_proposed = _different_yaml()
 
     with (
-        patch("subprocess.run", side_effect=_cp_side_effect),
+        patch("subprocess.run", side_effect=_helper_side_effect),
         patch("httpx.Client") as mock_client,
     ):
         mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
@@ -160,10 +167,10 @@ def test_apply_happy_path_calls_restart_once(
 def test_apply_noop_skips_when_equivalent(
     writer: ConfigWriter, proposed: ProposedConfig
 ) -> None:
-    write_calls: list = []
+    subprocess_calls: list = []
 
     def _side_effect(*args, **kwargs):
-        write_calls.append(args)
+        subprocess_calls.append(args)
         return MagicMock(returncode=0)
 
     with patch("subprocess.run", side_effect=_side_effect):
@@ -173,17 +180,16 @@ def test_apply_noop_skips_when_equivalent(
     assert report.backup_path is None
     assert report.restart_ok is None
     assert report.health_ok is None
-    assert len(write_calls) == 0
+    assert len(subprocess_calls) == 0
 
 
 def test_apply_noop_can_be_forced(
     writer: ConfigWriter, proposed: ProposedConfig
 ) -> None:
     with (
-        patch("subprocess.run") as mock_run,
+        patch("subprocess.run", side_effect=_helper_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_run.return_value = MagicMock(returncode=0)
         mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
         report = writer.apply_live(proposed, force=True)
 
@@ -197,17 +203,17 @@ def test_apply_validation_fail_does_nothing(
     writer: ConfigWriter, proposed: ProposedConfig
 ) -> None:
     bad = ProposedConfig(document={}, yaml="model_list: []\nrouter_settings:\n  s: v\n")
-    write_calls: list = []
+    subprocess_calls: list = []
 
     def _side_effect(*args, **kwargs):
-        write_calls.append(args)
+        subprocess_calls.append(args)
         return MagicMock(returncode=0)
 
     with patch("subprocess.run", side_effect=_side_effect):
         with pytest.raises(Exception):
             writer.apply_live(bad, force=True)
 
-    assert len(write_calls) == 0
+    assert len(subprocess_calls) == 0
 
 
 # ── 4. Rollback on unhealthy ─────────────────────────────────────────
@@ -274,10 +280,9 @@ def test_apply_health_parse_db_not_connected_is_healthy(
     diff_proposed = _different_yaml()
 
     with (
-        patch("subprocess.run") as mock_run,
+        patch("subprocess.run", side_effect=_helper_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_run.return_value = MagicMock(returncode=0)
         mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
 
         report = writer.apply_live(diff_proposed, force=True)
@@ -285,18 +290,20 @@ def test_apply_health_parse_db_not_connected_is_healthy(
     assert report.health_ok is True
 
 
-# ── 7. File write is called with correct args ────────────────────────
+# ── 7. Write goes through clay-config-install helper ─────────────────
 
 
-def test_apply_writes_via_sudo_as_clay(
+def test_apply_writes_via_helper(
     writer: ConfigWriter, proposed: ProposedConfig
 ) -> None:
     diff_proposed = _different_yaml()
-    cmds: list[list[str]] = []
+    helper_calls: list = []
 
     def _record(*args, **kwargs):
         cmd = list(kwargs.get("args") or args[0])
-        cmds.append(cmd)
+        cmd_str = " ".join(str(c) for c in cmd)
+        if "clay-config-install" in cmd_str:
+            helper_calls.append(cmd)
         return MagicMock(returncode=0)
 
     with (
@@ -306,11 +313,8 @@ def test_apply_writes_via_sudo_as_clay(
         mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
         writer.apply_live(diff_proposed, force=True)
 
-    cp_cmds = [c for c in cmds if "cp" in c]
-    chmod_cmds = [c for c in cmds if "chmod" in c]
-    assert any("-u" in c and "clay" in c for c in cp_cmds)
-    assert any("640" in str(c) for c in chmod_cmds)
-    assert any("systemctl" in c for c in cmds)
+    assert len(helper_calls) >= 1  # at least one install call
+    assert any("clay-config-install" in str(c) for c in helper_calls)
 
 
 # ── 8. No os.kill calls ──────────────────────────────────────────────
@@ -425,10 +429,9 @@ class TestReconcileDegraded:
     ) -> None:
         rows = [_row()]
         with (
-            patch("subprocess.run") as mock_run,
+            patch("subprocess.run", side_effect=_helper_side_effect),
             patch("httpx.Client") as mock_client,
         ):
-            mock_run.return_value = MagicMock(returncode=0)
             mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
             report = writer.reconcile(rows, force=True)
 
@@ -443,10 +446,9 @@ class TestReconcileDegraded:
     ) -> None:
         rows = [_row()]
         with (
-            patch("subprocess.run") as mock_run,
+            patch("subprocess.run", side_effect=_helper_side_effect),
             patch("httpx.Client") as mock_client,
         ):
-            mock_run.return_value = MagicMock(returncode=0)
             mock_client.return_value.__enter__.return_value.get.return_value = _unhealthy_resp()
             report = writer.reconcile(
                 rows, force=True, health_timeout=0.5, health_interval=0.1,

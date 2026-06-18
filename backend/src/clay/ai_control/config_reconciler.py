@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import stat
+import subprocess
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
@@ -335,6 +336,16 @@ class ConfigWriter:
 
         return report
 
+    def _install_via_helper(self, shadow_path: Path) -> Path:
+        """Call clay-config-install, return backup path from stdout."""
+        import subprocess
+
+        r = subprocess.run(
+            ["sudo", "/usr/local/sbin/clay-config-install", str(shadow_path)],
+            check=True, capture_output=True, text=True,
+        )
+        return Path(r.stdout.strip())
+
     def apply_live(
         self,
         proposed: ProposedConfig,
@@ -353,13 +364,25 @@ class ConfigWriter:
             if report.is_equivalent:
                 return ApplyReport(applied=False)
 
-        bak = self._make_backup_timestamped(live, sudo_cmd)
+        # Write rendered config to a temp shadow file for the helper
+        with NamedTemporaryFile(mode="w", suffix=".yaml", dir="/tmp", delete=False) as tmp:
+            tmp.write(proposed.yaml)
+            tmp.flush()
+            shadow_path = Path(tmp.name)
 
-        self._write_as_user(proposed.yaml, live, clay_user, sudo_cmd)
+        try:
+            bak = self._install_via_helper(shadow_path)
+        except subprocess.CalledProcessError as e:
+            return ApplyReport(
+                status="failed", applied=False,
+                error=f"helper install failed: {e.stderr.strip()}",
+            )
+        finally:
+            shadow_path.unlink(missing_ok=True)
 
         restart_ok = self._restart_service(sudo_cmd)
         if not restart_ok:
-            self._rollback(bak, live, sudo_cmd, clay_user)
+            self._rollback_via_helper(bak)
             return ApplyReport(
                 applied=True, backup_path=bak,
                 restart_ok=False, health_ok=False,
@@ -369,7 +392,7 @@ class ConfigWriter:
 
         health_ok = self._poll_health(health_timeout, health_interval)
         if not health_ok:
-            self._rollback(bak, live, sudo_cmd, clay_user)
+            self._rollback_via_helper(bak)
             return ApplyReport(
                 applied=True, backup_path=bak,
                 restart_ok=True, health_ok=False,
@@ -382,39 +405,18 @@ class ConfigWriter:
             restart_ok=True, health_ok=True,
         )
 
-    def _make_backup_timestamped(self, path: Path, sudo_cmd: str = "sudo") -> Path:
+    def _rollback_via_helper(self, bak: Path) -> None:
         import subprocess
-        from datetime import UTC, datetime
-
-        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-        bak = path.with_suffix(f".yaml.bak-{ts}")
-        subprocess.run(
-            [sudo_cmd, "-u", "clay", "cp", str(path), str(bak)],
-            check=True, capture_output=True, text=True,
-        )
-        return bak
-
-    def _write_as_user(self, yaml_str: str, target: Path, user: str, sudo_cmd: str) -> None:
-        import subprocess
-
-        with NamedTemporaryFile(mode="w", suffix=".tmp", dir="/tmp", delete=False) as tmp:
-            tmp.write(yaml_str)
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            tmp_path = Path(tmp.name)
-            tmp_path.chmod(0o644)
 
         try:
             subprocess.run(
-                [sudo_cmd, "-u", user, "cp", str(tmp_path), str(target)],
-                check=True, capture_output=True, text=True,
+                ["sudo", "/usr/local/sbin/clay-config-install", str(bak)],
+                check=False, capture_output=True, text=True,
             )
-            subprocess.run(
-                [sudo_cmd, "-u", user, "chmod", "640", str(target)],
-                check=True, capture_output=True, text=True,
-            )
-        finally:
-            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        self._restart_service(sudo_cmd="sudo")
+        self._poll_health(timeout=15.0, interval=1.0)
 
     def _restart_service(self, sudo_cmd: str) -> bool:
         import subprocess
@@ -449,16 +451,6 @@ class ConfigWriter:
                 pass
             time.sleep(interval)
         return False
-
-    def _rollback(self, bak: Path, live: Path, sudo_cmd: str, clay_user: str) -> None:
-        import subprocess
-
-        subprocess.run(
-            [sudo_cmd, "-u", clay_user, "cp", str(bak), str(live)],
-            check=False, capture_output=True, text=True,
-        )
-        self._restart_service(sudo_cmd)
-        self._poll_health(timeout=15.0, interval=1.0)
 
     def _default_shadow_path(self) -> Path:
         return self._reconciler._config_path.with_suffix(_SHADOW_SUFFIX)
