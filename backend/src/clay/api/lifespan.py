@@ -76,6 +76,7 @@ from clay.ai_control.runner import (
 from clay.llm import LLMAdapter
 from clay.settings.llm import LLMSettings
 from clay.scheduler.ai_agent_job import AIAgentCycleJob
+from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
 from clay.scheduler.service import ClayScheduler
 from clay.settings.ollama import OllamaSettings
 
@@ -119,6 +120,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             ),
         )
         _market_ingestion_service.set_http_client(http_client)
+        provider_pool_reconcile_job: ProviderPoolReconcileJob | None = None
+        if scheduler_settings.provider_pool_reconcile_enabled:
+            provider_pool_reconcile_job = ProviderPoolReconcileJob(
+                session_factory=_session_factory,
+            )
+
         ai_agent_cycle_job: AIAgentCycleJob | None = None
         if scheduler_settings.ai_agent_enabled:
             ollama_settings = OllamaSettings()
@@ -166,6 +173,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 session_factory=_session_factory,
                 ingestion_cycle_service=_ingestion_cycle_service,
                 ai_agent_cycle_job=ai_agent_cycle_job,
+                provider_pool_reconcile_job=provider_pool_reconcile_job,
             )
             scheduler.start()
             app.state.scheduler = scheduler

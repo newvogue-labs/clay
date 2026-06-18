@@ -22,6 +22,7 @@ from clay.audit.writer import AuditWriter
 from clay.events.bus import EventBus
 from clay.health.monitor import HealthMonitor
 from clay.reliability.service import ReliabilityService
+from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
 from clay.scheduler.service import ClayScheduler
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
@@ -56,11 +57,12 @@ def _make_scheduler(
     reliability_service: ReliabilityService | None = None,
     session_factory: Any = None,
     ingestion_cycle_service: Any = None,
+    provider_pool_reconcile_job: ProviderPoolReconcileJob | None = None,
 ) -> tuple[
     ClayScheduler, ServiceRegistry, AuditWriter, EventBus, HealthMonitor,
     ReliabilityService | None, Any,
 ]:
-    """Build a ``ClayScheduler`` for B3a/B3b + B4 + B5 tests.
+    """Build a ``ClayScheduler`` for B3a/B3b + B4 + B5 + S3d-2 tests.
 
     Returns a 7-tuple. The first 5 elements are the legacy B3a/B3b
     shape (so the existing tests can keep their 5-unpack); the last
@@ -70,6 +72,7 @@ def _make_scheduler(
     ``ingestion_cycle_service`` is a constructor-only kwarg (also
     ``None`` by default for B3a/B3b/B4 tests); the B5 tests pass a
     ``MagicMock`` to drive the registration path.
+    ``provider_pool_reconcile_job`` (S3d-2) follows the same pattern.
     """
     registry = _make_registry_with_session_scheduler()
     audit_writer = AuditWriter(tmp_path / "state")
@@ -88,6 +91,7 @@ def _make_scheduler(
         reliability_service=reliability_service,
         session_factory=session_factory,
         ingestion_cycle_service=ingestion_cycle_service,
+        provider_pool_reconcile_job=provider_pool_reconcile_job,
     )
     return (
         scheduler, registry, audit_writer, event_bus, health_monitor,
@@ -608,5 +612,121 @@ async def test_T2_ingestion_cycle_actually_executes_on_scheduler(tmp_path: Path)
         assert ingestion_service.call_count >= 1, (
             f"Expected >=1 call to run_once, got {ingestion_service.call_count}"
         )
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+# === S3d-2 — provider-pool-reconcile job registration + scheduler.started payload ===
+
+
+@pytest.mark.anyio
+async def test_provider_pool_reconcile_registered_when_enabled(
+    tmp_path: Path,
+) -> None:
+    """``provider_pool_reconcile_enabled=True`` + dep present → ``provider-pool-reconcile`` job registered.
+
+    Job knobs: ``executor="default"`` (sync on ThreadPoolExecutor),
+    ``max_instances=1``, ``coalesce=True``, ``replace_existing=True``.
+    Interval matches ``provider_pool_reconcile_interval_seconds`` (default 300).
+    """
+    settings = SchedulerSettings(
+        enabled=True,
+        provider_pool_reconcile_enabled=True,
+        provider_pool_reconcile_interval_seconds=120,
+    )
+    scheduler, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+        provider_pool_reconcile_job=MagicMock(spec=ProviderPoolReconcileJob),
+    )
+    scheduler.start()
+
+    try:
+        job = scheduler._apscheduler.get_job("provider-pool-reconcile")
+        assert job is not None
+        assert job.executor == "default"
+        assert job.max_instances == 1
+        assert job.coalesce is True
+        assert job.trigger.interval.total_seconds() == 120
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+@pytest.mark.anyio
+async def test_provider_pool_reconcile_not_registered_when_disabled(
+    tmp_path: Path,
+) -> None:
+    """``provider_pool_reconcile_enabled=False`` → no job; health-tick still there."""
+    settings = SchedulerSettings(
+        enabled=True, provider_pool_reconcile_enabled=False,
+    )
+    scheduler, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+        provider_pool_reconcile_job=MagicMock(spec=ProviderPoolReconcileJob),
+    )
+    scheduler.start()
+
+    try:
+        assert scheduler._apscheduler.get_job("provider-pool-reconcile") is None
+        assert scheduler._apscheduler.get_job("health-tick") is not None
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+@pytest.mark.anyio
+async def test_provider_pool_reconcile_not_registered_when_dep_missing(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``provider_pool_reconcile_enabled=True`` + job is ``None`` → warning + skip."""
+    settings = SchedulerSettings(
+        enabled=True, provider_pool_reconcile_enabled=True,
+    )
+    # provider_pool_reconcile_job defaults to None — the misconfiguration path.
+    scheduler, *_ = _make_scheduler(tmp_path, settings=settings)
+    _logger = logging.getLogger("clay.scheduler.service")
+    _logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.WARNING, logger="clay.scheduler.service"):
+            scheduler.start()
+
+        assert scheduler._apscheduler.get_job("provider-pool-reconcile") is None
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and r.name == "clay.scheduler.service"
+        ]
+        assert len(warnings) >= 1
+        warning_text = " ".join(r.getMessage() for r in warnings)
+        assert "provider_pool_reconcile_job" in warning_text
+        assert "NOT registered" in warning_text or "misconfiguration" in warning_text
+    finally:
+        _logger.removeHandler(caplog.handler)
+        scheduler.shutdown(wait=True)
+
+
+@pytest.mark.anyio
+async def test_scheduler_started_jobs_includes_provider_pool_reconcile(
+    tmp_path: Path,
+) -> None:
+    """``scheduler.started.jobs`` includes ``provider-pool-reconcile`` when enabled."""
+    settings = SchedulerSettings(
+        enabled=True,
+        provider_pool_reconcile_enabled=True,
+    )
+    scheduler, _, audit_writer, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+        provider_pool_reconcile_job=MagicMock(spec=ProviderPoolReconcileJob),
+    )
+    scheduler.start()
+
+    try:
+        started = next(
+            e for e in _read_audit_events(audit_writer)
+            if e["event_type"] == "scheduler.started"
+        )
+        assert "provider-pool-reconcile" in started["payload"]["jobs"]
     finally:
         scheduler.shutdown(wait=True)

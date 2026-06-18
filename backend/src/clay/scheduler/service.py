@@ -78,6 +78,7 @@ from clay.scheduler.jobs import (
     OpsRetentionJob,
     ReliabilityRecheckJob,
 )
+from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
 from clay.services.models import ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.settings.scheduler import SchedulerSettings
@@ -114,6 +115,7 @@ class ClayScheduler:
     _INGESTION_CYCLE_JOB_ID = "ingestion-cycle"
     _OPS_RETENTION_JOB_ID = "ops-retention"
     _AI_AGENT_CYCLE_JOB_ID = "ai-agent-cycle"
+    _PROVIDER_POOL_RECONCILE_JOB_ID = "provider-pool-reconcile"
 
     def __init__(
         self,
@@ -127,17 +129,18 @@ class ClayScheduler:
         session_factory: sessionmaker | None = None,
         ingestion_cycle_service: IngestionCycleService | None = None,
         ai_agent_cycle_job: AIAgentCycleJob | None = None,
+        provider_pool_reconcile_job: ProviderPoolReconcileJob | None = None,
     ) -> None:
         """Construct the scheduler. B4 + B5 add optional kwargs.
 
         ``reliability_service`` + ``session_factory`` (B4),
-        ``ingestion_cycle_service`` (B5), and ``ai_agent_cycle_job``
-        (5b-ii.2b-ii) are all **optional** (default ``None``) so
-        existing tests that construct ``ClayScheduler`` without
-        them keep passing — the flag-gated ``add_*_job()`` calls
-        are no-ops when the matching dep is missing or the matching
-        flag is ``False``. Production (``api/lifespan.py``) always
-        passes all four.
+        ``ingestion_cycle_service`` (B5), ``ai_agent_cycle_job``
+        (5b-ii.2b-ii), and ``provider_pool_reconcile_job`` (S3d-2)
+        are all **optional** (default ``None``) so existing tests
+        that construct ``ClayScheduler`` without them keep passing
+        — the flag-gated ``add_*_job()`` calls are no-ops when the
+        matching dep is missing or the matching flag is ``False``.
+        Production (``api/lifespan.py``) always passes when enabled.
         """
         self._settings = settings
         self._registry = registry
@@ -148,6 +151,7 @@ class ClayScheduler:
         self._session_factory = session_factory
         self._ingestion_cycle_service = ingestion_cycle_service
         self._ai_agent_cycle_job = ai_agent_cycle_job
+        self._provider_pool_reconcile_job = provider_pool_reconcile_job
         self._apscheduler = AsyncIOScheduler(
             executors={
                 "default": ThreadPoolExecutor(max_workers=4),
@@ -206,6 +210,7 @@ class ClayScheduler:
         self.add_ops_retention_job()
         self.add_ingestion_cycle_job()
         self.add_ai_agent_cycle_job()
+        self.add_provider_pool_reconcile_job()
         self._registry.update_status(self._SERVICE_ID, ServiceStatus.HEALTHY)
         jobs = [
             job_id
@@ -215,6 +220,7 @@ class ClayScheduler:
                 self._OPS_RETENTION_JOB_ID,
                 self._INGESTION_CYCLE_JOB_ID,
                 self._AI_AGENT_CYCLE_JOB_ID,
+                self._PROVIDER_POOL_RECONCILE_JOB_ID,
             )
             if self._apscheduler.get_job(job_id) is not None
         ]
@@ -459,6 +465,39 @@ class ClayScheduler:
             seconds=self._settings.ai_agent_interval_seconds,
             id=self._AI_AGENT_CYCLE_JOB_ID,
             executor="async",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+            args=[job.run_once],
+        )
+
+    def add_provider_pool_reconcile_job(self) -> None:
+        """Register the S3d-2 ``ProviderPoolReconcileJob`` (flag-gated).
+
+        Two gates:
+
+        1. ``provider_pool_reconcile_enabled`` flag (``False`` → silent skip).
+           Default is ``False`` (opt-in only).
+        2. ``provider_pool_reconcile_job`` dep present. If ``None`` while the
+           flag is ``True``, emit a loud warning naming the missing dep
+           (dev/test misconfiguration; production passes it when enabled).
+        """
+        if not self._settings.provider_pool_reconcile_enabled:
+            return
+        if self._provider_pool_reconcile_job is None:
+            logger.warning(
+                "clay.scheduler: provider_pool_reconcile_enabled=True but "
+                "provider_pool_reconcile_job is None — provider-pool-reconcile "
+                "job NOT registered (misconfiguration)",
+            )
+            return
+        job = self._provider_pool_reconcile_job
+        self._apscheduler.add_job(
+            func=self._run_safely,
+            trigger="interval",
+            seconds=self._settings.provider_pool_reconcile_interval_seconds,
+            id=self._PROVIDER_POOL_RECONCILE_JOB_ID,
+            executor="default",
             max_instances=1,
             coalesce=True,
             replace_existing=True,

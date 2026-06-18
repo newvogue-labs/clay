@@ -89,6 +89,14 @@ class SchedulerSettings(BaseSettings):
     # ``CLAY_SCHEDULER_OPS_RETENTION_INTERVAL_SECONDS``.
     ops_retention_interval_seconds: int = 86400
 
+    # S3d-2: gate for the ``provider-pool-reconcile`` job. ``False`` skips
+    # registration (default ``False`` — opt-in only). S3d-3 will flip it ON.
+    provider_pool_reconcile_enabled: bool = False
+
+    # S3d-2: interval for the ``provider-pool-reconcile`` job. Default 300s
+    # (5 minutes). Sync job on ThreadPoolExecutor.
+    provider_pool_reconcile_interval_seconds: int = 300
+
     # MP2: readiness stale-threshold in seconds. Default 120 (2 × default
     # ingestion_cycle_interval). Used by ``/health/ready`` to classify
     # ingest-freshness as stale. Overridable via

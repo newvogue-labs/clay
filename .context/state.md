@@ -30,9 +30,22 @@
 | `9dc40cd` | docs(context): update state, reports, handoff for S3c-3 + rehearsal |
 | `9388bec` | test(ai-control): fix apply_happy_path backup.exists() with real cp side-effect (S3c-2 test-gap) |
 
+## Commits (S3d-pre + S3d-1)
+
+| SHA | Message |
+|-----|---------|
+| `1756d7b` | feat(ai-control): live migration 0016 on 5432 + seed (4/3/7) + backup |
+| `c6d5c9a` | feat(ai-control): S3d-1 helper-based root write-path + ADR-016 + rehearsal |
+
+## Commits (текущая сессия — S3d-2)
+
+| SHA | Message |
+|-----|---------|
+| *(не закоммичено)* | feat(scheduler): S3d-2 provider-pool-reconcile scheduler job (flag-gated) |
+
 ## Pending
 
-- **Scheduler-петля (вариант A, раз в N мин):** 📋 Подключить reconcile-петлю. Развилка: uid (emma vs clay) → sudoers, см. ревью-заметку.
+- **S3d-3 (включение флага):** 🔜 Следующий шаг — `CLAY_PROVIDER_POOL_RECONCILE_ENABLED=true` в `.env`, перезапуск backend, 2 цикла noop.
 - **S4 (полный сид пула):** 📋 Развернуть провайдерские ключи и деплои из live-инфры.
 - **Retention/index `ai_agent_runs`:** 📋 Package с latency/token/cost capture (Ф1b).
 - **UI-Фаза 2-3** (write/governance, чат-окно, промпты в БД): 📋 ADR-014.
@@ -45,6 +58,7 @@
 - **LiteLLM:** system-юнит (User=clay), порт 4000. reload = `sudo systemctl restart clay-litellm.service`.
 - **Dual-transport:** RoutingModelClient per-call по transport-полю registry.
 - **3 live провайдера:** Ollama (local), NVIDIA NIM (Minimax-M3), Google (Gemini).
-- **test:** 558 passed (+12 S3c-3). Ruff 0. Rehearsal live: green.
+- **test:** 566 passed (+4 S3d-2). Ruff 0. One-shot proof: green (noop).
 - **КОНВЕРГЕНЦИЯ-FOOTGUN:** Пароль 5432 (live) = `clay`. Pre-flight TS 2.27.1 защищает от случайного alembic на live.
 - **FOOTGUN H (RESTART-REVERT):** ❌ СНЯТ. Runtime-модели (7 шт, NVIDIA) из файла `/etc/clay/litellm/config.yaml`. Restart безопасен.
+- **S3d-2 job:** `provider-pool-reconcile` registered via `ClayScheduler.add_provider_pool_reconcile_job()`. Flag-gated (`provider_pool_reconcile_enabled=False` по умолчанию). Sync job на ThreadPoolExecutor, interval 300s. One-shot proof: Applied=False, 0 install/restart/bak.
