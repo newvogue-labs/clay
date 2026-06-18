@@ -410,3 +410,50 @@ emma ALL=(root) NOPASSWD: /usr/local/sbin/clay-config-install
 - **Post:** version 0016 ✅, 4/4 таблицы NOT NULL ✅, hypertable provider_health ✅
 - **LiteLLM:** НЕ тронут, моделей 7/7, config.yaml НЕ менялся
 - **Флаг RECONCILE:** OFF
+
+## 18. Reconcile-петля provider_pool (S3d-3, 2026-06-18)
+
+### Статус: 🔴 ACTIVE (S3d-3 go-live 2026-06-18 13:11 MSK)
+
+```bash
+CLAY_SCHEDULER_PROVIDER_POOL_RECONCILE_ENABLED=true    # ON — активна
+CLAY_SCHEDULER_PROVIDER_POOL_RECONCILE_INTERVAL_SECONDS=300  # 5 min
+```
+
+Петля зарегистрирована в `ClayScheduler` как sync job
+(`executor="default"`/ThreadPoolExecutor), id `provider-pool-reconcile`.
+Каждый тик: DB → render → `ConfigWriter.reconcile()` → log `ApplyReport`.
+
+**Гарантии:**
+- `reconcile()` never-crash (возвращает `ApplyReport` с error-статусом);
+- job обёрнут в try/except defence-in-depth;
+- `_run_safely` wrapper APScheduler — исключение никогда не валит scheduler-thread;
+- degraded-pool → loud WARNING, конфиг НЕ пишется (last-good preserved);
+- parity equivalent → noop (0 install, 0 restart, 0 `.bak`).
+
+### Live-подтверждение (S3d-3 one-shot, 2026-06-18)
+
+- 2 цикла подряд: `status=noop`, available=7/7, config.yaml sha/mtime не изменились,
+  `clay-litellm.service` MainPID стабилен (`1290201`), 0 `.bak` создано.
+- `ApplyReport` статус = `noop` для обоих циклов.
+
+### Kill-switch (S3d-3)
+
+При ЛЮБОМ признаке инсталла / рестарта / изменения config.yaml / смены MainPID:
+
+1. Немедленно убрать флаг:
+   ```bash
+   # Удалить или закомментировать строки:
+   # CLAY_SCHEDULER_PROVIDER_POOL_RECONCILE_ENABLED=true
+   ```
+2. Рестарт backend (`kill <PID> && uv run python -m clay`)
+3. Доклад с логами проблемного цикла.
+
+### Scheduler audit
+
+`scheduler.started` payload включает `provider-pool-reconcile` в списке job'ов.
+Пример:
+```json
+{"jobs": ["health-tick", "reliability-recheck", "ops-retention",
+          "ingestion-cycle", "ai-agent-cycle", "provider-pool-reconcile"]}
+```
