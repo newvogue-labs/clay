@@ -430,12 +430,12 @@ def test_set_assignment_validates_role_and_model(
             session=db_session,
         )
 
-    # Incompatible pair: ``gemma-4-31b`` is only compatible with
-    # ``market-scanner``, not ``chief-agent``.
+    # Incompatible pair: ``forecast-lite-v1`` is only compatible with
+    # ``forecast-model``, not ``chief-agent``.
     with pytest.raises(ValueError, match="not compatible"):
         service.set_assignment(
             role_id="chief-agent",
-            model_id="gemma-4-31b",
+            model_id="forecast-lite-v1",
             session=db_session,
         )
 
