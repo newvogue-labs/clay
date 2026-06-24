@@ -289,6 +289,7 @@ class DemoTradingService:
             observed_at=record.observed_at.isoformat() if record.observed_at is not None else None,
             outcome_status=record.outcome_status,
             awaiting_result=record.outcome_status == "unresolved",
+            advisory_size_pct=record.advisory_size_pct,
         )
 
     def _classify_outcome(self, record: DemoTradeRecord) -> OutcomeStatus:

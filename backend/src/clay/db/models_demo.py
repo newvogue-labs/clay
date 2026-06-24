@@ -25,3 +25,4 @@ class DemoTradeRecord(Base):
     pnl_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     outcome_status: Mapped[str] = mapped_column(String(32), index=True, default="unresolved")
+    advisory_size_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
