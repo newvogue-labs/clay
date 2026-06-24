@@ -70,6 +70,7 @@ def build_demo_service(tmp_path: Path) -> tuple[DemoTradingService, SessionContr
         workspace_service=workspace_service,
         audit_writer=audit_writer,
         event_bus=event_bus,
+        config_loader=ConfigLoader(),
     )
     demo_trading_service = DemoTradingService(
         session_control_service=session_control_service,

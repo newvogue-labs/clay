@@ -1,7 +1,7 @@
 export type SessionPreflightCheck = {
   check_id: string
   label: string
-  status: 'ok' | 'hard_fail'
+  status: 'ok' | 'warn' | 'hard_fail'
   reason: string
   blocks_start: boolean
 }

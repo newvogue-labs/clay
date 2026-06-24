@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
+from clay.config.loader import ConfigLoader
 from clay.db.repositories_runtime_state import SessionStateRepository
 from clay.events.bus import EventBus
 from clay.runtime.manager import RuntimeManager
@@ -53,6 +54,7 @@ class SessionControlService:
         workspace_service: WorkspaceService,
         audit_writer: AuditWriter,
         event_bus: EventBus,
+        config_loader: ConfigLoader,
         session_factory: sessionmaker | None = None,
     ) -> None:
         self.runtime_manager = runtime_manager
@@ -61,6 +63,7 @@ class SessionControlService:
         self.workspace_service = workspace_service
         self.audit_writer = audit_writer
         self.event_bus = event_bus
+        self.config_loader = config_loader
         self.session_factory = session_factory
         # ``_active_session`` and ``_pending_replacement`` are restored from the
         # ``ops.session_state`` singleton row when a ``session_factory`` is
@@ -214,10 +217,10 @@ class SessionControlService:
         else:
             self.runtime_manager.reconcile_to(RuntimeState.ACTIVE_SESSION)
 
-    def build_snapshot(self, session: Session) -> SessionControlSnapshot:
+    def build_snapshot(self, session: Session, *, for_start: bool = False) -> SessionControlSnapshot:
         signal_snapshot = self.signal_engine_service.build_snapshot(session)
         ai_snapshot = self.ai_control_service.build_snapshot(session)
-        preflight = self._build_preflight(session, signal_snapshot, ai_snapshot)
+        preflight = self._build_preflight(session, signal_snapshot, ai_snapshot, for_start=for_start)
         briefing = self._build_briefing(signal_snapshot, ai_snapshot)
         lifecycle = self._build_lifecycle(preflight)
         pending_replacement = self._build_pending_replacement(signal_snapshot)
@@ -229,7 +232,7 @@ class SessionControlService:
         )
 
     def start_session(self, session: Session) -> SessionControlSnapshot:
-        snapshot = self.build_snapshot(session)
+        snapshot = self.build_snapshot(session, for_start=True)
         if snapshot.preflight.status != "pass":
             raise ValueError(snapshot.preflight.blocking_reason or "preflight blocked")
 
@@ -450,8 +453,9 @@ class SessionControlService:
         session: Session,
         signal_snapshot,
         ai_snapshot,
+        *,
+        for_start: bool = False,
     ) -> SessionPreflightSnapshot:
-        del session
         control_api_ready = False
         try:
             control_api = self.runtime_manager.registry.get("control-api")
@@ -459,7 +463,7 @@ class SessionControlService:
         except KeyError:
             control_api_ready = False
 
-        checks = [
+        checks: list[SessionPreflightCheck] = [
             SessionPreflightCheck(
                 check_id="data-freshness",
                 label="Data freshness",
@@ -519,14 +523,166 @@ class SessionControlService:
                 ),
                 blocks_start=not bool(signal_snapshot.strategy_mode_proposal),
             ),
-            SessionPreflightCheck(
-                check_id="risk-limits-active",
-                label="Risk limits active",
-                status="ok",
-                reason="Risk configuration is loaded and confidence penalties are active.",
-                blocks_start=False,
-            ),
         ]
+
+        from clay.config.models import SessionLimitsConfig
+
+        risk_config = self.config_loader.load_scope("risk")
+        limits_cfg: SessionLimitsConfig = getattr(risk_config, "session_limits", SessionLimitsConfig())
+
+        from clay.db.repositories_demo import DemoRepository
+
+        demo_repo = DemoRepository(session)
+
+        try:
+            window_records = demo_repo.list_resolved_window(hours=limits_cfg.drawdown_window_hours)
+            cum_pnl = round(sum(r.pnl_pct or 0.0 for r in window_records), 2)
+            loss_pct = abs(cum_pnl) if cum_pnl < 0 else 0.0
+
+            if loss_pct >= limits_cfg.max_drawdown_pct:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-drawdown",
+                    label="Drawdown stop",
+                    status="hard_fail",
+                    reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = -{loss_pct}% exceeds max drawdown of {limits_cfg.max_drawdown_pct}%.",
+                    blocks_start=True,
+                ))
+            else:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-drawdown",
+                    label="Drawdown stop",
+                    status="ok",
+                    reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = {cum_pnl:+.2f}% within threshold.",
+                    blocks_start=False,
+                ))
+
+            ordered = demo_repo.list_ordered_recent(limit=50)
+            streak = 0
+            streak_ts: datetime | None = None
+            for r in ordered:
+                if (r.pnl_pct or 0.0) < 0 and r.outcome_status in {"matched", "missed", "late_matched", "mismatched"}:
+                    streak += 1
+                    if streak_ts is None:
+                        streak_ts = r.recorded_at
+                else:
+                    break
+
+            now = datetime.now(UTC)
+            if streak >= limits_cfg.max_consecutive_losses and streak_ts is not None:
+                elapsed_min = (now - streak_ts).total_seconds() / 60
+                if elapsed_min < limits_cfg.cooldown_minutes:
+                    remaining = int(limits_cfg.cooldown_minutes - elapsed_min)
+                    checks.append(SessionPreflightCheck(
+                        check_id="risk-limit-cooldown",
+                        label="Consecutive loss cooldown",
+                        status="hard_fail",
+                        reason=f"{streak} consecutive losses — cooldown active, {remaining} min remaining.",
+                        blocks_start=True,
+                    ))
+                else:
+                    checks.append(SessionPreflightCheck(
+                        check_id="risk-limit-cooldown",
+                        label="Consecutive loss cooldown",
+                        status="ok",
+                        reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak, cooldown expired).",
+                        blocks_start=False,
+                    ))
+            else:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-cooldown",
+                    label="Consecutive loss cooldown",
+                    status="ok",
+                    reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak).",
+                    blocks_start=False,
+                ))
+
+            if self._active_session is not None and for_start:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-concurrent",
+                    label="Max concurrent sessions",
+                    status="hard_fail",
+                    reason="Cannot start: active session already in progress.",
+                    blocks_start=True,
+                ))
+            elif self._active_session is not None:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-concurrent",
+                    label="Max concurrent sessions",
+                    status="ok",
+                    reason="Active session in progress — concurrent limit respected.",
+                    blocks_start=False,
+                ))
+            else:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-concurrent",
+                    label="Max concurrent sessions",
+                    status="ok",
+                    reason="No active session — concurrent limit clear.",
+                    blocks_start=False,
+                ))
+
+            open_positions = demo_repo.list_open_positions()
+            total_exposure = round(sum(r.advisory_size_pct or 0.0 for r in open_positions), 4)
+            if total_exposure > limits_cfg.max_total_exposure_pct:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-exposure",
+                    label="Aggregate advisory exposure",
+                    status="warn",
+                    reason=f"Total open exposure = {total_exposure}% exceeds {limits_cfg.max_total_exposure_pct}% threshold.",
+                    blocks_start=False,
+                ))
+            else:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-exposure",
+                    label="Aggregate advisory exposure",
+                    status="ok",
+                    reason=f"Total open exposure = {total_exposure}% within threshold.",
+                    blocks_start=False,
+                ))
+
+            active_id = self._active_session.session_id if self._active_session else None
+            if active_id:
+                session_trades = demo_repo.list_session_trades(session_id=active_id)
+                session_pnl = round(sum(r.pnl_pct or 0.0 for r in session_trades), 2)
+                if session_pnl < 0 and abs(session_pnl) >= limits_cfg.per_session_loss_warn_pct:
+                    checks.append(SessionPreflightCheck(
+                        check_id="risk-limit-session-loss",
+                        label="Per-session loss alert",
+                        status="warn",
+                        reason=f"Current session P&L = {session_pnl}% exceeds caution threshold of {limits_cfg.per_session_loss_warn_pct}%.",
+                        blocks_start=False,
+                    ))
+                else:
+                    checks.append(SessionPreflightCheck(
+                        check_id="risk-limit-session-loss",
+                        label="Per-session loss alert",
+                        status="ok",
+                        reason=f"Current session P&L = {session_pnl:+.2f}% within caution threshold.",
+                        blocks_start=False,
+                    ))
+            else:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-session-loss",
+                    label="Per-session loss alert",
+                    status="ok",
+                    reason="No active session — per-session loss check skipped.",
+                    blocks_start=False,
+                ))
+        except Exception:
+            for check_id, label in [
+                ("risk-limit-drawdown", "Drawdown stop"),
+                ("risk-limit-cooldown", "Consecutive loss cooldown"),
+                ("risk-limit-concurrent", "Max concurrent sessions"),
+                ("risk-limit-exposure", "Aggregate advisory exposure"),
+                ("risk-limit-session-loss", "Per-session loss alert"),
+            ]:
+                checks.append(SessionPreflightCheck(
+                    check_id=check_id,
+                    label=label,
+                    status="hard_fail",
+                    reason="Unable to verify risk limits due to a database error.",
+                    blocks_start=True,
+                ))
 
         blockers = [check.reason for check in checks if check.blocks_start]
         return SessionPreflightSnapshot(

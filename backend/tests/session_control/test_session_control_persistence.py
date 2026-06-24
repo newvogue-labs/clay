@@ -97,6 +97,7 @@ def build_service(session_factory: sessionmaker) -> SessionControlService:
         audit_writer=audit_writer,
         event_bus=event_bus,
         session_factory=session_factory,
+        config_loader=ConfigLoader(),
     )
 
 
