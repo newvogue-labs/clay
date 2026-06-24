@@ -480,12 +480,13 @@ class OpsRetentionJob:
         """Execute one ops-retention tick — prune all 3 tables, then commit."""
         from sqlalchemy import delete
         from clay.retention.jobs import RETENTION_WINDOWS_DAYS
-        from clay.db.models_ops import IngestRun, ConnectorStatusHistory, SourceHealthEvent
+        from clay.db.models_ops import AIAgentRun, IngestRun, ConnectorStatusHistory, SourceHealthEvent
 
         now = datetime.now(UTC)
         deleted_total = 0
         with self._session_factory() as session:
             for model_class, time_col_name, window_days in [
+                (AIAgentRun, "created_at", RETENTION_WINDOWS_DAYS["ai_agent_runs"]),
                 (IngestRun, "started_at", RETENTION_WINDOWS_DAYS["ingest_runs"]),
                 (ConnectorStatusHistory, "observed_at", RETENTION_WINDOWS_DAYS["connector_status_history"]),
                 (SourceHealthEvent, "recorded_at", RETENTION_WINDOWS_DAYS["source_health_events"]),

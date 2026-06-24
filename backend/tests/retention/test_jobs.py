@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from clay.db.models_ops import (
+    AIAgentRun,
     ConnectorStatusHistory,
     IngestRun,
     SourceHealthEvent,
@@ -42,9 +43,10 @@ def test_source_health_events_window_is_180_days() -> None:
 
 
 def test_ops_only_tables_in_retention_window() -> None:
-    """Only the 3 ops.* tables are in the active dict. Product/context tables
+    """Only the 4 ops.* tables are in the active dict. Product/context tables
     (market_bars, news_items, sentiment_snapshots) must NOT be pruned."""
     assert set(RETENTION_WINDOWS_DAYS.keys()) == {
+        "ai_agent_runs",
         "ingest_runs",
         "connector_status_history",
         "source_health_events",
@@ -69,7 +71,12 @@ def _seed_ops_data(
 
     for i in range(old_count):
         t = old_cutoff - timedelta(hours=i)
-        if table == "ingest_runs":
+        if table == "ai_agent_runs":
+            session.add(AIAgentRun(
+                created_at=t, role_id="test", model_id="test",
+                content="old", error=None,
+            ))
+        elif table == "ingest_runs":
             session.add(IngestRun(
                 source_name="test", source_type="market",
                 status="completed", started_at=t,
@@ -88,7 +95,12 @@ def _seed_ops_data(
 
     for i in range(fresh_count):
         t = now - timedelta(hours=i)
-        if table == "ingest_runs":
+        if table == "ai_agent_runs":
+            session.add(AIAgentRun(
+                created_at=t, role_id="test", model_id="test",
+                content="fresh", error=None,
+            ))
+        elif table == "ingest_runs":
             session.add(IngestRun(
                 source_name="test", source_type="market",
                 status="completed", started_at=t,
@@ -112,6 +124,7 @@ def _count_rows(session: Session, table: str) -> int:
     from sqlalchemy import select, func
 
     model_map = {
+        "ai_agent_runs": AIAgentRun,
         "ingest_runs": IngestRun,
         "connector_status_history": ConnectorStatusHistory,
         "source_health_events": SourceHealthEvent,
@@ -122,6 +135,7 @@ def _count_rows(session: Session, table: str) -> int:
 
 
 @pytest.mark.parametrize("table", [
+    "ai_agent_runs",
     "ingest_runs",
     "connector_status_history",
     "source_health_events",
@@ -148,6 +162,7 @@ def test_prune_removes_old_rows_keeps_fresh(
 
 
 @pytest.mark.parametrize("table", [
+    "ai_agent_runs",
     "ingest_runs",
     "connector_status_history",
     "source_health_events",
@@ -179,20 +194,21 @@ def test_prune_idempotent(
     )
 
 
-def test_prune_all_three_tables(sqlite_session_factory) -> None:
-    """Single run prunes all 3 tables, not just one."""
+def test_prune_all_four_tables(sqlite_session_factory) -> None:
+    """Single run prunes all 4 tables, not just one."""
     job = OpsRetentionJob(
         session_factory=sqlite_session_factory,
         audit_writer=MagicMock(),
     )
+    tables = ["ai_agent_runs", "ingest_runs", "connector_status_history", "source_health_events"]
     with sqlite_session_factory() as session:
-        for table in ["ingest_runs", "connector_status_history", "source_health_events"]:
+        for table in tables:
             _seed_ops_data(session, old_count=4, fresh_count=2, table=table)
 
     job.run()
 
     with sqlite_session_factory() as session:
-        for table in ["ingest_runs", "connector_status_history", "source_health_events"]:
+        for table in tables:
             remaining = _count_rows(session, table)
             assert remaining == 2, (
                 f"{table}: expected 2 fresh rows, got {remaining}"

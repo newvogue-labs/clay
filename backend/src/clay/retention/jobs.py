@@ -24,6 +24,7 @@ RETENTION_WINDOWS_DAYS = {
     "ingest_runs": 30,
     "connector_status_history": 180,
     "source_health_events": 180,
+    "ai_agent_runs": 180,
 }
 
 

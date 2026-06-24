@@ -36,7 +36,8 @@
 | 020 | Position Sizing — Fractional Kelly + EV-Gate | accepted | docs/adr | [`020-position-sizing-kelly-ev-gate.md`](020-position-sizing-kelly-ev-gate.md) |
 | 021 | Session-Level Risk Limits (Admission Gate) | Proposed | docs/adr | [`021-session-risk-limits.md`](021-session-risk-limits.md) |
 | 022 | *(резерв: AgentQuant-донор)* | — | — | |
-| 023+ | свободны | — | — | |
+| 023 | ops.ai_agent_runs — Indexes + Retention Policy | accepted | docs/adr | [`023-ai-agent-runs-retention.md`](023-ai-agent-runs-retention.md) |
+| 024+ | свободны | — | — | |
 
 ## Карта номеров
 
