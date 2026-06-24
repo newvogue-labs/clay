@@ -54,6 +54,7 @@ class DemoTradeRecordSnapshot(BaseModel):
     observed_at: str | None
     outcome_status: OutcomeStatus
     awaiting_result: bool
+    advisory_size_pct: float | None = None
 
 
 class DemoTradingSnapshot(BaseModel):

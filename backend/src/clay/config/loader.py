@@ -87,7 +87,16 @@ class ConfigLoader:
         if scope == "risk":
             target.write_text(
                 "confidence_warning_threshold = 0.6\n"
-                "degraded_confidence_penalty = 0.2\n",
+                "degraded_confidence_penalty = 0.2\n"
+                "\n"
+                "[kelly]\n"
+                "lambda = 0.25\n"
+                "cap = 0.02\n"
+                "min_ev = 0.15\n"
+                "equity_base = 1.0\n"
+                "\n"
+                "[calibration]\n"
+                "min_outcomes_for_recalibration = 30\n",
                 encoding="utf-8",
             )
             return
@@ -150,7 +159,17 @@ class ConfigLoader:
     def _dump_toml(self, data: dict[str, Any]) -> str:
         lines: list[str] = []
         for key, value in data.items():
-            if isinstance(value, str):
+            if isinstance(value, dict):
+                lines.append(f"\n[{key}]")
+                for sk, sv in value.items():
+                    sk_display = "lambda" if sk == "lambda_" else sk
+                    if isinstance(sv, str):
+                        lines.append(f'{sk_display} = "{sv}"')
+                    elif isinstance(sv, bool):
+                        lines.append(f"{sk_display} = {'true' if sv else 'false'}")
+                    else:
+                        lines.append(f"{sk_display} = {sv}")
+            elif isinstance(value, str):
                 lines.append(f'{key} = "{value}"')
             elif isinstance(value, bool):
                 lines.append(f"{key} = {'true' if value else 'false'}")

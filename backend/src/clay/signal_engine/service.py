@@ -23,6 +23,7 @@ from clay.signal_engine.models import (
     RiskTriggerSnapshot,
     SignalEngineSnapshot,
 )
+from clay.signal_engine.sizing import SizingStats, compute_sizing_stats
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,17 @@ TIMEFRAME_PRIORITY = {
     "5m": 1,
     "1h": 2,
 }
+
+
+@dataclass(slots=True)
+class KellySizingResult:
+    updated_risk_triggers: list[RiskTriggerSnapshot]
+    p: float | None
+    b: float | None
+    ev_val: float | None
+    f_star: float | None
+    f: float | None
+    ev_gate_triggered: bool
 
 
 @dataclass(slots=True)
@@ -93,6 +105,7 @@ class SignalEngineService:
         ops_repo = OpsRepository(session)
         ai_snapshot = self.ai_control_service.build_snapshot()
         risk_config = self.config_loader.load_scope("risk")
+        sizing_stats = self._compute_sizing_stats(session, risk_config)
         now = datetime.now(UTC)
 
         bars = market_repo.list_latest_bars(limit=50)
@@ -152,6 +165,11 @@ class SignalEngineService:
                 bar_close_time=bar.bar_close_time,
                 now=now,
             )
+            kelly_result = self._apply_kelly_sizing(
+                runtime_state=runtime_state,
+                sizing_stats=sizing_stats,
+                kelly_config=risk_config.kelly,
+            )
             response_action = self._resolve_response_action(risk_triggers)
             confidence_penalty = self._resolve_confidence_penalty(
                 risk_triggers=risk_triggers,
@@ -203,6 +221,7 @@ class SignalEngineService:
                     state=state,
                     response_action=response_action,
                     direction=direction,
+                    kelly_result=kelly_result,
                 ),
                 risk_triggers=risk_triggers,
                 risk_posture=self._build_risk_posture(response_action),
@@ -223,6 +242,12 @@ class SignalEngineService:
                 stale_timeframes=row.stale_timeframes,
                 leader_quote_volume=row.leader_quote_volume,
                 low_quote_volume=row.low_quote_volume,
+                probability_estimate=kelly_result.p,
+                payoff_estimate=kelly_result.b,
+                kelly_fraction=kelly_result.f_star,
+                advisory_position_size=kelly_result.f,
+                ev_value=kelly_result.ev_val,
+                ev_gate_triggered=kelly_result.ev_gate_triggered,
             )
             if applied_penalties:
                 logger.info(
@@ -419,6 +444,82 @@ class SignalEngineService:
                 )
         return round(max(0.0, min(1.0, ranking)), 2), applied
 
+    def _compute_sizing_stats(
+        self,
+        session: Session,
+        risk_config: object,
+    ) -> SizingStats:
+        from clay.db.repositories_demo import DemoRepository
+
+        repo = DemoRepository(session)
+        records = repo.list_all_trade_records()
+        wins = 0
+        losses = 0
+        win_pnl_sum = 0.0
+        loss_pnl_sum = 0.0
+        for r in records:
+            if r.pnl_pct is None:
+                continue
+            if r.pnl_pct > 0:
+                wins += 1
+                win_pnl_sum += r.pnl_pct
+            elif r.pnl_pct < 0:
+                losses += 1
+                loss_pnl_sum += r.pnl_pct
+        kelly_cfg = getattr(risk_config, "kelly", None)
+        cal_cfg = getattr(risk_config, "calibration", None)
+        min_outcomes = cal_cfg.min_outcomes_for_recalibration if cal_cfg is not None else 30
+        lam = kelly_cfg.lambda_ if kelly_cfg is not None else 0.25
+        cap = kelly_cfg.cap if kelly_cfg is not None else 0.02
+
+        return compute_sizing_stats(
+            wins=wins,
+            losses=losses,
+            win_pnl_sum=win_pnl_sum,
+            loss_pnl_sum=loss_pnl_sum,
+            min_outcomes=min_outcomes,
+            lambda_=lam,
+            cap=cap,
+        )
+
+    def _apply_kelly_sizing(
+        self,
+        *,
+        runtime_state: RuntimeState,
+        sizing_stats: SizingStats,
+        kelly_config: object,
+    ) -> KellySizingResult:
+        degraded = runtime_state in (RuntimeState.DEGRADED,)
+        if degraded:
+            return KellySizingResult(
+                updated_risk_triggers=[],
+                p=None, b=None, ev_val=None, f_star=None, f=None,
+                ev_gate_triggered=False,
+            )
+
+        p, b, ev_val, f_star, f = sizing_stats
+        min_ev = getattr(kelly_config, "min_ev", 0.15)
+
+        if ev_val <= 0:
+            return KellySizingResult(
+                updated_risk_triggers=[],
+                p=p, b=b, ev_val=ev_val, f_star=0.0, f=0.0,
+                ev_gate_triggered=True,
+            )
+
+        if ev_val <= min_ev:
+            return KellySizingResult(
+                updated_risk_triggers=[],
+                p=p, b=b, ev_val=ev_val, f_star=0.0, f=0.0,
+                ev_gate_triggered=True,
+            )
+
+        return KellySizingResult(
+            updated_risk_triggers=[],
+            p=p, b=b, ev_val=ev_val, f_star=f_star, f=f,
+            ev_gate_triggered=False,
+        )
+
     def _resolve_confidence(
         self,
         *,
@@ -506,7 +607,14 @@ class SignalEngineService:
             return f"{symbol} has directional context, but risk controls block the signal."
         return f"{direction.title()} continuation with {liquidity} liquidity and {state} conviction."
 
-    def _build_execution_notes(self, *, state: str, response_action: str, direction: str) -> list[str]:
+    def _build_execution_notes(
+        self,
+        *,
+        state: str,
+        response_action: str,
+        direction: str,
+        kelly_result: KellySizingResult | None = None,
+    ) -> list[str]:
         notes = [f"Signal direction: {direction}."]
         if response_action == "switch_to_defensive":
             notes.append("Stay defensive and avoid treating this as a full-size setup.")
@@ -518,7 +626,26 @@ class SignalEngineService:
             notes.append("Treat the setup as fragile and wait for cleaner confirmation.")
         else:
             notes.append("Stay in monitoring mode and wait for a cleaner setup.")
+        if kelly_result is not None:
+            sizing_note = self._build_sizing_note(kelly_result)
+            if sizing_note:
+                notes.append(sizing_note)
         return notes
+
+    @staticmethod
+    def _build_sizing_note(kelly_result: KellySizingResult) -> str | None:
+        if kelly_result.f is None:
+            return "System degraded — advisory size suppressed (0)."
+        if kelly_result.ev_gate_triggered:
+            if kelly_result.ev_val is not None and kelly_result.ev_val <= 0:
+                return "EV ≤ 0 — negative edge, advisory size = 0."
+            min_ev = 0.15  # default; caller can override in future
+            ev = kelly_result.ev_val or 0.0
+            return f"EV {ev:.2f}R below min ({min_ev:.2f}R) — advisory size = 0 (signal still visible)."
+        if kelly_result.f is not None and kelly_result.f > 0:
+            ev = kelly_result.ev_val or 0.0
+            return f"Advisory size: {kelly_result.f*100:.1f}% equity (fractional Kelly, EV {ev:.2f}R)."
+        return None
 
     def _build_risk_posture(self, response_action: str) -> str:
         if response_action == "warning_only":

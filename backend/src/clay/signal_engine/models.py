@@ -43,6 +43,12 @@ class EvaluatedSignalSnapshot(BaseModel):
     stale_timeframes: list[str] = Field(default_factory=list)
     leader_quote_volume: float = 0.0
     low_quote_volume: bool = False
+    probability_estimate: float | None = None
+    payoff_estimate: float | None = None
+    kelly_fraction: float | None = None
+    advisory_position_size: float | None = None
+    ev_value: float | None = None
+    ev_gate_triggered: bool = False
 
 
 class SignalEngineSnapshot(BaseModel):
