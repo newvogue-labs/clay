@@ -36,7 +36,7 @@ uvicorn clay.api.main:app --host 0.0.0.0 --port 8000 --workers 1
 make backend-run   # uvicorn --reload on 127.0.0.1:8000
 ```
 
-Defaults: `CLAY_SERVER_HOST=0.0.0.0`, `CLAY_SERVER_PORT=8000`.
+Defaults: `CLAY_SERVER_HOST=127.0.0.1`, `CLAY_SERVER_PORT=8000`.
 
 ## 4. Database migration
 
@@ -55,7 +55,7 @@ Migrations run on PostgreSQL (the full alembic chain is not SQLite-compatible â€
 |---|---|---|
 | `CLAY_DATABASE_URL` | Postgres DSN | â€” (required) |
 | `CLAY_BINANCE_BASE_URL` | Binance base URL (route via TUN DE-node) | `https://api.binance.com` |
-| `CLAY_SERVER_HOST` | Bind host | `0.0.0.0` |
+| `CLAY_SERVER_HOST` | Bind host | `127.0.0.1` |
 | `CLAY_SERVER_PORT` | Bind port | `8000` |
 | `CLAY_SCHEDULER_ENABLED` | Master scheduler gate | `true` |
 | `CLAY_SCHEDULER_RELIABILITY_ENABLED` | Reliability recheck job | `true` |

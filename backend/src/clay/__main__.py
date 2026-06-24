@@ -2,7 +2,7 @@
 
 Usage: ``python -m clay``
 
-Reads ``CLAY_SERVER_HOST`` (default ``0.0.0.0``) and
+Reads ``CLAY_SERVER_HOST`` (default ``127.0.0.1``) and
 ``CLAY_SERVER_PORT`` (default ``8000``) from the environment.
 Single-worker is required (ADR-007 — in-process APScheduler).
 """
@@ -13,7 +13,7 @@ import uvicorn
 
 
 def main() -> None:
-    host = os.environ.get("CLAY_SERVER_HOST", "0.0.0.0")
+    host = os.environ.get("CLAY_SERVER_HOST", "127.0.0.1")
     port = int(os.environ.get("CLAY_SERVER_PORT", "8000"))
     uvicorn.run(
         "clay.api.main:app",

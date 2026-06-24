@@ -26,7 +26,7 @@ def test_main_host_default() -> None:
     with patch("clay.__main__.uvicorn.run") as mock_run:
         main()
 
-    assert mock_run.call_args.kwargs["host"] == "0.0.0.0"
+    assert mock_run.call_args.kwargs["host"] == "127.0.0.1"
 
 
 def test_main_host_from_env() -> None:
