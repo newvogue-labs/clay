@@ -54,6 +54,8 @@
 - `implementation_plans/`
   Подробные implementation plans как будущая карта сборки по конкретному эпику; их наличие не означает немедленный старт реализации.
 
+> **Полный сводный индекс ADR → [`docs/adr/README.md`](../adr/README.md)**
+
 ## Уже добавлено
 
 - `tech-stack-v1.md`

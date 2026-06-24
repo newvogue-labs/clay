@@ -1,10 +1,11 @@
-# ADR-015: Pool-Health Degraded Mode (never-empty invariant)
+# ADR-018: Pool-Health Degraded Mode (never-empty invariant)
 
 - **Status:** Accepted
 - **Date:** 2026-06-17
 - **Driver:** S3c-3
 - **Replaces:** —
 - **Referenced by:** ADR-013 (provider pool schema), ADR-014 (write governance)
+- **Renumbered:** был ADR-015 → ADR-018 (коллизия разрешена 2026-06-24; mc ADR-015 = «Degraded-mode AI-слоя» сохраняет 015)
 
 ## Context
 

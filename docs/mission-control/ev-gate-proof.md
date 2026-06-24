@@ -2,7 +2,7 @@
 
 > **Дата:** 2026-06-24
 > **Версия кода:** `78332b1` (S-KELLY-2 merged)
-> **Связанный ADR:** [ADR-020](../adrs/adr-020-kelly-ev-gate.md)
+> **Связанный ADR:** [ADR-020](../adr/020-position-sizing-kelly-ev-gate.md)
 
 ## Сводка
 
@@ -80,6 +80,6 @@ _evaluate_candidates()
 
 ## Ссылки
 
-- [ADR-020: Fractional Kelly + EV-gate](../adrs/adr-020-kelly-ev-gate.md)
+- [ADR-020: Fractional Kelly + EV-gate](../adr/020-position-sizing-kelly-ev-gate.md)
 - Тесты: `tests/signal_engine/test_sizing.py` — `TestEvGateScenarios`, `TestEvGateNoCascade`, `TestHardBlockRegression`
 - Session-level gap: `backend/src/clay/session_control/service.py:522`
