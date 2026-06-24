@@ -6,7 +6,7 @@ import math
 
 from clay.runtime.states import RuntimeState
 from clay.signal_engine.models import RiskTriggerSnapshot
-from clay.signal_engine.service import KellySizingResult, SignalEngineService
+from clay.signal_engine.service import SignalEngineService
 from clay.signal_engine.sizing import (
     advisory_fraction,
     compute_sizing_stats,
@@ -158,78 +158,45 @@ class FakeRiskConfig:
         self.calibration = type("FakeCal", (), {"min_outcomes_for_recalibration": 30})()
 
 
-def test_kelly_sizing_degraded_returns_zero() -> None:
+def test_kelly_sizing_degraded_returns_none() -> None:
     engine = object.__new__(SignalEngineService)
-    triggers = [_make_trigger()]
     result = engine._apply_kelly_sizing(
-        risk_triggers=triggers,
         runtime_state=RuntimeState.DEGRADED,
         sizing_stats=(0.65, 1.5, 0.625, 0.2, 0.02),
         kelly_config=FakeKellyConfig(),
     )
-    assert result.f is None  # no sizing in degraded
+    assert result.f is None
     assert result.ev_gate_triggered is False
-    assert len(result.updated_risk_triggers) == 1  # no EV-gate added
 
 
-def test_kelly_sizing_ev_below_zero_blocks() -> None:
+def test_kelly_sizing_ev_below_zero_zeroes() -> None:
     engine = object.__new__(SignalEngineService)
-    triggers = [_make_trigger()]
     result = engine._apply_kelly_sizing(
-        risk_triggers=triggers,
         runtime_state=RuntimeState.BACKGROUND_MONITORING,
         sizing_stats=(0.3, 1.0, -0.4, 0.0, 0.0),
         kelly_config=FakeKellyConfig(min_ev=0.15),
     )
     assert result.f == 0.0
     assert result.ev_gate_triggered is True
-    assert len(result.updated_risk_triggers) == 2
-    added = result.updated_risk_triggers[-1]
-    assert added.trigger_id == "ev-below-min"
-    assert added.response_action == "block_signal"
 
 
-def test_kelly_sizing_ev_below_min_warns() -> None:
+def test_kelly_sizing_ev_below_min_zeroes() -> None:
     engine = object.__new__(SignalEngineService)
-    triggers = [_make_trigger()]
     result = engine._apply_kelly_sizing(
-        risk_triggers=triggers,
         runtime_state=RuntimeState.BACKGROUND_MONITORING,
         sizing_stats=(0.5, 1.05, 0.025, 0.0, 0.0),
         kelly_config=FakeKellyConfig(min_ev=0.15),
     )
     assert result.f == 0.0
     assert result.ev_gate_triggered is True
-    assert len(result.updated_risk_triggers) == 2
-    added = result.updated_risk_triggers[-1]
-    assert added.trigger_id == "ev-below-min"
-    assert added.response_action == "warning_only"
 
 
 def test_kelly_sizing_ev_above_min_passes() -> None:
     engine = object.__new__(SignalEngineService)
-    triggers = [_make_trigger()]
     result = engine._apply_kelly_sizing(
-        risk_triggers=triggers,
         runtime_state=RuntimeState.BACKGROUND_MONITORING,
         sizing_stats=(0.65, 1.76, 0.79, 0.45, 0.02),
         kelly_config=FakeKellyConfig(min_ev=0.15),
     )
     assert result.f == 0.02
     assert result.ev_gate_triggered is False
-    assert len(result.updated_risk_triggers) == 1  # no EV-gate added
-
-
-def test_kelly_sizing_preserves_existing_triggers() -> None:
-    engine = object.__new__(SignalEngineService)
-    triggers = [
-        _make_trigger(trigger_id="stale-market-solusdt", response_action="block_signal"),
-    ]
-    result = engine._apply_kelly_sizing(
-        risk_triggers=triggers,
-        runtime_state=RuntimeState.BACKGROUND_MONITORING,
-        sizing_stats=(0.65, 1.76, 0.79, 0.45, 0.02),
-        kelly_config=FakeKellyConfig(),
-    )
-    assert len(result.updated_risk_triggers) == 1  # no EV-gate added
-    assert result.updated_risk_triggers[0].trigger_id == "stale-market-solusdt"
