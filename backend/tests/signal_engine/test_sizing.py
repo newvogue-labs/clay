@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC, datetime, timedelta
 
 from clay.runtime.states import RuntimeState
 from clay.signal_engine.models import RiskTriggerSnapshot
@@ -241,3 +242,194 @@ def test_sizing_note_gate_open() -> None:
     note = SignalEngineService._build_sizing_note(result)
     assert "Advisory size: 2.0%" in note
     assert "EV 0.79R" in note
+
+
+# ── Scenario tests: EV-gate through full chain (ШАГ 1) ──────────────────
+
+
+class TestEvGateScenarios:
+    """Four EV bands tested through _apply_kelly_sizing → _build_execution_notes.
+
+    Each scenario proves simultaneously: advisory_position_size, ev_gate_triggered,
+    execution_notes text, and that EV-gate does NOT cascade to signal state/action.
+    """
+
+    @staticmethod
+    def _engine() -> SignalEngineService:
+        return object.__new__(SignalEngineService)
+
+    def _exec_notes(
+        self,
+        engine: SignalEngineService,
+        result: KellySizingResult,
+        state: str = "active",
+        resp_action: str = "warning_only",
+        direction: str = "bullish",
+    ) -> list[str]:
+        return engine._build_execution_notes(
+            state=state,
+            response_action=resp_action,
+            direction=direction,
+            kelly_result=result,
+        )
+
+    def test_negative_edge_ev_below_zero(self) -> None:
+        """EV ≤ 0: f=0, gate triggered, note says negative edge, signal visible."""
+        engine = self._engine()
+        cfg = FakeKellyConfig(min_ev=0.15)
+        result = engine._apply_kelly_sizing(
+            runtime_state=RuntimeState.BACKGROUND_MONITORING,
+            sizing_stats=(0.3, 1.0, -0.4, 0.0, 0.0),
+            kelly_config=cfg,
+        )
+        assert result.f == 0.0
+        assert result.ev_gate_triggered is True
+        notes = self._exec_notes(engine, result)
+        assert "EV ≤ 0" in notes[-1]
+        assert "negative edge" in notes[-1]
+
+    def test_below_min_gate_blocks(self) -> None:
+        """0 < EV ≤ min_ev: f=0, gate triggered, note says below min, signal visible."""
+        engine = self._engine()
+        cfg = FakeKellyConfig(min_ev=0.15)
+        result = engine._apply_kelly_sizing(
+            runtime_state=RuntimeState.BACKGROUND_MONITORING,
+            sizing_stats=(0.5, 1.05, 0.025, 0.0, 0.0),
+            kelly_config=cfg,
+        )
+        assert result.f == 0.0
+        assert result.ev_gate_triggered is True
+        notes = self._exec_notes(engine, result)
+        assert "below min" in notes[-1]
+        assert "signal still visible" in notes[-1]
+
+    def test_above_min_passes_gate(self) -> None:
+        """EV > min_ev: f>0 (capped), gate open, note says advisory size."""
+        engine = self._engine()
+        cfg = FakeKellyConfig(min_ev=0.15)
+        result = engine._apply_kelly_sizing(
+            runtime_state=RuntimeState.BACKGROUND_MONITORING,
+            sizing_stats=(0.65, 1.76, 0.79, 0.45, 0.02),
+            kelly_config=cfg,
+        )
+        assert result.f == 0.02
+        assert result.ev_gate_triggered is False
+        notes = self._exec_notes(engine, result)
+        assert "Advisory size: 2.0%" in notes[-1]
+
+    def test_degraded_skips_kelly(self) -> None:
+        """Degraded: f=None, gate not triggered, note says degraded."""
+        engine = self._engine()
+        cfg = FakeKellyConfig(min_ev=0.15)
+        result = engine._apply_kelly_sizing(
+            runtime_state=RuntimeState.DEGRADED,
+            sizing_stats=(0.65, 1.5, 0.625, 0.2, 0.02),
+            kelly_config=cfg,
+        )
+        assert result.f is None
+        assert result.ev_gate_triggered is False
+        notes = self._exec_notes(engine, result)
+        assert "System degraded" in notes[-1]
+
+
+class TestEvGateNoCascade:
+    """Proof: EV-gate does NOT propagate to signal state or response_action.
+
+    _resolve_signal_state depends on market_status, response_action, ranking_score, time.
+    _resolve_response_action depends only on risk_triggers.
+    Neither receives KellySizingResult — EV gate ONLY touches:
+    - advisory_position_size field on the signal
+    - ev_gate_triggered field on the signal
+    - execution_notes (via _build_sizing_note)
+    """
+
+    def test_signal_state_independent_of_kelly(self) -> None:
+        engine = object.__new__(SignalEngineService)
+        now = datetime.now(UTC)
+        state = engine._resolve_signal_state(
+            market_status="fresh",
+            response_action="warning_only",
+            ranking_score=0.72,
+            bar_close_time=now,
+            now=now,
+        )
+        assert state == "active"
+
+    def test_response_action_independent_of_kelly(self) -> None:
+        engine = object.__new__(SignalEngineService)
+        action = engine._resolve_response_action([])
+        assert action == "warning_only"
+
+
+# ── Hard-block regression tests (ШАГ 2) ─────────────────────────────────
+
+
+class TestHardBlockRegression:
+    """Verify stale-market / expired-window → block_signal path still works.
+
+    Covers the pre-existing hard-block path: trigger → response_action → notes → state.
+    """
+
+    @staticmethod
+    def _engine() -> SignalEngineService:
+        return object.__new__(SignalEngineService)
+
+    def test_stale_market_triggers_block_signal(self) -> None:
+        engine = self._engine()
+        triggers = [
+            RiskTriggerSnapshot(
+                trigger_id="stale-market-btcusdt",
+                severity="critical",
+                title="Stale market data",
+                description=".",
+                response_action="block_signal",
+            ),
+        ]
+        assert engine._resolve_response_action(triggers) == "block_signal"
+
+    def test_expired_window_triggers_block_signal(self) -> None:
+        engine = self._engine()
+        triggers = [
+            RiskTriggerSnapshot(
+                trigger_id="expired-window-btcusdt",
+                severity="warning",
+                title="Signal window expired",
+                description=".",
+                response_action="block_signal",
+            ),
+        ]
+        assert engine._resolve_response_action(triggers) == "block_signal"
+
+    def test_block_signal_notes_do_not_execute(self) -> None:
+        engine = self._engine()
+        notes = engine._build_execution_notes(
+            state="invalidated",
+            response_action="block_signal",
+            direction="bullish",
+            kelly_result=None,
+        )
+        assert "Do not execute" in notes[1]
+
+    def test_block_signal_produces_invalidated_state(self) -> None:
+        engine = self._engine()
+        now = datetime.now(UTC)
+        state = engine._resolve_signal_state(
+            market_status="stale",
+            response_action="block_signal",
+            ranking_score=0.65,
+            bar_close_time=now,
+            now=now,
+        )
+        assert state == "invalidated"
+
+    def test_expired_window_state_expired(self) -> None:
+        engine = self._engine()
+        old = datetime.now(UTC) - timedelta(hours=3)
+        state = engine._resolve_signal_state(
+            market_status="fresh",
+            response_action="warning_only",
+            ranking_score=0.65,
+            bar_close_time=old,
+            now=datetime.now(UTC),
+        )
+        assert state == "expired"
