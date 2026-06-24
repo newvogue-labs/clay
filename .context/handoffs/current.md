@@ -1,15 +1,23 @@
 ---
-date: 2026-06-18
-from: Emma
-session: Сессия 14 — S3d-2 + S3d-3 ✅ S3 CLOSED
+date: 2026-06-24
+from: Agent (big-pickle)
+session: Сессия 2026-06-24 — S-KELLY-2-R EV-gate block proof
 ---
 
 ## Что сделано
 
-- **S3d-2:** ✅ CLOSED. `ProviderPoolReconcileJob` зарегистрирован в `ClayScheduler` (флаг-gated, OFF по умолчанию). 8 тестов + one-shot proof.
-- **S3d-3:** ✅ CLOSED. Флаг включён, 2 цикла noop подтверждены (status=noop, 7/7, MainPID стабилен). Interval 300s. runbook updated.
-- **S3:** ✅ ПОЛНОСТЬЮ ЗАКРЫТ (S3a → S3b → S3c-1/1R/2/2R/3 → S3d-pre → S3d-1 → S3d-2 → S3d-3).
+- **S-KELLY-2-R:** ✅ CLOSED (прямой коммит в main `12b7287`)
+- **ШАГ 1:** 4 scenario-теста EV-gate (EV≤0 / below-min / above-min / degraded) через `_apply_kelly_sizing → _build_execution_notes`
+- **ШАГ 2:** 4 regression-теста hard-block (stale-market / expired-window → block_signal)
+- **ШАГ 3:** Recon `session_control/service.py:522` — `risk-limits-active` = hardcoded `"ok"`, `blocks_start=False` (KNOWN GAP)
+- **ШАГ 4:** Evidence-doc `docs/mission-control/ev-gate-proof.md` (4-сценарная таблица, golden, scope & limits)
+- **604 passed (+11), ruff 58 (без изменений)**
+- `.context/state.md`, `.context/reports/last.md` обновлены
 
 ## Следующий шаг
 
-**S4 (полный сид пула):** Развернуть провайдерские ключи и деплои из live-инфры. Ожидает архитектора.
+Выбор Emma: закрыть session-level gap (risk-limits-active ADR) / Ф1b / doc-sync / Ring 1 go-no-go.
+
+## Открытые вопросы
+
+- Session-level gap: `risk-limits-active` — заглушка, капитальные/сессионные лимиты НЕ enforced. Кандидат на отдельный слайс/ADR.
