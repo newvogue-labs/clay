@@ -60,6 +60,7 @@ def build_session_service() -> SessionControlService:
         workspace_service=workspace_service,
         audit_writer=audit_writer,
         event_bus=event_bus,
+        config_loader=ConfigLoader(),
     )
 
 

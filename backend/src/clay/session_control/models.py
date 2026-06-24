@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from clay.signal_engine.models import AppliedPenalty
 
 
-PreflightCheckStatus = Literal["ok", "hard_fail"]
+PreflightCheckStatus = Literal["ok", "warn", "hard_fail"]
 SessionLifecycleState = Literal["idle", "pre_session", "active_session", "paused", "review"]
 ReviewSeverity = Literal["info", "warning", "critical"]
 

@@ -96,7 +96,16 @@ class ConfigLoader:
                 "equity_base = 1.0\n"
                 "\n"
                 "[calibration]\n"
-                "min_outcomes_for_recalibration = 30\n",
+                "min_outcomes_for_recalibration = 30\n"
+                "\n"
+                "[session_limits]\n"
+                "max_drawdown_pct = 15.0\n"
+                "max_consecutive_losses = 3\n"
+                "cooldown_minutes = 60\n"
+                "drawdown_window_hours = 24\n"
+                "max_concurrent_sessions = 1\n"
+                "max_total_exposure_pct = 4.0\n"
+                "per_session_loss_warn_pct = 8.0\n",
                 encoding="utf-8",
             )
             return

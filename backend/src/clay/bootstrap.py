@@ -239,6 +239,7 @@ def build_services(
         workspace_service=workspace_service,
         audit_writer=audit_writer,
         event_bus=event_bus,
+        config_loader=config_loader,
         session_factory=session_factory,
     )
     demo_trading_service = DemoTradingService(

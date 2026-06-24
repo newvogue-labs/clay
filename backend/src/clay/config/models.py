@@ -26,6 +26,18 @@ class CalibrationConfig(BaseModel):
     min_outcomes_for_recalibration: int = Field(default=30, ge=5)
 
 
+class SessionLimitsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_drawdown_pct: float = Field(default=15.0, gt=0.0, le=100.0)
+    max_consecutive_losses: int = Field(default=3, ge=1)
+    cooldown_minutes: int = Field(default=60, ge=0)
+    drawdown_window_hours: int = Field(default=24, ge=1)
+    max_concurrent_sessions: int = Field(default=1, ge=1)
+    max_total_exposure_pct: float = Field(default=4.0, gt=0.0, le=100.0)
+    per_session_loss_warn_pct: float = Field(default=8.0, gt=0.0, le=100.0)
+
+
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -33,3 +45,4 @@ class RiskConfig(BaseModel):
     degraded_confidence_penalty: float = Field(default=0.2, ge=0.0, le=1.0)
     kelly: KellyConfig = Field(default_factory=KellyConfig)
     calibration: CalibrationConfig = Field(default_factory=CalibrationConfig)
+    session_limits: SessionLimitsConfig = Field(default_factory=SessionLimitsConfig)

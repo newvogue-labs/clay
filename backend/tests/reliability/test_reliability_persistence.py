@@ -120,6 +120,7 @@ def build_service(
         audit_writer=audit_writer,
         event_bus=event_bus,
         session_factory=session_factory,
+        config_loader=ConfigLoader(),
     )
     demo_trading_service = DemoTradingService(
         session_control_service=session_control_service,

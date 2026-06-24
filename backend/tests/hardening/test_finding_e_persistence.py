@@ -142,6 +142,7 @@ def _build_session_control_service(
         audit_writer=audit_writer,
         event_bus=event_bus,
         session_factory=session_factory,
+        config_loader=ConfigLoader(),
     )
 
 
