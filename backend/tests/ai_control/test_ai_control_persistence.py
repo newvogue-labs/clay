@@ -244,7 +244,6 @@ def test_roles_and_models_registry_are_not_persisted(
     db_session.commit()
 
     with sqlite_session_factory() as session:
-        repo = AIAssignmentRepository(session)
         # Only one row was written: the assignment upsert.
         assert session.scalar(select(func.count()).select_from(AIAssignment)) == 4
 

@@ -69,7 +69,6 @@ if TYPE_CHECKING:
     from clay.audit.writer import AuditWriter
     from clay.events.bus import EventBus
     from clay.health.monitor import HealthMonitor
-    from clay.reliability.service import ReliabilityService
     from clay.services.registry import ServiceRegistry
 
 logger = logging.getLogger(__name__)

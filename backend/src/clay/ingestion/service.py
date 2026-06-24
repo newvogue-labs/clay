@@ -5,7 +5,7 @@ from email import utils as email_utils
 from typing import Any
 
 import httpx
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from clay.audit.writer import AuditWriter
 from clay.db.repositories_context import ContextRepository

@@ -9,9 +9,9 @@ _tmp_db_path = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
 os.environ.setdefault("CLAY_DATABASE_URL", f"sqlite+pysqlite:///{_tmp_db_path}")
 
 # Импортируем модели для регистрации в Base.metadata до create_all
-from clay.db import Base, build_engine, build_session_factory
-from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation  # noqa: F401
-from clay.settings.ingestion import IngestionSettings
+from clay.db import Base, build_engine, build_session_factory  # noqa: E402 — DB URL setup must precede clay imports
+from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation  # noqa: F401, E402
+from clay.settings.ingestion import IngestionSettings  # noqa: E402
 
 # Создаём таблицы в bootstrap-БД (ai_assignments, ai_control_state и т.д.)
 # чтобы AIControlService.__init__ с session_factory не упал на "no such table".
@@ -19,12 +19,12 @@ _bs_engine = build_engine(IngestionSettings(database_url=os.environ["CLAY_DATABA
 Base.metadata.create_all(_bs_engine)
 _bs_engine.dispose()
 
-from pathlib import Path
+from pathlib import Path  # noqa: E402
 
-import pytest
+import pytest  # noqa: E402
 
-from clay.api.dependencies import get_db_session, get_ingestion_settings
-from clay.api.main import create_app
+from clay.api.dependencies import get_db_session, get_ingestion_settings  # noqa: E402
+from clay.api.main import create_app  # noqa: E402
 
 
 @pytest.fixture

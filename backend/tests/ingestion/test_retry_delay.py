@@ -12,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 from email import utils as email_utils
 
 import httpx
-import pytest
 
 from clay.ingestion.service import _resolve_retry_delay
 

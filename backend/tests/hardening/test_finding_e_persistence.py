@@ -231,7 +231,7 @@ def test_session_control_start_persists_across_restart(tmp_path) -> None:
 
     engine1.dispose()
 
-    engine2 = build_engine(settings)
+    build_engine(settings)
     factory2 = build_session_factory(settings)
 
     with factory2() as session:
@@ -265,7 +265,7 @@ def test_ai_control_apply_persists_across_restart(tmp_path) -> None:
 
     engine1.dispose()
 
-    engine2 = build_engine(settings)
+    build_engine(settings)
     factory2 = build_session_factory(settings)
 
     service2 = _build_ai_control_service(factory2)
@@ -302,7 +302,7 @@ def test_workspace_set_focus_persists_across_restart(tmp_path) -> None:
 
     engine1.dispose()
 
-    engine2 = build_engine(settings)
+    build_engine(settings)
     factory2 = build_session_factory(settings)
 
     with factory2() as session:
@@ -337,7 +337,7 @@ def test_rollback_on_exception_removes_changes(tmp_path) -> None:
 
     engine.dispose()
 
-    engine2 = build_engine(settings)
+    build_engine(settings)
     factory2 = build_session_factory(settings)
     with factory2() as session:
         repo = AIAssignmentRepository(session)

@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 
 from clay.db.repositories_context import ContextRepository
 

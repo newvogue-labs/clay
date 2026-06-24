@@ -14,7 +14,6 @@ from clay.events.bus import EventBus
 from clay.session_review.service import SessionReviewService
 from clay.signal_engine.service import SignalEngineService
 from clay.validation_lab.models import (
-    ActivationReviewCommand,
     ActivationReviewSnapshot,
     ValidationLabSnapshot,
     ValidationLabSummary,

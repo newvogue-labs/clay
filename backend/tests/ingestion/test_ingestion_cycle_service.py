@@ -26,11 +26,8 @@ B5 acceptance criteria (from handoffs/b5-plan-2026-06-02.md):
 
 from __future__ import annotations
 
-import asyncio
 import json
 import threading
-from collections.abc import Iterator
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any

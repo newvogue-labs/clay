@@ -6,7 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from clay.db.base import Base
-from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation
+from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation  # noqa: F401 — models imported for Alembic autogenerate target metadata
 from clay.settings.ingestion import IngestionSettings
 
 config = context.config

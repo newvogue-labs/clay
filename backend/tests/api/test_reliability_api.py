@@ -24,7 +24,6 @@ from clay.session_control.service import SessionControlService
 from clay.session_review.service import SessionReviewService
 from clay.settings.ingestion import IngestionSettings
 from clay.signal_engine.service import SignalEngineService
-from clay.services.models import ServiceStatus
 from clay.validation_lab.models import ValidationRunCommand
 from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService

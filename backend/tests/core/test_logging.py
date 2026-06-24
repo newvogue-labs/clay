@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import io
 import logging
-import os
 import re
 
 import pytest

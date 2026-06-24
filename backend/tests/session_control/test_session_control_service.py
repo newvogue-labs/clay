@@ -6,7 +6,6 @@ from clay.config.loader import ConfigLoader
 from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
-from clay.runtime.states import RuntimeState
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.session_control.service import SessionControlService

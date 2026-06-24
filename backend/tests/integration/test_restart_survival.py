@@ -42,7 +42,6 @@ integration suite is the persistent-wiring smoke test.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 from clay.db.repositories_runtime_state import (
@@ -240,6 +239,8 @@ def test_full_restart_survives_all_six_persisted_areas(tmp_path: Path) -> None:
         post_workspace = WorkspaceFocusRepository(session).read()
     assert post_workspace is not None
     assert post_workspace.focus_source == "user"
+    assert post_workspace.focus_symbol == pre_workspace.focus_symbol
+    assert post_workspace.focus_source == pre_workspace.focus_source
 
     # 5. strategy_state restored.
     assert services2["validation_lab_service"]._strategy_mode == pre_strategy_mode
@@ -248,6 +249,7 @@ def test_full_restart_survives_all_six_persisted_areas(tmp_path: Path) -> None:
         post_strategy = StrategyStateRepository(session).read()
     assert post_strategy is not None
     assert post_strategy.strategy_mode == "defensive"
+    assert post_strategy.strategy_mode == pre_strategy.strategy_mode
 
     # 6. reliability_state restored.
     assert (
@@ -261,6 +263,7 @@ def test_full_restart_survives_all_six_persisted_areas(tmp_path: Path) -> None:
         post_reliability = ReliabilityStateRepository(session).read()
     assert post_reliability is not None
     assert post_reliability.last_rechecked_at is not None
+    assert post_reliability.last_rechecked_at == pre_reliability.last_rechecked_at
 
     # --- Alpha-readiness snapshot is coherent (not a hard-fail
     # because of in-memory drift): the brief says alpha should see

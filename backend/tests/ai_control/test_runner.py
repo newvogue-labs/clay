@@ -248,8 +248,7 @@ def test_litellm_client_reasoning_content_fallback() -> None:
     """
     from unittest.mock import MagicMock
 
-    from clay.ai_control.runner import LiteLLMModelClient
-    from clay.llm import ChatCompletionChoice, ChatCompletionResponse, ChatMessage as LLMChatMessage
+    from clay.llm import ChatCompletionChoice, ChatMessage as LLMChatMessage
     from clay.llm import LLMAdapter
 
     adapter = MagicMock(spec=LLMAdapter)

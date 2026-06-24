@@ -7,7 +7,6 @@ Uses ``create_app()`` directly but patches ``_check_db`` and
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
 from unittest.mock import MagicMock
 
 import httpx

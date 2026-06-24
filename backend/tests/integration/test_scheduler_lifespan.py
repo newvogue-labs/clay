@@ -25,14 +25,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-import httpx
 import pytest
 from apscheduler.schedulers.base import STATE_RUNNING
 from asgi_lifespan import LifespanManager
 
 import clay.api.lifespan as lifespan_module
 from clay.api.main import create_app
-from clay.events.bus import EventBus
 from clay.scheduler.service import ClayScheduler
 from clay.services.models import ServiceStatus
 from clay.settings.scheduler import SchedulerSettings

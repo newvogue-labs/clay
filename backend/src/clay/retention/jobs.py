@@ -16,12 +16,8 @@ future one-line activation):
 * ``sentiment_snapshots`` — 180d (context data; still synthetic)
 """
 
-from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete
-from sqlalchemy.orm import Session
 
-from clay.db.models_ops import ConnectorStatusHistory, IngestRun, SourceHealthEvent
 
 
 RETENTION_WINDOWS_DAYS = {
