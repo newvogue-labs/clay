@@ -8,6 +8,17 @@ class DemoRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def get_open_record_for_session(self, session_id: str) -> DemoTradeRecord | None:
+        query = (
+            select(DemoTradeRecord)
+            .where(
+                DemoTradeRecord.session_id == session_id,
+                DemoTradeRecord.broker_status == "awaiting_result",
+            )
+            .limit(1)
+        )
+        return self.session.scalar(query)
+
     def create_trade_record(self, payload: dict[str, object]) -> DemoTradeRecord:
         record = DemoTradeRecord(**payload)
         self.session.add(record)

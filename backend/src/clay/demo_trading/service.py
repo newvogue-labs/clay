@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from clay.audit.writer import AuditWriter
@@ -60,25 +61,42 @@ class DemoTradingService:
         command: DemoTradeLogCommand,
     ) -> DemoTradingSnapshot:
         active_session = self._require_active_session(session)
+        assert active_session.session_id is not None
+        session_id = active_session.session_id
+
+        repository = DemoRepository(session)
+        open_record = repository.get_open_record_for_session(session_id)
+        if open_record is not None:
+            raise ValueError(
+                f"Session {session_id} already has an open record "
+                f"(id={open_record.id}). Complete or ingest it before logging a new trade."
+            )
+
         now = datetime.now(UTC)
         initial_outcome = "missed" if command.operator_action == "skipped" else "unresolved"
         initial_status = "not_entered" if command.operator_action == "skipped" else "awaiting_result"
 
-        repository = DemoRepository(session)
-        record = repository.create_trade_record(
-            {
-                "session_id": active_session.session_id,
-                "signal_id": active_session.current_signal_id,
-                "symbol": active_session.current_pair_symbol,
-                "executed_symbol": command.executed_symbol,
-                "operator_action": command.operator_action,
-                "operator_notes": command.operator_notes,
-                "recorded_at": now,
-                "broker_status": initial_status,
-                "outcome_status": initial_outcome,
-            }
-        )
-        session.commit()
+        try:
+            record = repository.create_trade_record(
+                {
+                    "session_id": session_id,
+                    "signal_id": active_session.current_signal_id,
+                    "symbol": active_session.current_pair_symbol,
+                    "executed_symbol": command.executed_symbol,
+                    "operator_action": command.operator_action,
+                    "operator_notes": command.operator_notes,
+                    "recorded_at": now,
+                    "broker_status": initial_status,
+                    "outcome_status": initial_outcome,
+                }
+            )
+            session.commit()
+        except IntegrityError as e:
+            raise ValueError(
+                f"Session {session_id} already has an open record (race detected). "
+                "Duplicate prevented by database constraint."
+            ) from e
+
         self._write_and_publish(
             "demo.trade.logged",
             {
