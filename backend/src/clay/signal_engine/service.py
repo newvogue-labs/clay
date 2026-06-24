@@ -166,12 +166,10 @@ class SignalEngineService:
                 now=now,
             )
             kelly_result = self._apply_kelly_sizing(
-                risk_triggers=risk_triggers,
                 runtime_state=runtime_state,
                 sizing_stats=sizing_stats,
                 kelly_config=risk_config.kelly,
             )
-            risk_triggers = kelly_result.updated_risk_triggers
             response_action = self._resolve_response_action(risk_triggers)
             confidence_penalty = self._resolve_confidence_penalty(
                 risk_triggers=risk_triggers,
@@ -223,6 +221,7 @@ class SignalEngineService:
                     state=state,
                     response_action=response_action,
                     direction=direction,
+                    kelly_result=kelly_result,
                 ),
                 risk_triggers=risk_triggers,
                 risk_posture=self._build_risk_posture(response_action),
@@ -486,7 +485,6 @@ class SignalEngineService:
     def _apply_kelly_sizing(
         self,
         *,
-        risk_triggers: list[RiskTriggerSnapshot],
         runtime_state: RuntimeState,
         sizing_stats: SizingStats,
         kelly_config: object,
@@ -494,48 +492,30 @@ class SignalEngineService:
         degraded = runtime_state in (RuntimeState.DEGRADED,)
         if degraded:
             return KellySizingResult(
-                updated_risk_triggers=risk_triggers,
+                updated_risk_triggers=[],
                 p=None, b=None, ev_val=None, f_star=None, f=None,
                 ev_gate_triggered=False,
             )
 
         p, b, ev_val, f_star, f = sizing_stats
         min_ev = getattr(kelly_config, "min_ev", 0.15)
-        ev_gate_triggered = False
-        new_triggers = list(risk_triggers)
 
         if ev_val <= 0:
-            ev_gate_triggered = True
-            new_triggers.append(RiskTriggerSnapshot(
-                trigger_id="ev-below-min",
-                severity="critical",
-                title="EV below zero",
-                description=f"Expected value EV={ev_val:.4f} <= 0. Negative edge — no trade advised.",
-                response_action="block_signal",
-            ))
             return KellySizingResult(
-                updated_risk_triggers=new_triggers,
+                updated_risk_triggers=[],
                 p=p, b=b, ev_val=ev_val, f_star=0.0, f=0.0,
                 ev_gate_triggered=True,
             )
 
         if ev_val <= min_ev:
-            ev_gate_triggered = True
-            new_triggers.append(RiskTriggerSnapshot(
-                trigger_id="ev-below-min",
-                severity="warning",
-                title="EV below minimum threshold",
-                description=f"EV={ev_val:.4f} <= min_ev={min_ev}. Size not recommended, signal visible.",
-                response_action="warning_only",
-            ))
             return KellySizingResult(
-                updated_risk_triggers=new_triggers,
+                updated_risk_triggers=[],
                 p=p, b=b, ev_val=ev_val, f_star=0.0, f=0.0,
                 ev_gate_triggered=True,
             )
 
         return KellySizingResult(
-            updated_risk_triggers=new_triggers,
+            updated_risk_triggers=[],
             p=p, b=b, ev_val=ev_val, f_star=f_star, f=f,
             ev_gate_triggered=False,
         )
@@ -627,7 +607,14 @@ class SignalEngineService:
             return f"{symbol} has directional context, but risk controls block the signal."
         return f"{direction.title()} continuation with {liquidity} liquidity and {state} conviction."
 
-    def _build_execution_notes(self, *, state: str, response_action: str, direction: str) -> list[str]:
+    def _build_execution_notes(
+        self,
+        *,
+        state: str,
+        response_action: str,
+        direction: str,
+        kelly_result: KellySizingResult | None = None,
+    ) -> list[str]:
         notes = [f"Signal direction: {direction}."]
         if response_action == "switch_to_defensive":
             notes.append("Stay defensive and avoid treating this as a full-size setup.")
@@ -639,7 +626,26 @@ class SignalEngineService:
             notes.append("Treat the setup as fragile and wait for cleaner confirmation.")
         else:
             notes.append("Stay in monitoring mode and wait for a cleaner setup.")
+        if kelly_result is not None:
+            sizing_note = self._build_sizing_note(kelly_result)
+            if sizing_note:
+                notes.append(sizing_note)
         return notes
+
+    @staticmethod
+    def _build_sizing_note(kelly_result: KellySizingResult) -> str | None:
+        if kelly_result.f is None:
+            return "System degraded — advisory size suppressed (0)."
+        if kelly_result.ev_gate_triggered:
+            if kelly_result.ev_val is not None and kelly_result.ev_val <= 0:
+                return "EV ≤ 0 — negative edge, advisory size = 0."
+            min_ev = 0.15  # default; caller can override in future
+            ev = kelly_result.ev_val or 0.0
+            return f"EV {ev:.2f}R below min ({min_ev:.2f}R) — advisory size = 0 (signal still visible)."
+        if kelly_result.f is not None and kelly_result.f > 0:
+            ev = kelly_result.ev_val or 0.0
+            return f"Advisory size: {kelly_result.f*100:.1f}% equity (fractional Kelly, EV {ev:.2f}R)."
+        return None
 
     def _build_risk_posture(self, response_action: str) -> str:
         if response_action == "warning_only":

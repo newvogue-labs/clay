@@ -6,7 +6,7 @@ import math
 
 from clay.runtime.states import RuntimeState
 from clay.signal_engine.models import RiskTriggerSnapshot
-from clay.signal_engine.service import SignalEngineService
+from clay.signal_engine.service import KellySizingResult, SignalEngineService
 from clay.signal_engine.sizing import (
     advisory_fraction,
     compute_sizing_stats,
@@ -200,3 +200,44 @@ def test_kelly_sizing_ev_above_min_passes() -> None:
     )
     assert result.f == 0.02
     assert result.ev_gate_triggered is False
+
+
+# ── Annotation tests (_build_sizing_note) ────────────────────────────────────
+
+def test_sizing_note_degraded() -> None:
+    result = KellySizingResult(
+        updated_risk_triggers=[], p=None, b=None, ev_val=None,
+        f_star=None, f=None, ev_gate_triggered=False,
+    )
+    note = SignalEngineService._build_sizing_note(result)
+    assert note == "System degraded — advisory size suppressed (0)."
+
+
+def test_sizing_note_ev_below_zero() -> None:
+    result = KellySizingResult(
+        updated_risk_triggers=[], p=0.3, b=1.0, ev_val=-0.4,
+        f_star=0.0, f=0.0, ev_gate_triggered=True,
+    )
+    note = SignalEngineService._build_sizing_note(result)
+    assert "EV ≤ 0" in note
+    assert "negative edge" in note
+
+
+def test_sizing_note_ev_below_min() -> None:
+    result = KellySizingResult(
+        updated_risk_triggers=[], p=0.5, b=1.05, ev_val=0.025,
+        f_star=0.0, f=0.0, ev_gate_triggered=True,
+    )
+    note = SignalEngineService._build_sizing_note(result)
+    assert "EV 0.03R below min" in note
+    assert "signal still visible" in note
+
+
+def test_sizing_note_gate_open() -> None:
+    result = KellySizingResult(
+        updated_risk_triggers=[], p=0.65, b=1.76, ev_val=0.79,
+        f_star=0.45, f=0.02, ev_gate_triggered=False,
+    )
+    note = SignalEngineService._build_sizing_note(result)
+    assert "Advisory size: 2.0%" in note
+    assert "EV 0.79R" in note
