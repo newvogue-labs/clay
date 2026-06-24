@@ -217,10 +217,10 @@ class SessionControlService:
         else:
             self.runtime_manager.reconcile_to(RuntimeState.ACTIVE_SESSION)
 
-    def build_snapshot(self, session: Session) -> SessionControlSnapshot:
+    def build_snapshot(self, session: Session, *, for_start: bool = False) -> SessionControlSnapshot:
         signal_snapshot = self.signal_engine_service.build_snapshot(session)
         ai_snapshot = self.ai_control_service.build_snapshot(session)
-        preflight = self._build_preflight(session, signal_snapshot, ai_snapshot)
+        preflight = self._build_preflight(session, signal_snapshot, ai_snapshot, for_start=for_start)
         briefing = self._build_briefing(signal_snapshot, ai_snapshot)
         lifecycle = self._build_lifecycle(preflight)
         pending_replacement = self._build_pending_replacement(signal_snapshot)
@@ -232,7 +232,7 @@ class SessionControlService:
         )
 
     def start_session(self, session: Session) -> SessionControlSnapshot:
-        snapshot = self.build_snapshot(session)
+        snapshot = self.build_snapshot(session, for_start=True)
         if snapshot.preflight.status != "pass":
             raise ValueError(snapshot.preflight.blocking_reason or "preflight blocked")
 
@@ -453,6 +453,8 @@ class SessionControlService:
         session: Session,
         signal_snapshot,
         ai_snapshot,
+        *,
+        for_start: bool = False,
     ) -> SessionPreflightSnapshot:
         control_api_ready = False
         try:
@@ -594,12 +596,20 @@ class SessionControlService:
                     blocks_start=False,
                 ))
 
-            if self._active_session is not None:
+            if self._active_session is not None and for_start:
                 checks.append(SessionPreflightCheck(
                     check_id="risk-limit-concurrent",
                     label="Max concurrent sessions",
-                    status="warn",
-                    reason="Active session in progress — concurrent limit would block new start.",
+                    status="hard_fail",
+                    reason="Cannot start: active session already in progress.",
+                    blocks_start=True,
+                ))
+            elif self._active_session is not None:
+                checks.append(SessionPreflightCheck(
+                    check_id="risk-limit-concurrent",
+                    label="Max concurrent sessions",
+                    status="ok",
+                    reason="Active session in progress — concurrent limit respected.",
                     blocks_start=False,
                 ))
             else:

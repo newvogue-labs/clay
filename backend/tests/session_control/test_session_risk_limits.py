@@ -194,8 +194,8 @@ def test_l2_win_breaks_streak(mock_session, mock_open, mock_ordered, mock_window
 
 # ── L3: Concurrent sessions ──────────────────────────────────────────────────
 
-def test_l3_concurrent_warn_when_active(db_session) -> None:
-    """Active session exists → warn (not hard_fail), no block."""
+def test_l3_concurrent_ok_when_active_overview(db_session) -> None:
+    """Active session overview → ok (not block, not warn — it's the same session)."""
     service = _build_service()
     object.__setattr__(service, "_active_session", ActiveSessionRecord(
         session_id="test-session", current_pair_symbol="BTCUSDT",
@@ -203,8 +203,22 @@ def test_l3_concurrent_warn_when_active(db_session) -> None:
         started_at=datetime.now(UTC),
     ))
     checks = _risk_checks(service, db_session)
-    assert checks["risk-limit-concurrent"].status == "warn"
+    assert checks["risk-limit-concurrent"].status == "ok"
     assert checks["risk-limit-concurrent"].blocks_start is False
+
+
+def test_l3_concurrent_blocks_new_start(db_session) -> None:
+    """Active session + for_start=True → hard_fail, blocks_start."""
+    service = _build_service()
+    object.__setattr__(service, "_active_session", ActiveSessionRecord(
+        session_id="existing-session", current_pair_symbol="BTCUSDT",
+        current_signal_id="sig-1", strategy_mode="momentum",
+        started_at=datetime.now(UTC),
+    ))
+    snapshot = service.build_snapshot(db_session, for_start=True)
+    check = next(c for c in snapshot.preflight.checks if c.check_id == "risk-limit-concurrent")
+    assert check.status == "hard_fail"
+    assert check.blocks_start is True
 
 
 def test_l3_concurrent_ok_when_idle(db_session) -> None:
