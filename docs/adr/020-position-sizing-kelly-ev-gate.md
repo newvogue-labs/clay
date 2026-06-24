@@ -1,6 +1,6 @@
 # ADR-020: Position Sizing — Fractional Kelly + EV-Gate
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-24
 - **Replaces:** —
 - **Donor-ref:** weatherbot (fractional Kelly + EV-gate)
