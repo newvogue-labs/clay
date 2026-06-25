@@ -74,7 +74,9 @@ class SignalEngineService:
         self.ingestion_settings = ingestion_settings or IngestionSettings()  # type: ignore[reportCallIssue]  # FOOTGUN A: reads from CLAY_DATABASE_URL env
         self._clock = clock
 
-    def build_snapshot(self, session: Session, source_scope: Collection[str] | None = None) -> SignalEngineSnapshot:
+    def build_snapshot(
+        self, session: Session, source_scope: Collection[str] | None = None
+    ) -> SignalEngineSnapshot:
         runtime_snapshot = self.runtime_manager.snapshot()
         candidates = self._evaluate_candidates(session, source_scope=source_scope)
         signals = sorted(
@@ -86,8 +88,12 @@ class SignalEngineService:
         market_status = "unknown"
         context_status = "unknown"
         if candidates:
-            market_status = self._collapse_status([candidate.market_status for candidate in candidates])
-            context_status = self._collapse_status([candidate.context_status for candidate in candidates])
+            market_status = self._collapse_status(
+                [candidate.market_status for candidate in candidates]
+            )
+            context_status = self._collapse_status(
+                [candidate.context_status for candidate in candidates]
+            )
 
         workspace_posture = self._resolve_workspace_posture(
             runtime_state=runtime_snapshot.state,
@@ -99,17 +105,23 @@ class SignalEngineService:
             workspace_posture=workspace_posture,
             market_status=market_status,
             context_status=context_status,
-            strategy_mode_proposal=self._propose_strategy_mode(signals, runtime_snapshot.state),
+            strategy_mode_proposal=self._propose_strategy_mode(
+                signals, runtime_snapshot.state
+            ),
             signals=signals,
         )
 
-    def _evaluate_candidates(self, session: Session, source_scope: Collection[str] | None = None) -> list[SignalCandidate]:
+    def _evaluate_candidates(
+        self, session: Session, source_scope: Collection[str] | None = None
+    ) -> list[SignalCandidate]:
         market_repo = MarketRepository(session)
         context_repo = ContextRepository(session)
         ops_repo = OpsRepository(session)
         ai_snapshot = self.ai_control_service.build_snapshot()
         risk_config = self.config_loader.load_scope("risk")
-        sizing_stats = self._compute_sizing_stats(session, risk_config, source_scope=source_scope)
+        sizing_stats = self._compute_sizing_stats(
+            session, risk_config, source_scope=source_scope
+        )
         now = self._clock.now()
 
         bars = market_repo.list_latest_bars(limit=50)
@@ -119,6 +131,7 @@ class SignalEngineService:
             preferred_bars,
             freshness_rows,
             low_quote_volume_threshold=self.ingestion_settings.low_quote_volume_threshold,
+            now=now,
         )
         news_rows = context_repo.latest_news(limit=20)
         sentiment_rows = context_repo.latest_sentiment(limit=20)
@@ -134,13 +147,22 @@ class SignalEngineService:
             for row in ai_snapshot.assignments
             if row.assignment_health in {"review_required", "degraded"}
         }
-        ai_penalty = max((row.confidence_penalty for row in ai_snapshot.assignments), default=0.0)
+        ai_penalty = max(
+            (row.confidence_penalty for row in ai_snapshot.assignments), default=0.0
+        )
         preflight = self.preflight_service.run()
         runtime_state = self.runtime_manager.snapshot().state
 
         candidates: list[SignalCandidate] = []
         for row in shortlist_rows:
-            bar = next((candidate for candidate in preferred_bars if candidate.symbol == row.symbol), None)
+            bar = next(
+                (
+                    candidate
+                    for candidate in preferred_bars
+                    if candidate.symbol == row.symbol
+                ),
+                None,
+            )
             if bar is None:
                 continue
 
@@ -148,14 +170,18 @@ class SignalEngineService:
             sentiment_score = sentiment_scores[0] if sentiment_scores else None
             direction = self._resolve_direction(bar.open, bar.close, sentiment_score)
             base_ranking = round(
-                (row.rolling_volume_score * 0.55) + (row.rolling_volatility_score * 0.45),
+                (row.rolling_volume_score * 0.55)
+                + (row.rolling_volatility_score * 0.45),
                 4,
             )
             market_status = row.availability_status
             context_status = (
                 "fresh"
-                if row.symbol in news_symbols and sentiment_scores and not any(
-                    connector.status in {"degraded", "error"} for connector in connector_rows
+                if row.symbol in news_symbols
+                and sentiment_scores
+                and not any(
+                    connector.status in {"degraded", "error"}
+                    for connector in connector_rows
                 )
                 else "degraded"
             )
@@ -229,12 +255,16 @@ class SignalEngineService:
                 ),
                 risk_triggers=risk_triggers,
                 risk_posture=self._build_risk_posture(response_action),
-                risk_reward_hint=self._build_risk_reward_hint(direction=direction, ranking_score=ranking_score),
+                risk_reward_hint=self._build_risk_reward_hint(
+                    direction=direction, ranking_score=ranking_score
+                ),
                 action_guidance=self._build_action_guidance(response_action),
                 directional_bias=direction,
                 entry_hint=self._price_hint(bar.close, direction, mode="entry"),
                 target_hint=self._price_hint(bar.close, direction, mode="target"),
-                invalidation_hint=self._price_hint(bar.close, direction, mode="invalidation"),
+                invalidation_hint=self._price_hint(
+                    bar.close, direction, mode="invalidation"
+                ),
                 analyst_note=self._build_analyst_note(
                     symbol=row.symbol,
                     state=state,
@@ -299,7 +329,9 @@ class SignalEngineService:
                 by_symbol[bar.symbol] = bar
         return list(by_symbol.values())
 
-    def _resolve_direction(self, bar_open: float, bar_close: float, sentiment_score: float | None) -> str:
+    def _resolve_direction(
+        self, bar_open: float, bar_close: float, sentiment_score: float | None
+    ) -> str:
         if sentiment_score is not None:
             if sentiment_score >= 0.6:
                 return "bullish"
@@ -374,11 +406,16 @@ class SignalEngineService:
         return triggers
 
     def _resolve_response_action(self, risk_triggers: list[RiskTriggerSnapshot]) -> str:
-        if any(trigger.response_action == "switch_to_defensive" for trigger in risk_triggers):
+        if any(
+            trigger.response_action == "switch_to_defensive"
+            for trigger in risk_triggers
+        ):
             return "switch_to_defensive"
         if any(trigger.response_action == "block_signal" for trigger in risk_triggers):
             return "block_signal"
-        if any(trigger.response_action == "lower_confidence" for trigger in risk_triggers):
+        if any(
+            trigger.response_action == "lower_confidence" for trigger in risk_triggers
+        ):
             return "lower_confidence"
         return "warning_only"
 
@@ -390,11 +427,15 @@ class SignalEngineService:
         ai_penalty: float,
     ) -> float:
         penalty = 0.0
-        if any(trigger.trigger_id.startswith("stale-market") for trigger in risk_triggers):
+        if any(
+            trigger.trigger_id.startswith("stale-market") for trigger in risk_triggers
+        ):
             penalty += degraded_penalty
         if any(trigger.trigger_id == "ai-conflict" for trigger in risk_triggers):
             penalty += max(ai_penalty, round(degraded_penalty / 2, 2))
-        if any(trigger.trigger_id.startswith("thin-context") for trigger in risk_triggers):
+        if any(
+            trigger.trigger_id.startswith("thin-context") for trigger in risk_triggers
+        ):
             penalty += 0.08
         if any(trigger.trigger_id == "runtime-degraded" for trigger in risk_triggers):
             penalty += degraded_penalty
@@ -422,7 +463,9 @@ class SignalEngineService:
                         for row in ai_assignments
                         if row.review_required
                     ]
-                    note = f"provider-mix: chief={chief_provider} vs " + ", ".join(conflicts)
+                    note = f"provider-mix: chief={chief_provider} vs " + ", ".join(
+                        conflicts
+                    )
                 else:
                     note = f"trigger={trigger.trigger_id} severity={trigger.severity}"
                 applied.append(
@@ -474,7 +517,9 @@ class SignalEngineService:
                 loss_pnl_sum += r.pnl_pct
         kelly_cfg = getattr(risk_config, "kelly", None)
         cal_cfg = getattr(risk_config, "calibration", None)
-        min_outcomes = cal_cfg.min_outcomes_for_recalibration if cal_cfg is not None else 30
+        min_outcomes = (
+            cal_cfg.min_outcomes_for_recalibration if cal_cfg is not None else 30
+        )
         lam = kelly_cfg.lambda_ if kelly_cfg is not None else 0.25
         cap = kelly_cfg.cap if kelly_cfg is not None else 0.02
 
@@ -499,7 +544,11 @@ class SignalEngineService:
         if degraded:
             return KellySizingResult(
                 updated_risk_triggers=[],
-                p=None, b=None, ev_val=None, f_star=None, f=None,
+                p=None,
+                b=None,
+                ev_val=None,
+                f_star=None,
+                f=None,
                 ev_gate_triggered=False,
             )
 
@@ -509,20 +558,32 @@ class SignalEngineService:
         if ev_val <= 0:
             return KellySizingResult(
                 updated_risk_triggers=[],
-                p=p, b=b, ev_val=ev_val, f_star=0.0, f=0.0,
+                p=p,
+                b=b,
+                ev_val=ev_val,
+                f_star=0.0,
+                f=0.0,
                 ev_gate_triggered=True,
             )
 
         if ev_val <= min_ev:
             return KellySizingResult(
                 updated_risk_triggers=[],
-                p=p, b=b, ev_val=ev_val, f_star=0.0, f=0.0,
+                p=p,
+                b=b,
+                ev_val=ev_val,
+                f_star=0.0,
+                f=0.0,
                 ev_gate_triggered=True,
             )
 
         return KellySizingResult(
             updated_risk_triggers=[],
-            p=p, b=b, ev_val=ev_val, f_star=f_star, f=f,
+            p=p,
+            b=b,
+            ev_val=ev_val,
+            f_star=f_star,
+            f=f,
             ev_gate_triggered=False,
         )
 
@@ -561,8 +622,13 @@ class SignalEngineService:
             return "weakening"
         return "absent"
 
-    def _resolve_strategy_mode(self, ranking_score: float, risk_triggers: list[RiskTriggerSnapshot]) -> str:
-        if any(trigger.response_action in {"block_signal", "switch_to_defensive"} for trigger in risk_triggers):
+    def _resolve_strategy_mode(
+        self, ranking_score: float, risk_triggers: list[RiskTriggerSnapshot]
+    ) -> str:
+        if any(
+            trigger.response_action in {"block_signal", "switch_to_defensive"}
+            for trigger in risk_triggers
+        ):
             return "defensive"
         if ranking_score >= 0.78:
             return "momentum"
@@ -583,7 +649,9 @@ class SignalEngineService:
             return "monitoring_only"
         return "normal"
 
-    def _propose_strategy_mode(self, signals: list[EvaluatedSignalSnapshot], runtime_state: RuntimeState) -> str:
+    def _propose_strategy_mode(
+        self, signals: list[EvaluatedSignalSnapshot], runtime_state: RuntimeState
+    ) -> str:
         if runtime_state == RuntimeState.DEGRADED:
             return "defensive"
         best_signal = next(iter(signals), None)
@@ -594,7 +662,9 @@ class SignalEngineService:
     def _collapse_status(self, statuses: list[str]) -> str:
         if not statuses:
             return "unknown"
-        if any(status in {"stale", "error", "degraded", "unknown"} for status in statuses):
+        if any(
+            status in {"stale", "error", "degraded", "unknown"} for status in statuses
+        ):
             return "degraded"
         return "fresh"
 
@@ -610,7 +680,9 @@ class SignalEngineService:
         if state == "absent":
             return f"{symbol} stays in monitoring mode while the setup develops."
         if response_action == "block_signal":
-            return f"{symbol} has directional context, but risk controls block the signal."
+            return (
+                f"{symbol} has directional context, but risk controls block the signal."
+            )
         return f"{direction.title()} continuation with {liquidity} liquidity and {state} conviction."
 
     def _build_execution_notes(
@@ -629,7 +701,9 @@ class SignalEngineService:
         elif state == "active":
             notes.append("Look for confirmation before any manual execution.")
         elif state == "weakening":
-            notes.append("Treat the setup as fragile and wait for cleaner confirmation.")
+            notes.append(
+                "Treat the setup as fragile and wait for cleaner confirmation."
+            )
         else:
             notes.append("Stay in monitoring mode and wait for a cleaner setup.")
         if kelly_result is not None:
@@ -650,7 +724,7 @@ class SignalEngineService:
             return f"EV {ev:.2f}R below min ({min_ev:.2f}R) — advisory size = 0 (signal still visible)."
         if kelly_result.f is not None and kelly_result.f > 0:
             ev = kelly_result.ev_val or 0.0
-            return f"Advisory size: {kelly_result.f*100:.1f}% equity (fractional Kelly, EV {ev:.2f}R)."
+            return f"Advisory size: {kelly_result.f * 100:.1f}% equity (fractional Kelly, EV {ev:.2f}R)."
         return None
 
     def _build_risk_posture(self, response_action: str) -> str:
@@ -671,7 +745,9 @@ class SignalEngineService:
 
     def _build_action_guidance(self, response_action: str) -> str:
         if response_action == "warning_only":
-            return "Open Binance in parallel and validate the execution context manually."
+            return (
+                "Open Binance in parallel and validate the execution context manually."
+            )
         if response_action == "lower_confidence":
             return "Reduce urgency and size assumptions until confidence recovers."
         if response_action == "switch_to_defensive":

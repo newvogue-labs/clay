@@ -10,12 +10,13 @@ def build_shortlist_metrics(
     freshness_rows: list[MarketFreshnessStatus],
     *,
     low_quote_volume_threshold: float = 0.0,
+    now: datetime | None = None,
 ) -> list[ShortlistMetricRow]:
     if not bars:
         return []
 
     max_volume = max(bar.volume for bar in bars) or 1.0
-    now = datetime.now(UTC)
+    now = now if now is not None else datetime.now(UTC)
     freshness_by_symbol: dict[str, str] = {}
     stale_timeframes_by_symbol: dict[str, list[str]] = {}
     for row in freshness_rows:
@@ -46,7 +47,8 @@ def build_shortlist_metrics(
 
         quote_volume = round(bar.close * bar.volume, 4)
         low_quote_volume = (
-            low_quote_volume_threshold > 0.0 and quote_volume < low_quote_volume_threshold
+            low_quote_volume_threshold > 0.0
+            and quote_volume < low_quote_volume_threshold
         )
 
         rows.append(
