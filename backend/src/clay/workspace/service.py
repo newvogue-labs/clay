@@ -123,7 +123,7 @@ class WorkspaceService:
             )
 
     def build_snapshot(self, session: Session) -> WorkspaceSnapshot:
-        now = datetime.now(UTC)
+        now = datetime.now(UTC)  # not on replay exec path; wall-clock intentional
         workspace_state, market_status, context_status, last_ingestion_at = self._build_workspace_state(session)
         pair_contexts = self._build_pair_contexts(session)
         if not pair_contexts:
@@ -202,7 +202,7 @@ class WorkspaceService:
         self,
         session: Session,
     ) -> tuple[WorkspaceStateSnapshot, str, str, str | None]:
-        now = datetime.now(UTC)
+        now = datetime.now(UTC)  # not on replay exec path; wall-clock intentional
         runtime_snapshot = self.runtime_manager.snapshot()
         preflight = self.preflight_service.run()
         market_repo = MarketRepository(session)

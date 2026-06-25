@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from clay.ai_control.service import AIControlService
 from clay.ai_control.models import AssignmentSnapshot
+from clay.core.clock import Clock, SystemClock
 from clay.config.loader import ConfigLoader
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
@@ -63,12 +64,14 @@ class SignalEngineService:
         config_loader: ConfigLoader,
         ai_control_service: AIControlService,
         ingestion_settings: IngestionSettings | None = None,
+        clock: Clock = SystemClock(),
     ) -> None:
         self.runtime_manager = runtime_manager
         self.preflight_service = preflight_service
         self.config_loader = config_loader
         self.ai_control_service = ai_control_service
         self.ingestion_settings = ingestion_settings or IngestionSettings()  # type: ignore[reportCallIssue]  # FOOTGUN A: reads from CLAY_DATABASE_URL env
+        self._clock = clock
 
     def build_snapshot(self, session: Session) -> SignalEngineSnapshot:
         runtime_snapshot = self.runtime_manager.snapshot()
@@ -106,7 +109,7 @@ class SignalEngineService:
         ai_snapshot = self.ai_control_service.build_snapshot()
         risk_config = self.config_loader.load_scope("risk")
         sizing_stats = self._compute_sizing_stats(session, risk_config)
-        now = datetime.now(UTC)
+        now = self._clock.now()
 
         bars = market_repo.list_latest_bars(limit=50)
         freshness_rows = market_repo.list_freshness_statuses()

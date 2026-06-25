@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
+from clay.core.clock import Clock, SystemClock
 from clay.db.repositories_runtime_state import SessionStateRepository
 from clay.events.bus import EventBus
 from clay.runtime.manager import RuntimeManager
@@ -56,6 +57,7 @@ class SessionControlService:
         event_bus: EventBus,
         config_loader: ConfigLoader,
         session_factory: sessionmaker | None = None,
+        clock: Clock = SystemClock(),
     ) -> None:
         self.runtime_manager = runtime_manager
         self.signal_engine_service = signal_engine_service
@@ -65,6 +67,7 @@ class SessionControlService:
         self.event_bus = event_bus
         self.config_loader = config_loader
         self.session_factory = session_factory
+        self._clock = clock
         # ``_active_session`` and ``_pending_replacement`` are restored from the
         # ``ops.session_state`` singleton row when a ``session_factory`` is
         # supplied. Without one (legacy callers and pre-A4 tests), the service
@@ -261,7 +264,7 @@ class SessionControlService:
         # Capture payload locals before mutating in-memory; the event is
         # published last so a failed persist leaves no half-state behind.
         new_session_id = str(uuid4())
-        new_started_at = datetime.now(UTC)
+        new_started_at = self._clock.now()
         self._active_session = ActiveSessionRecord(
             session_id=new_session_id,
             current_pair_symbol=top_signal.symbol,
@@ -292,7 +295,7 @@ class SessionControlService:
         # Capture payload before mutation.
         event_session_id = self._active_session.session_id
         self.runtime_manager.transition_to(RuntimeState.PAUSED)
-        self._active_session.paused_at = datetime.now(UTC)
+        self._active_session.paused_at = self._clock.now()
         # write-through: persist ``paused_at`` before publishing.
         self._persist_session_state(session)
         self._write_and_publish(
@@ -393,7 +396,7 @@ class SessionControlService:
             review_id=str(uuid4()),
             current_symbol=self._active_session.current_pair_symbol,
             proposed_symbol=candidate.symbol,
-            created_at=datetime.now(UTC),
+            created_at=self._clock.now(),
         )
         review = self._build_replacement_review(current_signal=current_signal, candidate=candidate)
         # write-through: persist the new pending review before publishing.
@@ -567,7 +570,7 @@ class SessionControlService:
                 else:
                     break
 
-            now = datetime.now(UTC)
+            now = self._clock.now()
             if streak >= limits_cfg.max_consecutive_losses and streak_ts is not None:
                 elapsed_min = (now - streak_ts).total_seconds() / 60
                 if elapsed_min < limits_cfg.cooldown_minutes:

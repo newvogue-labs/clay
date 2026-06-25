@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from clay.db.models_ops import AIAgentRun
 
+from clay.core.clock import Clock, SystemClock
+
 from clay.ai_control.models import (
     AIControlSnapshot,
     AIControlSummary,
@@ -97,6 +99,7 @@ class AIControlService:
         audit_writer: AuditWriter,
         event_bus: EventBus,
         session_factory: sessionmaker | None = None,
+        clock: Clock = SystemClock(),
     ) -> None:
         self.runtime_manager = runtime_manager
         self.preflight_service = preflight_service
@@ -104,6 +107,7 @@ class AIControlService:
         self.audit_writer = audit_writer
         self.event_bus = event_bus
         self.session_factory = session_factory
+        self._clock = clock
         self.roles = self._build_role_registry()
         self.models = self._build_model_registry()
         # ``assignments``, ``_last_reviewed_at`` and ``_pending_review`` are
@@ -219,7 +223,7 @@ class AIControlService:
     ) -> list[RoleRunSummary]:
         if session is None:
             return []
-        now = datetime.now(UTC)
+        now = self._clock.now()
         since_24h = now.replace(hour=0, minute=0, second=0, microsecond=0)
         role_ids = list(self.roles.keys())
         latest = OpsRepository(session).list_latest_agent_runs(role_ids)
@@ -249,7 +253,7 @@ class AIControlService:
     ) -> list[RPDBudget]:
         if session is None:
             return []
-        now = datetime.now(UTC)
+        now = self._clock.now()
         since_24h = now.replace(hour=0, minute=0, second=0, microsecond=0)
         result: list[RPDBudget] = []
         for model_id in self.models:
