@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
@@ -220,10 +221,10 @@ class SessionControlService:
         else:
             self.runtime_manager.reconcile_to(RuntimeState.ACTIVE_SESSION)
 
-    def build_snapshot(self, session: Session, *, for_start: bool = False) -> SessionControlSnapshot:
-        signal_snapshot = self.signal_engine_service.build_snapshot(session)
+    def build_snapshot(self, session: Session, *, for_start: bool = False, source_scope: Collection[str] | None = None) -> SessionControlSnapshot:
+        signal_snapshot = self.signal_engine_service.build_snapshot(session, source_scope=source_scope)
         ai_snapshot = self.ai_control_service.build_snapshot(session)
-        preflight = self._build_preflight(session, signal_snapshot, ai_snapshot, for_start=for_start)
+        preflight = self._build_preflight(session, signal_snapshot, ai_snapshot, for_start=for_start, source_scope=source_scope)
         briefing = self._build_briefing(signal_snapshot, ai_snapshot)
         lifecycle = self._build_lifecycle(preflight)
         pending_replacement = self._build_pending_replacement(signal_snapshot)
@@ -234,8 +235,8 @@ class SessionControlService:
             pending_pair_replacement=pending_replacement,
         )
 
-    def start_session(self, session: Session) -> SessionControlSnapshot:
-        snapshot = self.build_snapshot(session, for_start=True)
+    def start_session(self, session: Session, source_scope: Collection[str] | None = None) -> SessionControlSnapshot:
+        snapshot = self.build_snapshot(session, for_start=True, source_scope=source_scope)
         if snapshot.preflight.status != "pass":
             raise ValueError(snapshot.preflight.blocking_reason or "preflight blocked")
 
@@ -458,6 +459,7 @@ class SessionControlService:
         ai_snapshot,
         *,
         for_start: bool = False,
+        source_scope: Collection[str] | None = None,
     ) -> SessionPreflightSnapshot:
         control_api_ready = False
         try:
@@ -533,12 +535,13 @@ class SessionControlService:
         risk_config = self.config_loader.load_scope("risk")
         limits_cfg: SessionLimitsConfig = getattr(risk_config, "session_limits", SessionLimitsConfig())
 
-        from clay.db.repositories_demo import DemoRepository
+        from clay.db.repositories_demo import DEFAULT_READ_SCOPE, DemoRepository
 
+        scope = source_scope if source_scope is not None else DEFAULT_READ_SCOPE
         demo_repo = DemoRepository(session)
 
         try:
-            window_records = demo_repo.list_resolved_window(hours=limits_cfg.drawdown_window_hours)
+            window_records = demo_repo.list_resolved_window(hours=limits_cfg.drawdown_window_hours, source_scope=scope)
             cum_pnl = round(sum(r.pnl_pct or 0.0 for r in window_records), 2)
             loss_pct = abs(cum_pnl) if cum_pnl < 0 else 0.0
 
@@ -559,7 +562,7 @@ class SessionControlService:
                     blocks_start=False,
                 ))
 
-            ordered = demo_repo.list_ordered_recent(limit=50)
+            ordered = demo_repo.list_ordered_recent(limit=50, source_scope=scope)
             streak = 0
             streak_ts: datetime | None = None
             for r in ordered:
@@ -624,7 +627,7 @@ class SessionControlService:
                     blocks_start=False,
                 ))
 
-            open_positions = demo_repo.list_open_positions()
+            open_positions = demo_repo.list_open_positions(source_scope=scope)
             total_exposure = round(sum(r.advisory_size_pct or 0.0 for r in open_positions), 4)
             if total_exposure > limits_cfg.max_total_exposure_pct:
                 checks.append(SessionPreflightCheck(
@@ -645,7 +648,7 @@ class SessionControlService:
 
             active_id = self._active_session.session_id if self._active_session else None
             if active_id:
-                session_trades = demo_repo.list_session_trades(session_id=active_id)
+                session_trades = demo_repo.list_session_trades(session_id=active_id, source_scope=scope)
                 session_pnl = round(sum(r.pnl_pct or 0.0 for r in session_trades), 2)
                 if session_pnl < 0 and abs(session_pnl) >= limits_cfg.per_session_loss_warn_pct:
                     checks.append(SessionPreflightCheck(
