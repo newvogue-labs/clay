@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
+
+from clay.core.clock import Clock, SystemClock
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -7,7 +9,10 @@ from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
 from clay.db.repositories_runtime_state import WorkspaceFocusRepository
-from clay.freshness.evaluator import collapse_market_statuses, resolve_market_freshness_status
+from clay.freshness.evaluator import (
+    collapse_market_statuses,
+    resolve_market_freshness_status,
+)
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.runtime.states import RuntimeState
@@ -73,8 +78,10 @@ class WorkspaceService:
         registry: ServiceRegistry,
         signal_engine_service: SignalEngineService,
         session_factory: sessionmaker | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self.runtime_manager = runtime_manager
+        self._clock = clock or SystemClock()
         self.preflight_service = preflight_service
         self.registry = registry
         self.signal_engine_service = signal_engine_service
@@ -123,8 +130,10 @@ class WorkspaceService:
             )
 
     def build_snapshot(self, session: Session) -> WorkspaceSnapshot:
-        now = datetime.now(UTC)  # not on replay exec path; wall-clock intentional
-        workspace_state, market_status, context_status, last_ingestion_at = self._build_workspace_state(session)
+        now = self._clock.now()
+        workspace_state, market_status, context_status, last_ingestion_at = (
+            self._build_workspace_state(session, now=now)
+        )
         pair_contexts = self._build_pair_contexts(session)
         if not pair_contexts:
             return self._build_empty_snapshot(
@@ -158,7 +167,9 @@ class WorkspaceService:
             focus_pair=self._build_focus_pair(focus_context),
             workspace_state=workspace_state,
             signals=self._build_signal_summaries(pair_contexts),
-            monitoring_pool=self._build_monitoring_pool(pair_contexts, focus_context.symbol),
+            monitoring_pool=self._build_monitoring_pool(
+                pair_contexts, focus_context.symbol
+            ),
             situation_map=SituationMapSnapshot(
                 directional_bias=focus_context.situation_bias,
                 entry_hint=focus_context.entry_hint,
@@ -201,8 +212,9 @@ class WorkspaceService:
     def _build_workspace_state(
         self,
         session: Session,
+        now: datetime | None = None,
     ) -> tuple[WorkspaceStateSnapshot, str, str, str | None]:
-        now = datetime.now(UTC)  # not on replay exec path; wall-clock intentional
+        now = self._clock.now() if now is None else now
         runtime_snapshot = self.runtime_manager.snapshot()
         preflight = self.preflight_service.run()
         market_repo = MarketRepository(session)
@@ -236,7 +248,10 @@ class WorkspaceService:
 
         blocking_reason: str | None = None
         workspace_posture = "normal"
-        if runtime_snapshot.state is RuntimeState.DEGRADED or preflight.status == "hard_fail":
+        if (
+            runtime_snapshot.state is RuntimeState.DEGRADED
+            or preflight.status == "hard_fail"
+        ):
             workspace_posture = "restricted_by_degraded"
             blocking_reason = "runtime is degraded or preflight is blocked"
         elif market_status != "fresh":
@@ -245,7 +260,9 @@ class WorkspaceService:
 
         last_ingestion_at = None
         if connector_statuses:
-            last_ingestion_at = max(row.observed_at.isoformat() for row in connector_statuses)
+            last_ingestion_at = max(
+                row.observed_at.isoformat() for row in connector_statuses
+            )
 
         return (
             WorkspaceStateSnapshot(
@@ -281,7 +298,8 @@ class WorkspaceService:
             workspace_posture=posture,
             focused_signal_state=focused_signal_state,
             can_open_binance=base_state.can_open_binance,
-            can_log_decision=can_log_decision and focused_signal_state in {"active", "weakening"},
+            can_log_decision=can_log_decision
+            and focused_signal_state in {"active", "weakening"},
             blocking_reason=base_state.blocking_reason,
         )
 
@@ -320,11 +338,16 @@ class WorkspaceService:
 
         pair_contexts: list[PairContext] = []
         for index, signal in enumerate(signal_snapshot.signals):
-            bar = next((candidate for candidate in bars if candidate.symbol == signal.symbol), None)
+            bar = next(
+                (candidate for candidate in bars if candidate.symbol == signal.symbol),
+                None,
+            )
             if bar is None:
                 continue
 
-            pct_change = round(((bar.close - bar.open) / bar.open) * 100, 2) if bar.open else 0.0
+            pct_change = (
+                round(((bar.close - bar.open) / bar.open) * 100, 2) if bar.open else 0.0
+            )
             role = "primary" if index == 0 else "backup" if index < 3 else "watch"
             pair_contexts.append(
                 PairContext(
@@ -340,7 +363,9 @@ class WorkspaceService:
                     direction=signal.direction,
                     setup_summary=signal.setup_summary,
                     active_signal_state=signal.state,
-                    active_signal_id=signal.signal_id if signal.state != "absent" else None,
+                    active_signal_id=signal.signal_id
+                    if signal.state != "absent"
+                    else None,
                     confidence=signal.confidence,
                     confidence_penalty=signal.confidence_penalty,
                     response_action=signal.response_action,
@@ -370,13 +395,20 @@ class WorkspaceService:
 
         if self._selected_signal_id is not None:
             selected = next(
-                (item for item in pair_contexts if item.active_signal_id == self._selected_signal_id),
+                (
+                    item
+                    for item in pair_contexts
+                    if item.active_signal_id == self._selected_signal_id
+                ),
                 None,
             )
             if selected is not None:
                 return selected
 
-        active = next((item for item in pair_contexts if item.active_signal_state == "active"), None)
+        active = next(
+            (item for item in pair_contexts if item.active_signal_state == "active"),
+            None,
+        )
         if active is not None:
             self._focus_source = "system_recommendation"
             return active
@@ -398,7 +430,9 @@ class WorkspaceService:
             focus_source=self._focus_source,
         )
 
-    def _build_signal_summaries(self, pair_contexts: list[PairContext]) -> list[WorkspaceSignalSummary]:
+    def _build_signal_summaries(
+        self, pair_contexts: list[PairContext]
+    ) -> list[WorkspaceSignalSummary]:
         return [
             WorkspaceSignalSummary(
                 signal_id=item.active_signal_id or f"watch-{item.symbol.lower()}",
@@ -414,7 +448,8 @@ class WorkspaceService:
                 last_updated_at=item.last_scan_at,
             )
             for item in pair_contexts
-            if item.active_signal_state in {"active", "weakening", "invalidated", "expired"}
+            if item.active_signal_state
+            in {"active", "weakening", "invalidated", "expired"}
         ]
 
     def _build_monitoring_pool(
@@ -458,7 +493,9 @@ class WorkspaceService:
             active_signal_id=None,
             focus_source="system_recommendation",
         )
-        refined_state = self._refine_workspace_state(base_state=workspace_state, focused_signal_state="absent")
+        refined_state = self._refine_workspace_state(
+            base_state=workspace_state, focused_signal_state="absent"
+        )
         return WorkspaceSnapshot(
             focus_pair=focus_pair,
             workspace_state=refined_state,
@@ -473,7 +510,9 @@ class WorkspaceService:
             ),
             reasoning=ReasoningSnapshot(
                 thesis="No active signal yet.",
-                technical_context=["Workspace is waiting for storage-backed market data."],
+                technical_context=[
+                    "Workspace is waiting for storage-backed market data."
+                ],
                 execution_notes=["Run ingestion and re-open the workspace."],
             ),
             risk=RiskSnapshot(
