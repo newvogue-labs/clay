@@ -1,8 +1,9 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from clay.audit.writer import AuditWriter
+from clay.core.clock import Clock, SystemClock
 from clay.config.loader import ConfigLoader
 from clay.control_center.models import (
     ActiveConfigurationSnapshot,
@@ -55,6 +56,7 @@ class ControlCenterService:
         config_loader: ConfigLoader,
         audit_writer: AuditWriter,
         ingestion_settings: IngestionSettings,
+        clock: Clock = SystemClock(),
     ) -> None:
         self.runtime_manager = runtime_manager
         self.preflight_service = preflight_service
@@ -63,9 +65,10 @@ class ControlCenterService:
         self.config_loader = config_loader
         self.audit_writer = audit_writer
         self.ingestion_settings = ingestion_settings
+        self._clock = clock
 
     def build_snapshot(self, session: Session) -> ControlCenterSnapshot:
-        now = datetime.now(UTC)
+        now = self._clock.now()
         preflight = self.preflight_service.run()
         runtime = self._build_runtime_snapshot(preflight)
         services = self._build_service_cards()

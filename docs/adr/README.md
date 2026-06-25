@@ -37,7 +37,8 @@
 | 021 | Session-Level Risk Limits (Admission Gate) | Proposed | docs/adr | [`021-session-risk-limits.md`](021-session-risk-limits.md) |
 | 022 | *(резерв: AgentQuant-донор)* | — | — | |
 | 023 | ops.ai_agent_runs — Indexes + Retention Policy | accepted | docs/adr | [`023-ai-agent-runs-retention.md`](023-ai-agent-runs-retention.md) |
-| 024+ | свободны | — | — | |
+| 024 | Deterministic Replay Harness + Trade Provenance | Proposed | docs/adr | [`024-deterministic-replay-and-trade-provenance.md`](024-deterministic-replay-and-trade-provenance.md) |
+| 025+ | свободны | — | — | |
 
 ## Карта номеров
 

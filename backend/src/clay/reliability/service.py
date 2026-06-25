@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy.orm import Session, sessionmaker
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
+from clay.core.clock import Clock, SystemClock
 from clay.control_center.models import ControlCenterSnapshot
 from clay.control_center.service import ControlCenterService
 from clay.demo_trading.models import DemoTradingSnapshot
@@ -38,6 +39,7 @@ class ReliabilityService:
         audit_writer: AuditWriter,
         event_bus: EventBus,
         session_factory: sessionmaker | None = None,
+        clock: Clock = SystemClock(),
     ) -> None:
         self.control_center_service = control_center_service
         self.ai_control_service = ai_control_service
@@ -47,6 +49,7 @@ class ReliabilityService:
         self.audit_writer = audit_writer
         self.event_bus = event_bus
         self.session_factory = session_factory
+        self._clock = clock
         # ``_last_rechecked_at`` is restored from the
         # ``ops.reliability_state`` singleton row when a ``session_factory``
         # is supplied. Without one (legacy callers and pre-A5 tests), the
@@ -61,7 +64,7 @@ class ReliabilityService:
                 session.commit()
 
     def build_snapshot(self, session: Session) -> ReliabilitySnapshot:
-        now = datetime.now(UTC)
+        now = self._clock.now()
         control_snapshot = self.control_center_service.build_snapshot(session)
         ai_snapshot = self.ai_control_service.build_snapshot()
         demo_snapshot = self.demo_trading_service.build_snapshot(session)
@@ -140,7 +143,7 @@ class ReliabilityService:
         "how fresh is the latest recheck", and must survive a
         process restart (A5 persistence contract).
         """
-        self._last_rechecked_at = datetime.now(UTC)
+        self._last_rechecked_at = self._clock.now()
         # write-through: persist the new timestamp before publishing.
         # A restart between recheck and the audit/event publish keeps the
         # timestamp in DB; consumers never see ``reliability.rechecked``

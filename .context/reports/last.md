@@ -1,29 +1,40 @@
-# Отчёт: сессия 2026-06-24 — S-KELLY-2-R + S-RISKLIMITS-1/1b/2
+# Отчёт: сессия 2026-06-24 — pre-money финиш
 
 ## Что сделано
 
-### S-KELLY-2-R — EV-gate block proof (тесты + evidence doc)
-- 604 passed (+11), `3311130` → main
+### S-DOCSYNC-2 — ADR doc-sync (M214)
+- Вариант B: логическая консолидация (mc-archive 001–015 frozen, docs/adr 016+ канон)
+- 015→018 (pool-health никогда не пуст), 3 broken links fixed
+- Master-index `docs/adr/README.md` + pointer в `mission-control/index.md`
+- Дизамбигуация: 0 неоднозначностей
 
-### S-RISKLIMITS-1/1b — ADR-021 design
-- Recon session_control + доступные данные + граница с EV-gate
-- ADR-021 draft + 12 правок Emma (RV1-RV12)
-- `5ded307` → main
+### S-RUNTIME-VERIFY-1 — Ring 1 GO + live verify (M215/M216)
+- Ring 1 GO ✅ (paper-demo baseline, risk-control e2e доказан)
+- FOOTGUN B VERIFIED CLOSED (127.0.0.1:8000, test green)
+- Live release-gates: 5/7 green (data-freshness=fail — stale market, не код; validation-gate=warn — ждёт replay)
+- Demo-data live: 20/20/0/0, +4.95%, 13W/7L — 0 расхождений
 
-### S-RISKLIMITS-2 — L1-L5 implementation + merge
-- warn-enum: backend `PreflightCheckStatus` + frontend types + rendering
-- Read-path: `del session` убран, `DemoRepository` read-only методы
-- L1 drawdown (hard_fail, 24h window), L2 cooldown (hard_fail, streak from timestamps)
-- L3 concurrent (hard_fail, только `for_start=True` — анти-false-positive)
-- L4 exposure (warn), L5 session-loss (warn)
-- Fail-safe split: DB error → hard_fail; empty → pass; degraded ≠ relaxation
-- 16 scenario-тестов, **620 passed (+16), ruff 58 (без регресса)**
-- Ветка `feat/session-risk-limits` → main no-ff → `9e3cbf8`, ветка удалена
+### S-RUFF-2 — ruff 58→0 (M217)
+- ruff check --fix → 34 auto-fixed (F401+F811)
+- 8 F841: 5 safe удалены, 3 forgotten assertions дописаны (durability green)
+- noqa: alembic F401 + conftest E402
+- ruff 0 ✅
 
-## Коммиты в main
+### S-Ф1b-2 — ai_agent_runs indexes + retention (M218)
+- ADR-023 (Accepted): I1 `(role_id, created_at DESC)`, I2 `(model_id, created_at DESC)`
+- Retention 180d через OpsRetentionJob
+- Alembic 0019 → применён на 5433 (extversion TS 2.27.1)
+- EXPLAIN: I2 = Index Only Scan на RPD hot-path ✅
+- 622 passed (+2 retention теста)
+
+## Коммиты
 
 | SHA | Сообщение |
 |-----|-----------|
-| `3311130` | test+docs: S-KELLY-2-R — EV-gate block proof + known-gap |
-| `5ded307` | docs: ADR-021 — session-level risk limits (admission gate, 12 RV) |
-| `9e3cbf8` | **MERGE** feat/session-risk-limits — S-RISKLIMITS-2 L1-L5 + warn-enum |
+| `d63a68e` | S-DOCSYNC-2 — ADR doc-sync B + 015→018 + master-index (M214) |
+| `3877786` | S-RUFF-2 — ruff 58→0 + durability assertions (M217) |
+| `a319695` | S-Ф1b-2 — ai_agent_runs indexes + retention, ADR-023 (M218) |
+
+## Итог pre-money
+
+**622 passed, ruff 0, alembic 0019. Код-цепочка закрыта.**

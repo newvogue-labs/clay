@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
+from clay.core.clock import Clock, SystemClock
 from clay.db.repositories_runtime_state import StrategyStateRepository
 from clay.db.repositories_validation import ValidationRepository
 from clay.events.bus import EventBus
@@ -32,6 +33,7 @@ class ValidationLabService:
         audit_writer: AuditWriter,
         event_bus: EventBus,
         session_factory: sessionmaker | None = None,
+        clock: Clock = SystemClock(),
     ) -> None:
         self.signal_engine_service = signal_engine_service
         self.ai_control_service = ai_control_service
@@ -39,6 +41,7 @@ class ValidationLabService:
         self.audit_writer = audit_writer
         self.event_bus = event_bus
         self.session_factory = session_factory
+        self._clock = clock
         # ``_strategy_mode`` is restored from the ``ops.strategy_state``
         # singleton row when a ``session_factory`` is supplied. Without
         # one (legacy callers and pre-A5 tests), the service falls back
@@ -71,7 +74,7 @@ class ValidationLabService:
         repository = ValidationRepository(session)
         signal_snapshot = self.signal_engine_service.build_snapshot(session)
         review_snapshot = self.session_review_service.build_snapshot(session)
-        now = datetime.now(UTC)
+        now = self._clock.now()
         top_signal = signal_snapshot.signals[0] if signal_snapshot.signals else None
         signal_count = len(signal_snapshot.signals)
         record_count = len(review_snapshot.records)

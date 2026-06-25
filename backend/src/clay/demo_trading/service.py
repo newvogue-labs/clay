@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from clay.audit.writer import AuditWriter
+from clay.core.clock import Clock, SystemClock
 from clay.db.models_demo import DemoTradeRecord
 from clay.db.repositories_demo import DemoRepository
 from clay.demo_trading.models import (
@@ -39,11 +39,13 @@ class DemoTradingService:
         workspace_service: WorkspaceService,
         audit_writer: AuditWriter,
         event_bus: EventBus,
+        clock: Clock = SystemClock(),
     ) -> None:
         self.session_control_service = session_control_service
         self.workspace_service = workspace_service
         self.audit_writer = audit_writer
         self.event_bus = event_bus
+        self._clock = clock
 
     def build_snapshot(self, session: Session) -> DemoTradingSnapshot:
         repository = DemoRepository(session)
@@ -72,7 +74,7 @@ class DemoTradingService:
                 f"(id={open_record.id}). Complete or ingest it before logging a new trade."
             )
 
-        now = datetime.now(UTC)
+        now = self._clock.now()
         initial_outcome = "missed" if command.operator_action == "skipped" else "unresolved"
         initial_status = "not_entered" if command.operator_action == "skipped" else "awaiting_result"
 
@@ -130,7 +132,7 @@ class DemoTradingService:
             raise ValueError("skipped records do not accept observed trade results")
 
         outcome_status = self._classify_outcome(record)
-        observed_at = datetime.now(UTC)
+        observed_at = self._clock.now()
         repository.update_trade_record(
             record_id,
             external_trade_id=external_trade_id,
