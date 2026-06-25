@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from clay.db.base import Base
@@ -26,3 +26,4 @@ class DemoTradeRecord(Base):
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     outcome_status: Mapped[str] = mapped_column(String(32), index=True, default="unresolved")
     advisory_size_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), server_default=text("'live'"))
