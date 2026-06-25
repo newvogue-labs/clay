@@ -2,9 +2,11 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-
 OperatorAction = Literal["entered", "skipped", "off_signal", "entered_late"]
+
 OutcomeStatus = Literal["matched", "missed", "late_matched", "mismatched", "unresolved"]
+
+ProvenanceSource = Literal["baseline", "live", "replay"]
 ReadinessGateStatus = Literal["pass", "warn", "fail"]
 ReadinessStatus = Literal["collecting", "at_risk", "ready_for_review"]
 
