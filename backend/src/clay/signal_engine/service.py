@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -73,9 +74,9 @@ class SignalEngineService:
         self.ingestion_settings = ingestion_settings or IngestionSettings()  # type: ignore[reportCallIssue]  # FOOTGUN A: reads from CLAY_DATABASE_URL env
         self._clock = clock
 
-    def build_snapshot(self, session: Session) -> SignalEngineSnapshot:
+    def build_snapshot(self, session: Session, source_scope: Collection[str] | None = None) -> SignalEngineSnapshot:
         runtime_snapshot = self.runtime_manager.snapshot()
-        candidates = self._evaluate_candidates(session)
+        candidates = self._evaluate_candidates(session, source_scope=source_scope)
         signals = sorted(
             [candidate.signal for candidate in candidates],
             key=lambda item: item.ranking_score,
@@ -102,13 +103,13 @@ class SignalEngineService:
             signals=signals,
         )
 
-    def _evaluate_candidates(self, session: Session) -> list[SignalCandidate]:
+    def _evaluate_candidates(self, session: Session, source_scope: Collection[str] | None = None) -> list[SignalCandidate]:
         market_repo = MarketRepository(session)
         context_repo = ContextRepository(session)
         ops_repo = OpsRepository(session)
         ai_snapshot = self.ai_control_service.build_snapshot()
         risk_config = self.config_loader.load_scope("risk")
-        sizing_stats = self._compute_sizing_stats(session, risk_config)
+        sizing_stats = self._compute_sizing_stats(session, risk_config, source_scope=source_scope)
         now = self._clock.now()
 
         bars = market_repo.list_latest_bars(limit=50)
@@ -451,11 +452,13 @@ class SignalEngineService:
         self,
         session: Session,
         risk_config: object,
+        source_scope: Collection[str] | None = None,
     ) -> SizingStats:
-        from clay.db.repositories_demo import DemoRepository
+        from clay.db.repositories_demo import DEFAULT_READ_SCOPE, DemoRepository
 
+        scope = source_scope if source_scope is not None else DEFAULT_READ_SCOPE
         repo = DemoRepository(session)
-        records = repo.list_all_trade_records()
+        records = repo.list_all_trade_records(source_scope=scope)
         wins = 0
         losses = 0
         win_pnl_sum = 0.0
