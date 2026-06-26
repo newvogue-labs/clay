@@ -9,6 +9,8 @@ from clay.bootstrap import (
     context_connector_manager,
     demo_trading_service,
     event_bus,
+    execution_client,
+    execution_config,
     ingestion_cycle_service,
     ingestion_session_factory,
     ingestion_settings,
@@ -26,6 +28,8 @@ from clay.alpha.service import AlphaReadinessService
 from clay.control_center.service import ControlCenterService
 from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
+from clay.execution.config import ExecutionConfig
+from clay.execution.protocol import ExecutionClient
 from clay.ingestion.context.manager import ContextConnectorManager
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
@@ -109,6 +113,14 @@ def get_knowledge_service() -> KnowledgeService:
 
 def get_validation_lab_service() -> ValidationLabService:
     return validation_lab_service
+
+
+def get_execution_config() -> ExecutionConfig:
+    return execution_config
+
+
+def get_execution_client() -> ExecutionClient:
+    return execution_client
 
 
 def get_reliability_service() -> ReliabilityService:

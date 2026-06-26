@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from clay.core.clock import Clock, SystemClock
+from clay.execution.config import ExecutionConfig
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -79,6 +80,7 @@ class WorkspaceService:
         signal_engine_service: SignalEngineService,
         session_factory: sessionmaker | None = None,
         clock: Clock | None = None,
+        execution_config: ExecutionConfig | None = None,
     ) -> None:
         self.runtime_manager = runtime_manager
         self._clock = clock or SystemClock()
@@ -86,6 +88,7 @@ class WorkspaceService:
         self.registry = registry
         self.signal_engine_service = signal_engine_service
         self.session_factory = session_factory
+        self.execution_config = execution_config
         # ``_focus_symbol`` / ``_focus_source`` / ``_selected_signal_id`` are
         # restored from the ``ops.workspace_focus`` singleton row when a
         # ``session_factory`` is supplied. Without one (legacy callers and
@@ -248,6 +251,13 @@ class WorkspaceService:
 
         blocking_reason: str | None = None
         workspace_posture = "normal"
+        execution_mode: str | None = None
+        execution_override_state: str | None = None
+        if self.execution_config is not None:
+            execution_mode = self.execution_config.mode
+            execution_override_state = (
+                self.execution_config.override_state if hasattr(self.execution_config, "override_state") else None
+            )
         if (
             runtime_snapshot.state is RuntimeState.DEGRADED
             or preflight.status == "hard_fail"
@@ -257,6 +267,9 @@ class WorkspaceService:
         elif market_status != "fresh":
             workspace_posture = "defensive"
             blocking_reason = "market freshness requires defensive posture"
+        elif execution_mode == "live" and execution_override_state != "confirmed":
+            workspace_posture = "restricted_live_override"
+            blocking_reason = "Live execution requires Q5 override (not confirmed)"
 
         last_ingestion_at = None
         if connector_statuses:
@@ -272,6 +285,8 @@ class WorkspaceService:
                 can_open_binance=blocking_reason is None,
                 can_log_decision=blocking_reason is None,
                 blocking_reason=blocking_reason,
+                execution_mode=execution_mode,
+                execution_override_state=execution_override_state,
             ),
             market_status,
             context_status,

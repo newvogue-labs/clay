@@ -36,6 +36,8 @@ from clay.db.repositories_market import set_source_priority
 from clay.db.session import build_session_factory
 from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
+from clay.execution.config import ExecutionConfig
+from clay.execution.factory import build_execution_client
 from clay.health.monitor import HealthMonitor
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
@@ -200,6 +202,13 @@ def build_services(
         audit_writer=audit_writer,
         event_bus=event_bus,
     )
+    execution_config = ExecutionConfig.from_env()
+    execution_client = build_execution_client(
+        mode=execution_config.mode,
+        api_key=execution_config.api_key,
+        api_secret=execution_config.api_secret,
+        recv_window=execution_config.recv_window,
+    )
 
     control_center_service = ControlCenterService(
         runtime_manager=runtime_manager,
@@ -231,6 +240,7 @@ def build_services(
         registry=registry,
         signal_engine_service=signal_engine_service,
         session_factory=session_factory,
+        execution_config=execution_config,
     )
     session_control_service = SessionControlService(
         runtime_manager=runtime_manager,
@@ -322,6 +332,8 @@ def build_services(
         "validation_lab_service": validation_lab_service,
         "reliability_service": reliability_service,
         "alpha_readiness_service": alpha_readiness_service,
+        "execution_config": execution_config,
+        "execution_client": execution_client,
     }
 
 
@@ -348,6 +360,8 @@ context_connector_manager = _services["context_connector_manager"]
 control_center_service = _services["control_center_service"]
 demo_trading_service = _services["demo_trading_service"]
 event_bus = _services["event_bus"]
+execution_client = _services["execution_client"]
+execution_config = _services["execution_config"]
 health_monitor = _services["health_monitor"]
 ingestion_cycle_service = _services["ingestion_cycle_service"]
 ingestion_settings = _services["ingestion_settings"]
