@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -575,6 +575,14 @@ class SessionControlService:
 
             now = self._clock.now()
             if streak >= limits_cfg.max_consecutive_losses and streak_ts is not None:
+                if streak_ts.tzinfo is None:
+                    streak_ts = streak_ts.replace(tzinfo=UTC)
+                ahead = (streak_ts - now).total_seconds()
+                if ahead > 60:
+                    raise ValueError(
+                        f"clock desync: trade recorded_at={streak_ts.isoformat()} "
+                        f"ahead of clock now={now.isoformat()} by {ahead:.0f}s"
+                    )
                 elapsed_min = (now - streak_ts).total_seconds() / 60
                 if elapsed_min < limits_cfg.cooldown_minutes:
                     remaining = int(limits_cfg.cooldown_minutes - elapsed_min)
@@ -674,7 +682,9 @@ class SessionControlService:
                     reason="No active session — per-session loss check skipped.",
                     blocks_start=False,
                 ))
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, ValueError) and "clock desync" in str(exc):
+                raise
             for check_id, label in [
                 ("risk-limit-drawdown", "Drawdown stop"),
                 ("risk-limit-cooldown", "Consecutive loss cooldown"),

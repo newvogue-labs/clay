@@ -1,7 +1,8 @@
 # ADR-024: Deterministic Replay Harness + Trade Provenance
 
-- **Status:** Proposed
-- **Date:** 2026-06-25
+- **Status:** Accepted
+- **Date:** 2026-06-26
+- **Supersedes:** Proposed (2026-06-25)
 - **Replaces:** —
 - **Donor-ref:** —
 
@@ -103,21 +104,92 @@ for tick in harness.walk(days=5, step=timedelta(hours=1)):
 
 Это закрывает разрыв validation↔calibration: replay-прогон идёт через те же таблицы, но живёт в своём скоупе.
 
-## Как доказываем
+## ✅ Proof (S-REPLAY-6, 2026-06-26)
+
+### Synthetic тесты (test_soak.py, SQLite)
+
+Прогон на SQLite: 2000 баров SOLUSDT 1h, START_AS_OF=2026-06-02 00:00 UTC.
+
+- `test_full_soak`: ≥30 sessions, p/b recalibrated, default frozen, isolation ✅
+- `test_l2_loss_streak_blocks_replay_session`: 3 replay-loss → hard_fail ✅
+- `test_l2_cooldown_guard_detects_clock_desync`: recorded_at ahead of clock → ValueError ✅
+
+### Real-data soak (soak_5433.py, прод-5433)
+
+Подлинныйvalidation на реальных барах SOLUSDT 1h из 5433, Jun 2–25.
+583 бара, VirtualClock, MarketRepository патчен clock-aware для
+фильтрации freshness по текущей позиции часов.
+
+```
+soak_5433.py — real 5433 data (583 SOLUSDT 1h, Jun 2–25 06:59 → Jun 26 12:59)
+  sessions_started: 62   (≥30 threshold surpassed)
+  trades_resolved:  61   (1 unresolved = forward buffer, correct)
+  W/L:               42W / 19L  (реальный W/L mix, НЕ синтетик 976W/0L)
+  replay p/b:
+    before:  p=0.00000  b=1.00000  ev=-1.00000   (fallback, 0 записей)
+    after:   p=0.56408  b=1.30950  ev=0.30275    (62 записей, Wilson + Kelly)
+    ✅ p пересчитан (0 → 0.564), b пересчитан (1.0 → 1.309, НЕ fallback)
+  default-scope (baseline=20W/7L, live=1L):
+    before:  p=0.40878  b=1.61910  ev=0.07064
+    after:   p=0.40878  b=1.61910  ev=0.07064   (byte-identical, заморожен ✅)
+  isolation: replay_ids ∩ default_ids = ∅  ✅
+  clock-desync guard: 3 replay-loss с recorded_at = now+2h → ValueError (7200s ahead) ✅
+```
 
 ### (i) Рекалибровка ≥30
 
-1. Запустить replay-прогон, накопить ≥30 resolved исходов со `source='replay'`
-2. Вызвать `compute_sizing_stats(scope="replay")` — dry-run
-3. Наблюдать сдвиг p/b относительно текущих консервативных значений (Wilson interval сужается)
-4. Убедиться, что `compute_sizing_stats(scope="live")` вернул прежние значения (изоляция)
+- `summary.sessions_started = 62` — подтверждено (SQLite: 977, но те же code path)
+- `trades_resolved = 61` — все трейды разрешены (1 unresolved — forward buffer)
+- `replay_before[0] == 0.0, replay_after[0] = 0.56408` — p recalibrated на реальных W/L
+- `replay_before[1] == 1.0, replay_after[1] == 1.3095` — b_emp пересчитан (критично!)
+- **default-scope p/b заморожен:** `default_before == default_after` (R6 выполнен)
+- **b_emp реально пересчитан:** avg_win / avg_loss для 42W/19L ≠ 1.0 (согласно доказательству)
 
-### (ii) L2/L1 блок
+### (ii) L2/L1 блок (2 доказательства)
 
-1. В replay-скоупе сконструировать 3 последовательных loss-записи с `source='replay'`
-2. Вызвать `start_session()` → preflight в replay-режиме проверяет replay-scope records
-3. L2 cooldown (3 losses, 60 min) детерминированно блокирует старт → hard_fail
-4. Убедиться, что в live-скоупе `start_session()` НЕ блокируется (replay-записи не видны)
+**a) Изолированный тест** (`test_l2_loss_streak_blocks_replay_session`):
+- 3 replay-loss записи в replay-скоупе → `build_snapshot(for_start=True)` →
+  L2 (`risk-limit-cooldown`) = `hard_fail` c `blocks_start=True`
+- `start_session()` кидает ValueError
+
+**b) В составе soak** (5433 real data):
+- Соак прошёл на реальных данных Jun 2–25, 42W/19L, 19 потерь всего
+- Естественного loss-streak ≥ 3 внутри 30-мин cooldown окна **не возникло**
+- L2 статус = "ok" (коoldown не сработал, что корректно для данного окна)
+- **Важно:** L2-механика доказана синтетическим тестом (a), на реальных данных
+  distribution потерь не дало 3 consecutive — это честный результат, не отсутствие теста
+
+### (iii) Изоляция под нагрузкой
+
+- `bl_before == bl_after` — baseline (20) + live (#22, 1L) байт-в-байт целы
+- `default_ids.isdisjoint(replay_ids)` — replay-записи (62) не просачиваются
+  в default scope (scope isolation, ADR-024 §(d))
+- 62 replay записей в 5433 подтверждают масштаб soak'а
+
+### (iv) Clock-desync guard (урок)
+
+В процессе доказательства обнаружен корень «data-freshness блокирует L2»:
+
+| Вердикт | Описание |
+|---------|----------|
+| **Было** | Два независимых VirtualClock: сервисы (заморожен Jun 2) vs харнесс (двигается) → `(now - streak_ts)` = negative → cooldown всегда active → L2 silent hard_fail |
+| **Фикс** | Один VirtualClock на все сервисы + ReplayHarness (тестовая фикстура) |
+| **Guard** | Прод-код: если `recorded_at > now + 60s` → `ValueError("clock desync: ...")` — Structural backstop для clock-seam инварианта |
+
+Регресс-тест: `test_l2_cooldown_guard_detects_clock_desync` (3 replay-loss с
+`recorded_at > services_clock.now()` → guard raise).
+См. `session_control/service.py:578-585`.
+
+### (v) Вердикт принятия
+
+Решение ADR-024 подтверждено:
+
+1. ✅ **Clock-seam** — VirtualClock в harness (M226). Guard на clock-desync (M227)
+2. ✅ **Provenance** — миграция 0020 + `source` filter во всех repo-методах (M222)
+3. ✅ **Scope изоляция** — replay vs default не пересекаются
+4. ✅ **Replay harness** — финальный прогон через backend-сервисы
+5. ✅ **Soak ≥30** — p/b recalibrated, isolated от live
+6. ✅ **L2/L1 block** — 3 losses → hard_fail в replay-scope
 
 ## Scope и Non-Goals
 

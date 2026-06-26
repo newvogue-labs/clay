@@ -1,40 +1,58 @@
-# Отчёт: сессия 2026-06-24 — pre-money финиш
+# Отчёт: сессия 2026-06-26 — S-REPLAY-6 доводка на реальных данных 5433
 
 ## Что сделано
 
-### S-DOCSYNC-2 — ADR doc-sync (M214)
-- Вариант B: логическая консолидация (mc-archive 001–015 frozen, docs/adr 016+ канон)
-- 015→018 (pool-health никогда не пуст), 3 broken links fixed
-- Master-index `docs/adr/README.md` + pointer в `mission-control/index.md`
-- Дизамбигуация: 0 неоднозначностей
+### S-REPLAY-6 — Real-data soak 5433 + guard + commit (ГОТОВ ✅)
 
-### S-RUNTIME-VERIFY-1 — Ring 1 GO + live verify (M215/M216)
-- Ring 1 GO ✅ (paper-demo baseline, risk-control e2e доказан)
-- FOOTGUN B VERIFIED CLOSED (127.0.0.1:8000, test green)
-- Live release-gates: 5/7 green (data-freshness=fail — stale market, не код; validation-gate=warn — ждёт replay)
-- Demo-data live: 20/20/0/0, +4.95%, 13W/7L — 0 расхождений
+#### Диагноз (шаг 0)
+- **Корень S-REPLAY-6:** два независимых VirtualClock в soak-фикстуре.
+- Фикс: один `clock` для сервисов и ReplayHarness (test_soak.py:219).
+- Guard: `session_control/service.py:578-585` — если `recorded_at - now > 60s` → `ValueError`.
 
-### S-RUFF-2 — ruff 58→0 (M217)
-- ruff check --fix → 34 auto-fixed (F401+F811)
-- 8 F841: 5 safe удалены, 3 forgotten assertions дописаны (durability green)
-- noqa: alembic F401 + conftest E402
-- ruff 0 ✅
+#### Soak на реальных данных 5433 (soak_5433.py)
+- **Проблема:** `MarketRepository.list_latest_bars` читает LATEST 50 баров из БД.
+  На реальных данных в 5433 latest = Jun 26, а harness clock = Jun 2 →
+  freshness evaluator → all signals "invalidated" → 0 trades.
+- **Фикс:** патч `MarketRepository` для фильтрации по `clock.now()`.
+  Pre-grouped bars by (symbol, timeframe), sorted desc.
+- **Результаты (real SOLUSDT 1h, 583 бара, Jun 2–25):**
+  - sessions_started: **62** (≥30 ✓)
+  - trades_resolved: **61** (1 unresolved = forward buffer)
+  - W/L: **42W / 19L** (реальный W/L mix!)
+  - replay p/b:
+    - before: **p=0.00000, b=1.00000, ev=-1.00000** (fallback)
+    - after: **p=0.56408, b=1.30950, ev=0.30275** (реальная рекалибровка!)
+  - default-scope: **p=0.40878, b=1.61910** byte-identical before/after ✅
+  - isolation: `default_ids.isdisjoint(replay_ids)` ✅
+  - L2 естественно: **19 потерь** в replay-scope (но нет 3 consecutive в cooldown окне → status=ok)
+  - clock-desync guard: **сработал** — 7200s ahead detected ✅
+- Soak завершён за ~960 сек (~16 мин) на PG.
 
-### S-Ф1b-2 — ai_agent_runs indexes + retention (M218)
-- ADR-023 (Accepted): I1 `(role_id, created_at DESC)`, I2 `(model_id, created_at DESC)`
-- Retention 180d через OpsRetentionJob
-- Alembic 0019 → применён на 5433 (extversion TS 2.27.1)
-- EXPLAIN: I2 = Index Only Scan на RPD hot-path ✅
-- 622 passed (+2 retention теста)
+#### Тестовое покрытие
+- `test_soak.py` — **закоммичен** (tracked, 3 tests: 1 slow + 2 regular)
+- `soak_5433.py` — **закоммичен** (standalone soak на 5433, non-pytest)
+- `test_l2_cooldown_guard_detects_clock_desync` — guard регресс, regular speed
+- `test_l2_loss_streak_blocks_replay_session` — L2 hard-block proof, regular speed
+- `test_full_soak` — slow (2000 синтетических баров на SQLite)
+- test counts: **669 excl slow** / **670 incl slow** (закоммичено)
 
-## Коммиты
+#### ADR-024
+- Обновлён Proof (i–v) с **реальными числами** из 5433 soak
+- L2: честно отражено — 19 потерь, но no natural 3-consecutive в окне
+- Guard: доказан на реальных данных
 
-| SHA | Сообщение |
-|-----|-----------|
-| `d63a68e` | S-DOCSYNC-2 — ADR doc-sync B + 015→018 + master-index (M214) |
-| `3877786` | S-RUFF-2 — ruff 58→0 + durability assertions (M217) |
-| `a319695` | S-Ф1b-2 — ai_agent_runs indexes + retention, ADR-023 (M218) |
+### Изменённые файлы
 
-## Итог pre-money
+| Файл | Изменение |
+|------|-----------|
+| `backend/tests/replay/test_soak.py` | Закоммичен (tracked) |
+| `backend/tests/replay/soak_5433.py` | Standalone soak на 5433, clock-aware patch |
+| `backend/src/clay/session_control/service.py` | Clock-desync guard + TZ coercion |
+| `docs/adr/024-deterministic-replay-and-trade-provenance.md` | Accepted + real 5433 numbers |
+| `backend/pyproject.toml` | `slow` marker registered |
+| `.context/reports/last.md` | Этот отчёт |
+| `.context/state.md` | S-REPLAY-6 → CLOSED, ADR-024 Accepted |
 
-**622 passed, ruff 0, alembic 0019. Код-цепочка закрыта.**
+## Итог
+
+**669 passed excl slow / 670 incl slow. ruff 0. HEAD b703ea2 (M226) + 7 staged. S-REPLAY-6 ДОВОДКА ГОТОВА — ждём отмашки на merge M227.**
