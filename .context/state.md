@@ -16,13 +16,14 @@
 - **S-EGRESS-RECON-1:** ✅ CLOSED — testnet reachable из Paris (no 451), non-US egress map, ADR-008 integration point найден. Commit `e663019`.
 - **S-EXEC-1 / ADR-025:** ✅ DRAFT — Execution Layer + Real-Money Gate (RV8) Proposed. testnet-first, 0 кода.
 - **S-EXEC-2 / ADR-025 implementation:** ✅ MERGED — `TestnetExecutionClient` (ccxt) + integration. Commit `83fa532` (feat) + `43dce0c` (context/lock). Merge commit `fbd7c7f...`. Branch deleted.
+- **S-EXEC-4 / Testnet smoke:** ✅ MERGED — live smoke на `testnet.binance.vision`, adapter fixes (timeout, cancel_order, url). Скрипт + gated pytest. Merge commit `b23ef5d...`. Branch deleted.
 
 ## Baseline
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD** | `eabba54` (S-EXEC-2 merge + security: untrack backend/.env) |
-| **Tests** | **669 excl slow / 670 incl slow** (новые в tests/execution + tests/workspace) |
+| **HEAD** | `b23ef5d` (S-EXEC-4 merge: testnet live smoke + adapter fixes) |
+| **Tests** | **682 passed excl slow / 2 skipped** (682 offline green + smoke skip) |
 | **Ruff** | **0** |
 | **Alembic** | 0020 (source column, 5433) |
 | **ADR** | 001–025 (025 Accepted) |
@@ -46,12 +47,13 @@
 - **S-REPLAY-6:** ✅ MERGED (M227)
 - **Egress (Paris, FR):** Binance spot + futures testnet reachable, 451 absent
 - **Testnet:** `testnet.binance.vision` / `testnet.binancefuture.com` — HTTP 200, live data, zero code to switch
-- **ADR-025:** Accepted (v2), S-EXEC-2 merged into main (`eabba54`). `backend/.env` untracked.
+- **ADR-025:** Accepted (v2), S-EXEC-2 + S-EXEC-4 merged. `backend/.env` untracked.
+- **Testnet smoke:** order 9585437 — place 304ms, cancel 347ms, weight 55/6000, 0 fills, 0 контаминации калибровки.
 
 ## Pending (выбор Emma)
 
 - **A)** ~~Real-money egress~~ → merged into execution layer path (ADR-025)
 - **B)** Idea-bank: S-LLM-PARSE-1 и другие донор-слайсы
-- **C)** Накопить ≥30 реальных live-исходов (следующий кандидат — testnet fills через S-EXEC-4)
-- **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 merged
-- **→ Следующий слайс:** S-EXEC-4 (testnet integration smoke) — requires `CLAY_BINANCE_TESTNET_API_KEY/SECRET`
+- **C)** Накопить ≥30 реальных live-исходов (S-EXEC-4 smoke доказал адаптер; следующий шаг — S-EXEC-3 override)
+- **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 + S-EXEC-4 merged
+- **→ Следующий слайс:** S-EXEC-3 (RV8 override sequence + LiveExecutionClient stub)
