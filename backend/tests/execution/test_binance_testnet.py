@@ -5,13 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from clay.execution.binance_testnet import BinanceTestnetExecutionClient
-from clay.execution.exceptions import (
-    ExecutionConfigError,
-    OrderRejectedError,
-    OrderTimeoutError,
-    PartialFillError,
-)
-from clay.execution.models import OrderResult
+from clay.execution.exceptions import ExecutionConfigError, PartialFillError
 
 
 @pytest.fixture

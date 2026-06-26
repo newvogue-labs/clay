@@ -1,7 +1,5 @@
 """Tests for execution config and factory."""
 
-import os
-
 import pytest
 
 from clay.execution.config import ExecutionConfig
