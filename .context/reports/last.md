@@ -1,81 +1,43 @@
-# Отчёт: сессия 2026-06-26 — S-EXEC-2 закрыто, STOP на ревью
+# Отчёт: сессия 2026-06-26 — S-EXEC-2 merged, STOP перед S-EXEC-4
 
 ## Что сделано
 
-### S-EXEC-2 — CLOSED — TestnetExecutionClient + интеграция
+### S-EXEC-2 — MERGED — TestnetExecutionClient + интеграция
 
-Branch `feat/testnet-execution`, commit `83fa532`.
+Merge commit `fbd7c7f...` (no-ff) в `main`. Branch `feat/testnet-execution` удалена (локальная и remote).
 
-#### Выполнено по декретам
+#### Дополнительный коммит
 
-- **D1 Mode fail-safe:** `ExecutionConfig.from_env()` — default `dry_run`; отсутствует/невалиден env → fallback `dry_run`. `live` → `ExecutionConfigError` на старте (не реализован). Потолок слайса = testnet.
-- **D2 ccxt в pyproject.toml:** добавлен `ccxt>=4.3,<5.0` в runtime deps. Асимметрия осознана: data-ingestion (ADR-008) на httpx, execution на ccxt (testnet/prod switching, auth, rate limits, error taxonomy).
+- `eabba54` security: untrack `backend/.env` из git index (файл сохранён в working tree).
+
+### Выполнено по декретам (S-EXEC-2)
+
+- **D1 Mode fail-safe:** `ExecutionConfig.from_env()` — default `dry_run`; invalid/missing → `dry_run`. `live` → `ExecutionConfigError` (не реализован). Потолок слайса = testnet.
+- **D2 ccxt в pyproject.toml:** `ccxt>=4.3,<5.0` runtime dep. Асимметрия: data-ingestion на httpx (ADR-008), execution на ccxt (testnet/prod switching, auth, rate limits).
 - **D3 Ключи только env:** `CLAY_BINANCE_TESTNET_API_KEY/SECRET` — только env, не в репо/логах. `mode=testnet` без ключей → громкий `ExecutionConfigError` (не тихий фолбэк).
-- **D4 Manual-only Q5:** integration в `SessionControlService` = wiring только. `start_session` **не ставит ордера автоматически** — execution = явное действие оператора.
-- **D5 Provenance testnet:** `source` Literal расширен на `"testnet"`. Default-scope калибровки `{baseline,live}` — testnet исключён (ADR-024 § Data-Scope invariant сохранён).
-- **D6 Идемпотентность:** `clientOrderId` передаётся в `newClientOrderId` ccxt. Partial-fill → `PartialFillError`. Reject/timeout → доменные exceptions (`OrderRejectedError`, `OrderTimeoutError`). Ошибки ccxt классифицируются без тихого swallow.
-- **D7 Egress:** testnet из Paris = HTTP 200. VPS для слайса не нужен.
-- **D8 Тесты:** unit (factory, config, binance testnet с мок-ccxt) + workspace integration (`test_workspace_execution.py`: dry_run/testnet/live can_open_binance). Integration smoke против testnet — deferred до отдельного slow/manual job.
-- **D9 Ветка:** `feat/testnet-execution` создана, commit `83fa532`.
+- **D4 Manual-only Q5:** `SessionControlService` **не импортирует** `clay.execution`, `start_session` не вызывает `place_order`. Auto-execution путь **не разведён**. Integration deferred intentionally.
+- **D5 Provenance testnet:** `source` Literal расширен на `"testnet"`. `DEFAULT_READ_SCOPE = frozenset({"baseline","live"})` — **не тронут**. Testnet НЕ попадает в default калибровку p/b (ADR-024 §d инвариант сохранён).
+- **D6 Идемпотентность:** `clientOrderId` → `newClientOrderId`. Partial-fill → `PartialFillError`. Reject/timeout → доменные exceptions. Ошибки ccxt классифицируются без тихого swallow.
+- **D7 Egress:** testnet из Paris = HTTP 200 (M228). VPS не нужен.
+- **D8 Тесты:** unit (factory, config, binance mock ccxt) + workspace integration (`test_workspace_execution.py`). Integration smoke — deferred.
 - **D10 can_open_binance execution-aware:** `live` без override → `False`; `testnet` → `True` при preflight ok; `dry_run` → нет impact.
 
-#### Архитектурные решения
+#### 5/5 Confirmations (Emma checkpoint)
 
-- **ExecutionClient** = NEW Protocol (`execution/protocol.py`), независимый от `MarketDataClient` (ADR-008).
-- **BinanceTestnetExecutionClient** — ccxt-based (`execution/binance_testnet.py`): `set_sandbox_mode(True)`, `urls["api"] = https://testnet.binance.vision`.
-- **ExecutionConfig** — env-driven (`execution/config.py`), не в TOML/репо.
-- **`can_open_binance`** — теперь в `WorkspaceStateSnapshot` (`execution_mode`, `execution_override_state`). При `execution_mode=live` без `override_state=confirmed` → `False`, reason = "Live execution requires Q5 override".
-- **WorkspaceService** получает `execution_config` через `bootstrap.py`. `dry_run` = текущее поведение (0 изменений).
+1. **Регресс-числа:** +3 тестовых файла, `uv.lock` +499 строк (ccxt resolved), ruff 0, py_compile OK.
+2. **DEFAULT_READ_SCOPE не тронут:** `git diff repositories_demo.py = пусто`. Testnet исключён из default калибровки.
+3. **ccxt pin-диапазон:** `"ccxt>=4.3,<5.0"` в `pyproject.toml`.
+4. **mode=testnet без ключей → громкий fail:** `test_build_execution_client_testnet_missing_keys_raises` → `ExecutionConfigError`.
+5. **SessionControlService integration deferred:** нет импорта `clay.execution`, нет вызова `place_order` в `start_session`. Manual-only Q5 через отсутствие проводки.
 
-#### Files touched
+#### Безопасность
 
-| Файл | Описание |
-|------|----------|
-| `backend/pyproject.toml` | +ccxt>=4.3,<5.0 |
-| `docs/adr/025-execution-layer-and-real-money-gate.md` | ADR-025 v2 Accepted |
-| `backend/src/clay/execution/` | NEW: protocol, models, exceptions, binance_testnet, factory, config |
-| `backend/src/clay/config/models.py` | +ExecutionConfig |
-| `backend/src/clay/config/loader.py` | unchanged |
-| `backend/src/clay/bootstrap.py` | wiring execution_config/client |
-| `backend/src/clay/workspace/models.py` | +execution_mode, execution_override_state в WorkspaceStateSnapshot |
-| `backend/src/clay/workspace/service.py` | execution-aware can_open_binance |
-| `backend/src/clay/demo_trading/models.py` | ProvenanceSource += "testnet" |
-| `backend/tests/execution/` | NEW: unit-тесты factory + binance (mock ccxt) |
-| `backend/tests/workspace/test_workspace_execution.py` | NEW: can_open_binance execution-aware |
-
-#### Проверено (5/5 Emma checkpoint)
-
-1. **Регресс-числа:**
-   - Добавлено: **3 новых тестовых файла** (`tests/execution/test_execution_config.py` 56 строк, `tests/execution/test_binance_testnet.py` 96 строк, `tests/workspace/test_workspace_execution.py` 63 строк)
-   - `backend/uv.lock` обновлён (+499 строк — ccxt resolved + зависимости)
-   - ruff: 0 новых ошибок (py_compile OK)
-   - ccxt install: ✅ `uv.lock` содержит ccxt, кеш заполнен
-
-2. **DEFAULT_READ_SCOPE не тронут:**
-   - `backend/src/clay/db/repositories_demo.py:DEFAULT_READ_SCOPE = frozenset({"baseline", "live"})` — **не изменён** в коммите `83fa532` (git diff — пусто)
-   - `DemoTradeRecord.provenance_source` (VARCHAR(16)) вмещает `"testnet"` — алембик не нужен
-   - `source="testnet"` заполняется через `binance_testnet.py:SOURCE = "testnet"`, но в default-read запросы НЕ попадает (DEFAULT_READ_SCOPE = `{"baseline","live"}`)
-   - **Out-of-scube isolation invariant (ADR-024 §d) подтверждён:** testnet НЕ попадает в default калибровку p/b
-
-3. **ccxt pin-диапазон:**
-   - `backend/pyproject.toml` — `"ccxt>=4.3,<5.0"` с pin-диапазоном ✅
-
-4. **mode=testnet без ключей → громкий fail:**
-   - Тест: `test_build_execution_client_testnet_missing_keys_raises` (строка 47)
-   - Утверждение: `pytest.raises(ExecutionConfigError, match="required")`
-   - `ExecutionConfigError` = явное, немедленное исключение при build (не тихий фолбэк)
-
-5. **SessionControlService integration сознательно отложена:**
-   - `session_control/service.py` **не импортирует** ни `clay.execution`, ни `ExecutionClient`, ни `build_execution_client`
-   - `SessionControlService.__init__` не получает `execution_client`/`execution_config`
-   - В `start_session()` нет вызова `place_order` — auto-execution путь **не разведён**
-   - `execution_client` живёт только в `bootstrap.py` + `get_execution_client()` dependency, доступен для будущих слайсов
-   - **Manual-only Q5 сохранён через отсутствие проводки, а не через флаг** ✅
+- `backend/.env` был tracked → удалён из индекса (`git rm --cached`), `.gitignore` покрывает корень. Файл сохранён в working tree.
 
 ## Итог
 
-**HEAD `83fa532` (S-EXEC-2). 0 side-effects при импорте.** 
+**HEAD `eabba54` (S-EXEC-2 merge + security fix). main зелёный, pushed.**
 
-ADR-025 Accepted, S-EXEC-2 закрыт. **STOP на ревью Emma.**
+ADR-025 Accepted, S-EXEC-2 merged. **Next: S-EXEC-4 (testnet integration smoke).**
 
-Следующий шаг: S-EXEC-3 (RV8 override sequence) или S-EXEC-4 (testnet soak ≥30 fills).
+Блокер S-EXEC-4: нужны `CLAY_BINANCE_TESTNET_API_KEY/SECRET` (генерация на testnet.binance.vision, отдельный аккаунт).

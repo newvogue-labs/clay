@@ -15,15 +15,15 @@
 
 - **S-EGRESS-RECON-1:** ✅ CLOSED — testnet reachable из Paris (no 451), non-US egress map, ADR-008 integration point найден. Commit `e663019`.
 - **S-EXEC-1 / ADR-025:** ✅ DRAFT — Execution Layer + Real-Money Gate (RV8) Proposed. testnet-first, 0 кода.
-- **S-EXEC-2 / ADR-025 implementation:** ✅ CLOSED — `TestnetExecutionClient` (ccxt) + integration. 5/5 confirmations для merge предоставлены Emma. Branch `feat/testnet-execution`. Commit `83fa532`.
+- **S-EXEC-2 / ADR-025 implementation:** ✅ MERGED — `TestnetExecutionClient` (ccxt) + integration. Commit `83fa532` (feat) + `43dce0c` (context/lock). Merge commit `fbd7c7f...`. Branch deleted.
 
 ## Baseline
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD** | `83fa532` (S-EXEC-2 — TestnetExecutionClient) |
-| **Tests** | **669 excl slow / 670 incl slow** (unchanged, новые в tests/execution + tests/workspace) |
-| **Ruff** | **0** (unchanged) |
+| **HEAD** | `eabba54` (S-EXEC-2 merge + security: untrack backend/.env) |
+| **Tests** | **669 excl slow / 670 incl slow** (новые в tests/execution + tests/workspace) |
+| **Ruff** | **0** |
 | **Alembic** | 0020 (source column, 5433) |
 | **ADR** | 001–025 (025 Accepted) |
 | **Demo (live)** | 20 sessions, 13W/7L, +4.95% |
@@ -46,11 +46,12 @@
 - **S-REPLAY-6:** ✅ MERGED (M227)
 - **Egress (Paris, FR):** Binance spot + futures testnet reachable, 451 absent
 - **Testnet:** `testnet.binance.vision` / `testnet.binancefuture.com` — HTTP 200, live data, zero code to switch
-- **ADR-025:** Accepted (v2), S-EXEC-2 closed, 5/5 confirmations предоставлены. **Merge authorized pending Emma.**
+- **ADR-025:** Accepted (v2), S-EXEC-2 merged into main (`eabba54`). `backend/.env` untracked.
 
 ## Pending (выбор Emma)
 
 - **A)** ~~Real-money egress~~ → merged into execution layer path (ADR-025)
 - **B)** Idea-bank: S-LLM-PARSE-1 и другие донор-слайсы
-- **C)** Накопить ≥30 реальных live-исходов (следующий кандидат — testnet fills через S-EXEC-4/сделать позже)
-- **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 закрыт
+- **C)** Накопить ≥30 реальных live-исходов (следующий кандидат — testnet fills через S-EXEC-4)
+- **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 merged
+- **→ Следующий слайс:** S-EXEC-4 (testnet integration smoke) — requires `CLAY_BINANCE_TESTNET_API_KEY/SECRET`
