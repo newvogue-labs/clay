@@ -21,3 +21,4 @@ playwright-report/
 
 # Agent session memory (not part of Clay product)
 .opencode/
+backend/scripts/smoke_testnet_evidence.json
