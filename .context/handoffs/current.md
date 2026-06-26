@@ -1,34 +1,35 @@
 ---
 date: 2026-06-26
 from: Agent (Emma Clay)
-session: S-EXEC-4 merged, going to S-EXEC-3
+session: S-EXEC-3a merged, going to S-EXEC-3b
 ---
 
 ## Что сделано
 
-- **S-EXEC-2:** ✅ MERGED в main.
-- **S-EXEC-4:** ✅ MERGED в main — live testnet smoke, adapter fixes, 0 контаминации.
-  - Merge commit `b23ef5d...` (no-ff).
-  - Branch `feat/testnet-smoke` удалена.
-  - Full suite: 682 passed excl slow / 2 deselected slow / smoke skipped offline.
-  - Evidence: order 9585437 (place 304ms → cancel 347ms, weight 55/6000).
-  - Adapter verified on main: `client_order_id` пробрасывается корректно, слайс чисто аддитивный.
+- **S-EXEC-3a:** ✅ MERGED в main.
+  - Merge commit `bc64600` (no-ff).
+  - Branch `feature/S-EXEC-3a-unify-config` удалена (локально + remote).
+  - Full suite: 682 passed excl slow / 2 deselected / smoke skipped offline.
+  - Дропнул мёртвый Pydantic `ExecutionConfig` из `config/models.py` (D8 corroborated: 0 prod-readers).
+  - Добавил `logger.warning` на rejected `CLAY_EXECUTION_MODE` в `execution/config.py` (observability).
 
 ## Следующий шаг
 
-**S-EXEC-3: RV8 Override Sequence + LiveExecutionClient stub**
-- UI flow → audit log → `override_state=confirmed` → `execution_mode=live`
-- `can_open_binance` integration (already scaffolded in S-EXEC-2)
-- LiveExecutionClient stub (реальный клиент — deferred)
+**S-EXEC-3b: OverrideService + SQL audit + API endpoints**
+- Design-confirm одобренEmma, запаркован в Том 2.
+- `OverrideService` в `execution/service.py` (mutable persisted holder)
+- API: `POST /workspace/trading/override/{request,confirm,revoke}`
+- SQL: `ops.execution_overrides` (alembic 0021), INSERT-only, исключён из retention
+- Default-deny на рестарт (D5): armed-state не воскрешается без явного re-arm
 
 ## Блокеры
 
-- Testnet ключи в `backend/.env` (не tracked).
-- S-EXEC-3 — самый высокорисковый слайс к live.
+- Нужна пост-мердж сверка M241 на `bc64600` (config/models.py — Pydantic ExecutionConfig absent; execution/config.py — logger.warning present).
+- S-EXEC-3b ждёт approval design-confirm после M241.
 
 ## На заметку
 
-- HEAD: `b23ef5d` (main, S-EXEC-4 merge)
+- HEAD: `bc64600` (main, S-EXEC-3a merge)
 - ADR: `docs/adr/025-execution-layer-and-real-money-gate.md` Accepted
 - Execution пакет: `backend/src/clay/execution/`
-- Smoke evidence: `backend/scripts/smoke_testnet_execution.py` + `obs-2026-06-26-001-execution-smoke.md`
+- PR #1: https://github.com/newvogue-labs/clay/pull/1 (closed)
