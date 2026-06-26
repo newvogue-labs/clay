@@ -30,6 +30,6 @@ def build_execution_client(*, mode: str, **overrides: object) -> "ExecutionClien
             recv_window=int(overrides.get("recv_window", 5000)),
         )
     raise ExecutionConfigError(
-        f"Unsupported execution mode={mode!r}. "
+        f"Live execution is not implemented yet. "
         "Allowed: dry_run | testnet"
     )

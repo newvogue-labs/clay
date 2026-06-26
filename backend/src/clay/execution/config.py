@@ -18,7 +18,7 @@ class ExecutionConfig:
     @classmethod
     def from_env(cls) -> ExecutionConfig:
         mode = os.environ.get("CLAY_EXECUTION_MODE", "dry_run")
-        if mode not in {"dry_run", "testnet", "live"}:
+        if mode not in {"dry_run", "testnet"}:
             mode = "dry_run"
         return cls(
             mode=mode,
