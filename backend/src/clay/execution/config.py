@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,7 @@ class ExecutionConfig:
     def from_env(cls) -> ExecutionConfig:
         mode = os.environ.get("CLAY_EXECUTION_MODE", "dry_run")
         if mode not in {"dry_run", "testnet"}:
+            logger.warning("CLAY_EXECUTION_MODE=%r rejected, defaulting to dry_run", mode)
             mode = "dry_run"
         return cls(
             mode=mode,

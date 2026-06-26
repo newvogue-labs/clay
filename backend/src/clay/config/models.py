@@ -46,17 +46,3 @@ class RiskConfig(BaseModel):
     kelly: KellyConfig = Field(default_factory=KellyConfig)
     calibration: CalibrationConfig = Field(default_factory=CalibrationConfig)
     session_limits: SessionLimitsConfig = Field(default_factory=SessionLimitsConfig)
-
-
-class ExecutionConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    mode: str = "dry_run"
-    exchange_id: str = "binance_spot"
-    base_url: str = ""
-    api_key: str = ""
-    api_secret: str = ""
-    testnet: bool = False
-    recv_window: int = 5000
-    allow_live_override: bool = False
-    override_state: str | None = None
