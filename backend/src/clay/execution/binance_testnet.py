@@ -41,10 +41,10 @@ class BinanceTestnetExecutionClient:
                     "adjustForTimeDifference": True,
                     "recvWindow": recv_window,
                 },
+                "timeout": 30000,
             }
         )
         self._client.set_sandbox_mode(True)
-        self._client.urls["api"] = self.BASE_URL
 
     async def place_order(
         self,
@@ -117,7 +117,7 @@ class BinanceTestnetExecutionClient:
 
     async def cancel_order(self, symbol: str, order_id: str) -> Any:
         try:
-            response = await self._client.cancel_order(symbol=symbol, order_id=order_id)
+            response = await self._client.cancel_order(id=order_id, symbol=symbol)
         except ccxt.OrderNotFound:
             return {"status": "not_found", "order_id": order_id, "symbol": symbol}
         except ccxt.ExchangeError as exc:

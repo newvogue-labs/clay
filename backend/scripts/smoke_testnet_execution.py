@@ -20,8 +20,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from ccxt.async_support import binance
-
 from clay.execution.binance_testnet import BinanceTestnetExecutionClient
 from clay.execution.models import OrderResult
 
@@ -31,7 +29,7 @@ class SmokeEvidence:
     symbol: str = "BTCUSDT"
     side: str = "buy"
     quantity: float = 0.001
-    limit_price: float = 1.0  # non-marketable: far below market
+    limit_price: float = 50000.0  # non-marketable: below BTC market, above minNotional
     order_type: str = "limit"
     place_result: OrderResult | None = None
     open_orders_before_cancel: list[dict[str, Any]] = field(default_factory=list)
@@ -65,8 +63,10 @@ async def _run() -> SmokeEvidence:
 
     client = BinanceTestnetExecutionClient(api_key=key, api_secret=secret)
     ccxt_client = client._client
+    client_order_id = f"smoke-{int(time.time() * 1000)}"
 
     try:
+        await ccxt_client.load_markets()
         t0 = time.perf_counter()
         evidence.place_result = await client.place_order(
             symbol=evidence.symbol,
@@ -75,7 +75,7 @@ async def _run() -> SmokeEvidence:
             order_type=evidence.order_type,
             price=evidence.limit_price,
             time_in_force="GTC",
-            client_order_id="smoke-001",
+            client_order_id=client_order_id,
         )
         evidence.place_latency_ms = (time.perf_counter() - t0) * 1000
         evidence.rate_limit_weight = getattr(ccxt_client, "last_response_headers", {}).get(
