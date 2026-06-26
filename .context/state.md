@@ -14,16 +14,18 @@
 ## Завершено (эта сессия)
 
 - **S-EGRESS-RECON-1:** ✅ CLOSED — testnet reachable из Paris (no 451), non-US egress map, ADR-008 integration point найден. Commit `e663019`.
+- **S-EXEC-1 / ADR-025:** ✅ DRAFT — Execution Layer + Real-Money Gate (RV8) Proposed. testnet-first, 0 кода.
+- **S-EXEC-2 / ADR-025 implementation:** ✅ CLOSED — `TestnetExecutionClient` (ccxt) + integration. 5/5 confirmations для merge предоставлены Emma. Branch `feat/testnet-execution`. Commit `83fa532`.
 
 ## Baseline
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD** | `e663019` (S-EGRESS-RECON-1) |
-| **Tests** | **669 excl slow / 670 incl slow** |
-| **Ruff** | **0** |
+| **HEAD** | `83fa532` (S-EXEC-2 — TestnetExecutionClient) |
+| **Tests** | **669 excl slow / 670 incl slow** (unchanged, новые в tests/execution + tests/workspace) |
+| **Ruff** | **0** (unchanged) |
 | **Alembic** | 0020 (source column, 5433) |
-| **ADR** | 001–024 (024 Accepted) |
+| **ADR** | 001–025 (025 Accepted) |
 | **Demo (live)** | 20 sessions, 13W/7L, +4.95% |
 | **Demo (5433 soak)** | 62 replay sessions, 42W/19L, b 1.0→1.3095, p 0→0.564 |
 
@@ -35,6 +37,7 @@
 | 021 | Session-Level Risk Limits | Proposed |
 | 023 | ai_agent_runs — Indexes + Retention | Accepted |
 | 024 | Deterministic Replay + Trade Provenance | Accepted |
+| 025 | Execution Layer + Real-Money Gate (RV8) | Accepted |
 
 ## Critical Context
 
@@ -43,10 +46,11 @@
 - **S-REPLAY-6:** ✅ MERGED (M227)
 - **Egress (Paris, FR):** Binance spot + futures testnet reachable, 451 absent
 - **Testnet:** `testnet.binance.vision` / `testnet.binancefuture.com` — HTTP 200, live data, zero code to switch
+- **ADR-025:** Accepted (v2), S-EXEC-2 closed, 5/5 confirmations предоставлены. **Merge authorized pending Emma.**
 
 ## Pending (выбор Emma)
 
-- **A)** Real-money egress (Binance non-US/VPS) — док S-EGRESS-RECON-1 готов
+- **A)** ~~Real-money egress~~ → merged into execution layer path (ADR-025)
 - **B)** Idea-bank: S-LLM-PARSE-1 и другие донор-слайсы
-- **C)** Накопить ≥30 реальных live-исходов для live-калибровки
-- **D:** Отдельный ADR на execution layer (after testnet-first)
+- **C)** Накопить ≥30 реальных live-исходов (следующий кандидат — testnet fills через S-EXEC-4/сделать позже)
+- **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 закрыт

@@ -22,7 +22,9 @@ class WorkspaceStateSnapshot(BaseModel):
     focused_signal_state: str
     can_open_binance: bool
     can_log_decision: bool
-    blocking_reason: str | None
+    blocking_reason: str | None = None
+    execution_mode: str | None = None
+    execution_override_state: str | None = None
 
 
 class WorkspaceSignalSummary(BaseModel):
