@@ -215,12 +215,7 @@ def build_services(
         audit_writer=audit_writer,
         execution_config=execution_config,
     )
-    try:
-        import asyncio
-        asyncio.get_event_loop()
-        asyncio.get_event_loop().run_until_complete(override_service.rehydrate())
-    except RuntimeError:
-        asyncio.run(override_service.rehydrate())
+    override_service.rehydrate()
 
     control_center_service = ControlCenterService(
         runtime_manager=runtime_manager,

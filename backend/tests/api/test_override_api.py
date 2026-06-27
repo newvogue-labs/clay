@@ -213,7 +213,6 @@ def test_override_lifecycle_full_http(client: TestClient) -> None:
         json={"actor": "op-1", "reason": "fire drill"},
     )
     assert req.status_code == 200
-    oid = req.json()["override_id"]
 
     conf = client.post(
         "/workspace/trading/override/confirm",
@@ -244,3 +243,52 @@ def test_override_revoke_422_when_no_active(client: TestClient) -> None:
         json={"actor": "op-1", "reason": "x"},
     )
     assert response.status_code == 422
+
+
+def test_b1_residual_confirm_sets_workspace_gate(app_with_sqlite) -> None:
+    """Confirm override → workspace.execution_override_state=confirmed (real wiring).
+
+    Uses module-level ``override_service`` / ``workspace_service`` (no dependency_overrides).
+    Patches execution_config in-place so ``_is_live_config()`` returns True.
+    """
+    import clay.bootstrap as _bs
+    from clay.execution.config import ExecutionConfig
+
+    live_cfg = ExecutionConfig(mode="live", allow_live_override=True)
+    object.__setattr__(_bs.override_service, "_execution_config", live_cfg)
+    _bs.override_service.rehydrate()
+
+    # Без dependency_overrides: зависимости FastAPI берут module-level singleton
+    # (app_with_sqlite оставляет только get_db_session override)
+    client = TestClient(app_with_sqlite)
+
+    # 1) request
+    r = client.post(
+        "/workspace/trading/override/request",
+        json={"actor": "op-1", "reason": "t"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "pending"
+
+    # 2) confirm → проверяем JSON AND workspace snapshot (D4 manual-only через HTTP)
+    c = client.post(
+        "/workspace/trading/override/confirm",
+        json={"actor": "op-2", "reason": "go"},
+    )
+    assert c.status_code == 200
+    assert c.json()["status"] == "confirmed"
+    assert c.json()["override_id"] is not None
+
+    snap = client.get("/workspace/trading").json()
+    assert snap["workspace_state"]["execution_override_state"] == "confirmed"
+
+    # 3) revoke очищает и override, и workspace gate
+    rv = client.post(
+        "/workspace/trading/override/revoke",
+        json={"actor": "op-1", "reason": "done"},
+    )
+    assert rv.status_code == 200
+    assert rv.json()["status"] is None
+
+    snap = client.get("/workspace/trading").json()
+    assert snap["workspace_state"]["execution_override_state"] is None

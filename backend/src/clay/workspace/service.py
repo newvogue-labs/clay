@@ -321,6 +321,8 @@ class WorkspaceService:
             can_log_decision=can_log_decision
             and focused_signal_state in {"active", "weakening"},
             blocking_reason=base_state.blocking_reason,
+            execution_mode=base_state.execution_mode,
+            execution_override_state=base_state.execution_override_state,
         )
 
     def _build_pair_contexts(self, session: Session) -> list[PairContext]:

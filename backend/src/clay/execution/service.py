@@ -73,7 +73,7 @@ class OverrideService:
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
-    async def rehydrate(self) -> None:
+    def rehydrate(self) -> None:
         """Clear in-memory override state on startup.
 
         Decree D5: armed state is ALWAYS None after restart.

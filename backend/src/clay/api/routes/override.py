@@ -2,7 +2,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from clay.api.dependencies import get_override_service
 from clay.execution.exceptions import ExecutionConfigError

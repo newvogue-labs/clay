@@ -66,7 +66,7 @@ async def test_rehydrate_clears_armed_state(sqlite_session_factory):
         "confirmed", "op", "ovr_x",
         datetime.now(UTC) + timedelta(hours=1),
     ))
-    await svc.rehydrate()
+    svc.rehydrate()
     assert svc.armed_override_id is None
     assert svc.status is None
 
