@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, String, Text
+from sqlalchemy import CheckConstraint, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from clay.db.base import Base
@@ -186,3 +186,35 @@ class AIAgentRun(Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     thinking: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ExecutionOverride(Base):
+    """INSERT-only audit journal for execution_overrides (S-EXEC-3b).
+
+    Logs every state-transition of the execution override lifecycle:
+    requested → confirmed → revoked → expired. Rows are never updated or
+    deleted — append-only for audit fidelity. `audit_id` ties back to the
+    originating audit trail, `expires_at` marks the TTL of the armed state.
+
+    Surrogate PK (`event_id`) keeps identity stable and collision-free
+    even under fixed VirtualClock (no hidden dependency on `created_at`
+    uniqueness).
+    """
+
+    __tablename__ = "execution_overrides"
+    __table_args__ = (
+        Index("ix_execution_overrides_override_created_at", "override_id", "created_at"),
+        Index("ix_execution_overrides_actor_created_at", "actor", "created_at"),
+        {"schema": "ops"},
+    )
+
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    override_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    actor: Mapped[str] = mapped_column(String(255), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    mode_before: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    mode_after: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    audit_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

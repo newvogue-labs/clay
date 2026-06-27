@@ -53,6 +53,11 @@ def test_ops_only_tables_in_retention_window() -> None:
     }
 
 
+def test_execution_overrides_excluded_from_retention() -> None:
+    """Money-gate audit table must never be auto-pruned."""
+    assert "execution_overrides" not in RETENTION_WINDOWS_DAYS
+
+
 # --- OpsRetentionJob prune behaviour ---
 
 

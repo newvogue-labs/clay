@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 
 from sqlalchemy import func
 
-from clay.db.models_ops import AIAgentRun, ConnectorStatusHistory, IngestRun, SourceHealthEvent
+from clay.db.models_ops import (
+    AIAgentRun,
+    ConnectorStatusHistory,
+    ExecutionOverride,
+    IngestRun,
+    SourceHealthEvent,
+)
 
 
 class OpsRepository:
@@ -197,3 +203,29 @@ class OpsRepository:
         if details is None:
             return None
         return json.dumps(details, sort_keys=True, default=str)
+
+
+class OverrideRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def append(self, event: ExecutionOverride) -> None:
+        self.session.add(event)
+        self.session.flush()
+
+    def list_by_override_id(self, override_id: str) -> list[ExecutionOverride]:
+        stmt = (
+            select(ExecutionOverride)
+            .where(ExecutionOverride.override_id == override_id)
+            .order_by(ExecutionOverride.created_at.asc())
+        )
+        return list(self.session.scalars(stmt).all())
+
+    def latest_for_override(self, override_id: str) -> ExecutionOverride | None:
+        stmt = (
+            select(ExecutionOverride)
+            .where(ExecutionOverride.override_id == override_id)
+            .order_by(ExecutionOverride.created_at.desc())
+            .limit(1)
+        )
+        return self.session.scalar(stmt)

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+env_path = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(env_path)
 
 from clay.db.base import Base
 from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation  # noqa: F401 — models imported for Alembic autogenerate target metadata
