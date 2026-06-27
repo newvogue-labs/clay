@@ -2,6 +2,7 @@
 
 import pytest
 
+from clay.execution.binance_testnet import LiveExecutionClient
 from clay.execution.config import ExecutionConfig
 from clay.execution.exceptions import ExecutionConfigError
 from clay.execution.factory import build_execution_client
@@ -52,3 +53,12 @@ def test_build_execution_client_testnet_missing_keys_raises(monkeypatch: pytest.
 def test_build_execution_client_live_raises() -> None:
     with pytest.raises(ExecutionConfigError, match="not implemented"):
         build_execution_client(mode="live")
+
+
+def test_live_execution_client_raises_on_construction() -> None:
+    with pytest.raises(ExecutionConfigError, match="not implemented"):
+        LiveExecutionClient()
+
+
+def test_live_execution_client_source_label() -> None:
+    assert LiveExecutionClient.SOURCE == "live"

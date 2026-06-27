@@ -266,10 +266,11 @@ class DryRunExecutionClient:
         return None
 
 
-class NotImplementedLiveClient:
-    """Placeholder for live execution.
+class LiveExecutionClient:
+    """D7 stub for live execution.
 
     ``live`` mode is intentionally not implemented in this slice.
+    ``__init__`` raises unconditionally — the exchange is never contacted.
     """
 
     SOURCE = "live"

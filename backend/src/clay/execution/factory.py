@@ -5,6 +5,7 @@ import os
 from clay.execution.binance_testnet import (
     BinanceTestnetExecutionClient,
     DryRunExecutionClient,
+    LiveExecutionClient,
 )
 from clay.execution.exceptions import ExecutionConfigError
 from clay.execution.protocol import ExecutionClient
@@ -15,7 +16,8 @@ def build_execution_client(*, mode: str, **overrides: object) -> "ExecutionClien
 
     - ``dry_run`` → ``DryRunExecutionClient`` (no-op)
     - ``testnet`` → ``BinanceTestnetExecutionClient``, requires credentials
-    - ``live`` → raises ``ExecutionConfigError`` (not implemented yet)
+    - ``live`` → ``LiveExecutionClient`` (raises on construction; live not
+      implemented yet — D7)
     """
     if mode == "dry_run":
         return DryRunExecutionClient()
@@ -29,7 +31,8 @@ def build_execution_client(*, mode: str, **overrides: object) -> "ExecutionClien
             api_secret=api_secret,
             recv_window=int(overrides.get("recv_window", 5000)),
         )
+    if mode == "live":
+        return LiveExecutionClient()
     raise ExecutionConfigError(
-        "Live execution is not implemented yet. "
-        "Allowed: dry_run | testnet"
+        f"Unknown execution mode {mode!r}. Allowed: dry_run | testnet | live"
     )
