@@ -18,15 +18,19 @@
 - **S-EXEC-2 / ADR-025 implementation:** ✅ MERGED — `TestnetExecutionClient` (ccxt) + integration. Commit `83fa532` (feat) + `43dce0c` (context/lock). Merge commit `fbd7c7f...`. Branch deleted.
 - **S-EXEC-3a / Config unification:** ✅ MERGED — drop dead Pydantic `ExecutionConfig` from `config/models.py` (−14 lines), add `logger.warning` on live rejection in `execution/config.py`. Merge commit `bc64600` (no-ff). PR #1. Head: `bc64600`.
 - **S-EXEC-4 / Testnet smoke:** ✅ MERGED — live smoke на `testnet.binance.vision`, adapter fixes (timeout, cancel_order, url). Скрипт + gated pytest. Merge commit `b23ef5d...`. Branch deleted.
+- **S-EXEC-3b-1 / Schema + Repository:** ✅ MERGED — `ops.execution_overrides` table + `OverrideRepository`. PR #2. Head: `942177a`.
+- **S-EXEC-3b-2 / OverrideService state machine:** ✅ MERGED — `OverrideService` с state machine, `rehydrate()`, 29 unit tests. PR #3. Head: `738fe1f`.
+- **S-EXEC-3b-3 / API + wiring:** ✅ MERGED — override request/confirm/revoke endpoints, WorkspaceService integration, B1 wiring test, sync rehydrate, wire-fix. PR #4. Head: `223ccb9` (merge commit).
+- **S-EXEC-3b-4 / LiveExecutionClient stub:** ✅ COMMITTED — `NotImplementedLiveClient` → `LiveExecutionClient` (D7 stub), factory wiring, B1-teardown `try/finally`. Commit `63e5871` (direct to main, 3b-4 = last slice).
 
 ## Baseline
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD** | `bc64600` (S-EXEC-3a merge: unify ExecutionConfig) |
-| **Tests** | **682 passed excl slow / 2 deselected / 1 skipped smoke** |
+| **HEAD** | `63e5871` (S-EXEC-3b-4: LiveExecutionClient stub + factory wiring) |
+| **Tests** | **734 passed excl slow / 2 deselected / 0 skipped** |
 | **Ruff** | **0** |
-| **Alembic** | 0020 (source column, 5433) |
+| **Alembic** | 0021 (execution_overrides, 5433) |
 | **ADR** | 001–025 (025 Accepted) |
 | **Demo (live)** | 20 sessions, 13W/7L, +4.95% |
 | **Demo (5433 soak)** | 62 replay sessions, 42W/19L, b 1.0→1.3095, p 0→0.564 |
@@ -55,6 +59,6 @@
 
 - **A)** ~~Real-money egress~~ → merged into execution layer path (ADR-025)
 - **B)** Idea-bank: S-LLM-PARSE-1 и другие донор-слайсы
-- **C)** Накопить ≥30 реальных live-исходов (S-EXEC-4 smoke доказал адаптер; следующий шаг — S-EXEC-3b override)
-- **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 + S-EXEC-3a + S-EXEC-4 merged
-- **→ Следующий слайс:** S-EXEC-3b (OverrideService + SQL audit + API endpoints) — design-confirm одобренEmma, запаркован в Том 2
+- **C)** Накопить ≥30 реальных live-исходов (S-EXEC-4 smoke доказал адаптер; S-EXEC-3b override chain закрыт)
+- **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 + S-EXEC-3a + S-EXEC-4 + S-EXEC-3b merged
+- **→ Следующий слайс:** S-EXEC-3c (frontend TS-parity: override-баннер, confirm-модалка, `execution_override_expires_at` в snapshot)

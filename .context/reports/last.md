@@ -1,59 +1,72 @@
-# Отчёт: сессия 2026-06-26 — S-EXEC-3a merged + PR #1
+# Отчёт: сессия 2026-06-27 — S-EXEC-3b-3 + S-EXEC-3b-4 MERGED/committed
 
 ## Что сделано
 
-### S-EXEC-3a — MERGED — unify ExecutionConfig (DROP dead Pydantic twin + add live-rejection warning)
+### S-EXEC-3b-3 / Override API + wiring — MERGED (PR #4)
 
-Merge commit `bc64600` (no-ff) в `main`. Branch `feature/S-EXEC-3a-unify-config` удалена (локально + remote).
+Merge commit `223ccb9` (no-ff) в `main`. Branch `feature/S-EXEC-3b-3-override-api-wiring` удалена (локально + remote).
+
+#### Детали изменения (3 раунда ревью)
+
+| Раунд | SHA | Ключевые фиксы |
+|-------|-----|----------------|
+| 1 | `573222e` | Начальная имплементация: routes + bootstrap + WorkspaceService |
+| 2 | `e076af5` | S1 (убрать route-level audit), S2 (public accessors), S3 (убрать db_session), S4 (OverrideResponse), N2 (sync rehydrate placeholder) |
+| 3 | `4db0838` | B1-residual тест (real wiring), S5 (rehydrate синхронный), wire-fix (`_refine_workspace_state` форвардит поля), nit-очистка (F401/F841) |
+| 4 | `20f8853` | B1-teardown: restore `original_cfg` в teardown; full suite 732/2-deselected/ruff 0 |
+
+#### Констрейнты
+
+- D4 ✅: manual-only, 3 endpoints, advisory/signal НЕ вызывают автоматически
+- D5 ✅: `rehydrate()` clears state; armed state требует явного request→confirm
+- D2/D7 ✅: `is_live_eligible()` дремлет; mode live только через env clamping (недостижим в проде)
+- 0 миграций (кроме 3b-1), 0 LiveExecutionClient в 3b-3
+- Single audit source (OverrideRepository + JSONL secondary)
+
+#### Регресс-база
+
+- **Full offline-suite:** **734 passed / 2 deselected / ruff 0**
+- **API + execution + workspace subset:** 130 passed / 1 skipped
+- **D9-матрица (eligibility):** 6 тестов в `test_override_service.py` (confirmed/pending/expired/dry_run)
+
+---
+
+### S-EXEC-3b-4 / LiveExecutionClient stub — COMMITTED (direct to main)
+
+Commit `63e5871` (последний слайс 3b-цепочки, merge не требовался).
 
 #### Детали изменения
 
 | Файл | Δ | Описание |
 |------|---|----------|
-| `backend/src/clay/config/models.py` | −14 строк | Удалён мёртвый Pydantic `ExecutionConfig(BaseModel)` (lines 51-62). 0 production-readers (D8 corroborated independently). |
-| `backend/src/clay/execution/config.py` | +4 строки | `import logging`, `logger = logging.getLogger(__name__)`, `logger.warning("CLAY_EXECUTION_MODE=%r rejected, defaulting to dry_run", mode)` при отклонении live/testnet. Кламп `{dry_run, testnet}` уже существовал (C2). |
+| `binance_testnet.py` | +4 -5 | `NotImplementedLiveClient` → `LiveExecutionClient` (D7 stub, docstring) |
+| `factory.py` | +2 -2 | Импорт `LiveExecutionClient`; live-ветка → `return LiveExecutionClient()` |
+| `test_execution_config.py` | +10 | +2 теста: конструкция raises + SOURCE label |
+| `test_override_api.py` | +77 -62 | B1-teardown: `try/except` → настоящий `try/finally` |
 
-#### Регресс-база (Emma checkpoint)
+#### D9-матрица (factory)
 
-**Full offline-suite (без ключей):**
-- `pytest -q -m "not slow"` → **682 passed, 2 deselected (slow), 88.97s**
-- `test_testnet_execution_smoke` → **skipped** (нет ключей), main зелёный
-- ruff → **0** (все checks passed на обоих файлах)
-
-**Targeted tests (S-EXEC-3a):**
-- `backend/tests/execution/test_execution_config.py` — 6 passed
-- `backend/tests/workspace/test_workspace_execution.py` — 3 passed
-- `backend/tests/execution/test_binance_testnet.py` — 3 passed
+| # | Сценарий | Результат |
+|---|----------|-----------|
+| (a) | `build_execution_client(mode="live")` | `ExecutionConfigError "not implemented"` ✅ |
+| (b) live + NOT eligible | не в scope (eligibility живёт в OverrideService.is_live_eligible) | — |
+| (c) live + eligible | D7 — всё равно raises (через LiveExecutionClient.__init__) | ✅ |
+| (d) | testnet/dry_run | не тронуты ✅ |
+| (e) | `from_env()` с live | clamp→dry_run ✅ |
 
 #### Констрейнты
 
-- D8 ✅: Pydantic `ExecutionConfig` удалён (corroborated: 0 prod-readers на main)
-- C1 ✅: override-полей не добавлено (живут в `OverrideService` → S-EXEC-3b)
-- C2 ✅: `logger.warning` на rejected mode (observability; поведение не меняет)
-- `DEFAULT_READ_SCOPE = frozenset({"baseline", "live"})` ✅ — не тронут
+- D7 ✅: live-фабрика всегда падает (низкоуровневый raise в `LiveExecutionClient.__init__`)
+- D2 ✅: mode ⊥ override — env не армит live; override-gate — отдельная ось
+- `is_live_eligible()` — дремлющий предикат (6 unit тестов), не троган
+- 0 миграций, 0 frontend
 
-#### PR & Review
-
-- PR #1: https://github.com/newvogue-labs/clay/pull/1
-- Agent ran full suite before merge (682 passed).
-- Emma review：C2 premise corrected (clamp `{dry_run, testnet}` confirmed on main; live already rejected). D8 corroborated independently.
-- `loadPR`/`loadCommit` showed config.py diff; models.py diff not visible via connector (fallback limitation verified). Post-merge verification on `bc64600` pending (models.py must show Pydantic `ExecutionConfig` absent).
-
-#### Observation logged
-
-- `observations/2026-06/obs-2026-06-26-002-exec-config-unify.md` — D8 recon + C2 correction + connector fallback lesson.
-
-### S-EXEC-3a design-confirm review history (эта сессия)
-
-1. Agent presented 3a design-confirm post-revision (D1/D3/D8 closed).
-2. Emma review: C1 (scope-bleed: remove override-fields from 3a), C2 (add clamp to from_env), C3 (explicit grep-enumeration before deletion).
-3. Agent recon on main: D8 corroborated (CONFIG_MODELS = runtime+risk, 0 prod-readers), C2 premise corrected — clamp already exists (`{dry_run, testnet}`), Emma's C2 was based on misread of set.
-4. Impl: 2 files, 18 lines. Full suite green.
-5. PR #1 created, Emma review: merge authorized (behavioral change in config.py verified; models.py deletion not visible via connector but 0-reader risk accepted).
-6. PR merged no-ff → `bc64600`. Branch deleted locally + remote.
+---
 
 ## Итог
 
-**HEAD `bc64600` (S-EXEC-3a merge).** 682 passed excl slow, 2 deselected slow, 1 skipped smoke. ruff 0.
+**HEAD `63e5871` (S-EXEC-3b-4 committed).** 734 passed excl slow, 2 deselected slow, ruff 0.
 
-**Next: S-EXEC-3b** — design-confirm одобренEmma, запаркован в Том 2. OverrideService + SQL audit (`ops.execution_overrides`) + API endpoints + default-deny на рестарт (D5). Ждёт approval на design-confirm 3b после M241 post-merge сверки.
+**S-EXEC-3b цепочка полностью закрыта:** 3a → 3b-1 → 3b-2 → 3b-3 → **3b-4 ✅**
+
+**Next: S-EXEC-3c** — frontend TS-parity: override-баннер, confirm-модалка, `execution_override_expires_at` в WorkspaceStateSnapshot.
