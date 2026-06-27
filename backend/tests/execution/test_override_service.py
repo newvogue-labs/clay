@@ -68,7 +68,7 @@ async def test_rehydrate_clears_armed_state(sqlite_session_factory):
     ))
     await svc.rehydrate()
     assert svc.armed_override_id is None
-    assert svc._state.status is None
+    assert svc.status is None
 
 
 # ── request ────────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ async def test_request_returns_override_id(sqlite_session_factory):
 async def test_request_sets_status_pending(sqlite_session_factory):
     svc = _svc(session_factory=sqlite_session_factory)
     await svc.request_override(actor="op", reason="test")
-    assert svc._state.status == "pending"
+    assert svc.status == "pending"
 
 
 @pytest.mark.asyncio
@@ -157,8 +157,8 @@ async def test_confirm_sets_expires_at_and_confirmed(sqlite_session_factory):
     after = datetime.now(UTC) + timedelta(hours=1, seconds=1)
 
     assert result == svc._state.override_id
-    assert svc._state.status == "confirmed"
-    assert before <= svc._state.expires_at <= after
+    assert svc.status == "confirmed"
+    assert before <= svc.expires_at <= after
 
 
 @pytest.mark.asyncio
@@ -203,7 +203,7 @@ async def test_revoke_clears_state(sqlite_session_factory):
 
     await svc.revoke_override(actor="op", reason="done")
     assert svc.armed_override_id is None
-    assert svc._state.status is None
+    assert svc.status is None
 
 
 @pytest.mark.asyncio
@@ -252,7 +252,7 @@ async def test_confirmed_not_expired_before_ttl():
     ))
     result = await svc.maybe_expire()
     assert result is None
-    assert svc._state.status == "confirmed"
+    assert svc.status == "confirmed"
 
 
 @pytest.mark.asyncio
@@ -266,7 +266,7 @@ async def test_confirmed_expires_after_ttl(audit_writer):
     clock.tick(timedelta(hours=1, seconds=1))
     result = await svc.maybe_expire()
     assert result == "ovr_x"
-    assert svc._state.status is None
+    assert svc.status is None
     assert svc.armed_override_id is None
 
 
@@ -340,14 +340,14 @@ async def test_full_lifecycle_request_confirm_revoke(sqlite_session_factory):
     svc = _svc(session_factory=sqlite_session_factory)
 
     oid = await svc.request_override(actor="op_a", reason="fire drill")
-    assert svc._state.status == "pending"
+    assert svc.status == "pending"
 
     await svc.confirm_override(actor="op_b")
-    assert svc._state.status == "confirmed"
+    assert svc.status == "confirmed"
     assert svc.armed_override_id == oid
 
     await svc.revoke_override(actor="op_a", reason="all clear")
-    assert svc._state.status is None
+    assert svc.status is None
     assert svc.armed_override_id is None
 
     with sqlite_session_factory() as session:
@@ -363,7 +363,7 @@ async def test_confirm_is_explicit_no_auto():
     svc = _svc()
     await svc.request_override(actor="op", reason="test")
     # Status stays pending until explicit confirm() call
-    assert svc._state.status == "pending"
+    assert svc.status == "pending"
     assert svc.armed_override_id is None
 
 
@@ -373,7 +373,7 @@ async def test_revoke_is_explicit_no_auto():
     await svc.request_override(actor="op", reason="test")
     await svc.confirm_override(actor="op")
     # Status stays confirmed until explicit revoke() call
-    assert svc._state.status == "confirmed"
+    assert svc.status == "confirmed"
     assert svc.armed_override_id is not None
 
 

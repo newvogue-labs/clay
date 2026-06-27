@@ -264,6 +264,14 @@ class OverrideService:
         """Explicit degraded check for consumers (D7)."""
         return self._is_degraded()
 
+    @property
+    def status(self) -> str | None:
+        return self._state.status
+
+    @property
+    def expires_at(self) -> datetime | None:
+        return self._state.expires_at
+
     # ── private ────────────────────────────────────────────────────────────
 
     def _is_live_config(self) -> bool:

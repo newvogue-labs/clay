@@ -38,6 +38,7 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.execution.config import ExecutionConfig
 from clay.execution.factory import build_execution_client
+from clay.execution.service import OverrideService
 from clay.health.monitor import HealthMonitor
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
@@ -209,6 +210,17 @@ def build_services(
         api_secret=execution_config.api_secret,
         recv_window=execution_config.recv_window,
     )
+    override_service = OverrideService(
+        session_factory=session_factory,
+        audit_writer=audit_writer,
+        execution_config=execution_config,
+    )
+    try:
+        import asyncio
+        asyncio.get_event_loop()
+        asyncio.get_event_loop().run_until_complete(override_service.rehydrate())
+    except RuntimeError:
+        asyncio.run(override_service.rehydrate())
 
     control_center_service = ControlCenterService(
         runtime_manager=runtime_manager,
@@ -241,6 +253,7 @@ def build_services(
         signal_engine_service=signal_engine_service,
         session_factory=session_factory,
         execution_config=execution_config,
+        override_service=override_service,
     )
     session_control_service = SessionControlService(
         runtime_manager=runtime_manager,
@@ -334,6 +347,7 @@ def build_services(
         "alpha_readiness_service": alpha_readiness_service,
         "execution_config": execution_config,
         "execution_client": execution_client,
+        "override_service": override_service,
     }
 
 
@@ -379,3 +393,4 @@ signal_engine_service = _services["signal_engine_service"]
 supervisor = _services["supervisor"]
 validation_lab_service = _services["validation_lab_service"]
 workspace_service = _services["workspace_service"]
+override_service = _services["override_service"]
