@@ -9,6 +9,8 @@ from clay.api.routes.workspace import (
     get_trading_workspace_snapshot,
     set_focus_pair,
 )
+from clay.execution.config import ExecutionConfig
+from clay.execution.service import OverrideService
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
@@ -41,6 +43,12 @@ def build_workspace_service() -> WorkspaceService:
         audit_writer=AuditWriter(config_loader.paths.state_dir),
         event_bus=EventBus(),
     )
+    execution_config = ExecutionConfig(mode="dry_run", allow_live_override=False)
+    override_service = OverrideService(
+        session_factory=None,
+        audit_writer=None,
+        execution_config=execution_config,
+    )
     return WorkspaceService(
         runtime_manager=RuntimeManager(registry=registry),
         preflight_service=PreflightService(registry),
@@ -51,6 +59,8 @@ def build_workspace_service() -> WorkspaceService:
             config_loader=config_loader,
             ai_control_service=ai_control_service,
         ),
+        execution_config=execution_config,
+        override_service=override_service,
     )
 
 

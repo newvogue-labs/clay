@@ -33,6 +33,7 @@ from clay.api.routes.validation_lab import router as validation_lab_router
 from clay.api.routes.validation_lab_stream import router as validation_lab_stream_router
 from clay.api.routes.workspace import router as workspace_router
 from clay.api.routes.workspace_stream import router as workspace_stream_router
+from clay.api.routes.override import router as override_router
 
 
 def create_app() -> FastAPI:
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(validation_lab_stream_router)
     app.include_router(workspace_router)
     app.include_router(workspace_stream_router)
+    app.include_router(override_router)
     return app
 
 

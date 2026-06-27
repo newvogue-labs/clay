@@ -16,6 +16,7 @@ from clay.bootstrap import (
     ingestion_settings,
     knowledge_service,
     market_ingestion_service,
+    override_service,
     reliability_service,
     session_control_service,
     session_review_service,
@@ -30,6 +31,7 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.execution.config import ExecutionConfig
 from clay.execution.protocol import ExecutionClient
+from clay.execution.service import OverrideService
 from clay.ingestion.context.manager import ContextConnectorManager
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
@@ -121,6 +123,10 @@ def get_execution_config() -> ExecutionConfig:
 
 def get_execution_client() -> ExecutionClient:
     return execution_client
+
+
+def get_override_service() -> OverrideService:
+    return override_service
 
 
 def get_reliability_service() -> ReliabilityService:

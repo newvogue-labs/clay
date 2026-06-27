@@ -3,6 +3,7 @@ from datetime import datetime
 
 from clay.core.clock import Clock, SystemClock
 from clay.execution.config import ExecutionConfig
+from clay.execution.service import OverrideService
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -81,6 +82,7 @@ class WorkspaceService:
         session_factory: sessionmaker | None = None,
         clock: Clock | None = None,
         execution_config: ExecutionConfig | None = None,
+        override_service: OverrideService | None = None,
     ) -> None:
         self.runtime_manager = runtime_manager
         self._clock = clock or SystemClock()
@@ -89,6 +91,7 @@ class WorkspaceService:
         self.signal_engine_service = signal_engine_service
         self.session_factory = session_factory
         self.execution_config = execution_config
+        self.override_service = override_service
         # ``_focus_symbol`` / ``_focus_source`` / ``_selected_signal_id`` are
         # restored from the ``ops.workspace_focus`` singleton row when a
         # ``session_factory`` is supplied. Without one (legacy callers and
@@ -255,9 +258,11 @@ class WorkspaceService:
         execution_override_state: str | None = None
         if self.execution_config is not None:
             execution_mode = self.execution_config.mode
-            execution_override_state = (
-                self.execution_config.override_state if hasattr(self.execution_config, "override_state") else None
-            )
+            if self.override_service is not None:
+                armed_id = self.override_service.armed_override_id
+                execution_override_state = "confirmed" if armed_id is not None else None
+            else:
+                execution_override_state = None
         if (
             runtime_snapshot.state is RuntimeState.DEGRADED
             or preflight.status == "hard_fail"
@@ -316,6 +321,8 @@ class WorkspaceService:
             can_log_decision=can_log_decision
             and focused_signal_state in {"active", "weakening"},
             blocking_reason=base_state.blocking_reason,
+            execution_mode=base_state.execution_mode,
+            execution_override_state=base_state.execution_override_state,
         )
 
     def _build_pair_contexts(self, session: Session) -> list[PairContext]:

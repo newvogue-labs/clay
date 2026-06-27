@@ -73,7 +73,7 @@ class OverrideService:
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
-    async def rehydrate(self) -> None:
+    def rehydrate(self) -> None:
         """Clear in-memory override state on startup.
 
         Decree D5: armed state is ALWAYS None after restart.
@@ -263,6 +263,14 @@ class OverrideService:
     def is_degraded(self) -> bool:
         """Explicit degraded check for consumers (D7)."""
         return self._is_degraded()
+
+    @property
+    def status(self) -> str | None:
+        return self._state.status
+
+    @property
+    def expires_at(self) -> datetime | None:
+        return self._state.expires_at
 
     # ── private ────────────────────────────────────────────────────────────
 
