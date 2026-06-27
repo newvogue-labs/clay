@@ -249,14 +249,20 @@ def test_b1_residual_confirm_sets_workspace_gate(app_with_sqlite) -> None:
     """Confirm override → workspace.execution_override_state=confirmed (real wiring).
 
     Uses module-level ``override_service`` / ``workspace_service`` (no dependency_overrides).
-    Patches execution_config in-place so ``_is_live_config()`` returns True.
+    Patches execution_config in-place so ``_is_live_config()`` returns True;
+    restores original config in teardown to avoid state leak.
     """
     import clay.bootstrap as _bs
     from clay.execution.config import ExecutionConfig
 
+    original_cfg = _bs.override_service._execution_config
     live_cfg = ExecutionConfig(mode="live", allow_live_override=True)
-    object.__setattr__(_bs.override_service, "_execution_config", live_cfg)
-    _bs.override_service.rehydrate()
+    try:
+        object.__setattr__(_bs.override_service, "_execution_config", live_cfg)
+        _bs.override_service.rehydrate()
+    except Exception:
+        object.__setattr__(_bs.override_service, "_execution_config", original_cfg)
+        raise
 
     # Без dependency_overrides: зависимости FastAPI берут module-level singleton
     # (app_with_sqlite оставляет только get_db_session override)
@@ -292,3 +298,6 @@ def test_b1_residual_confirm_sets_workspace_gate(app_with_sqlite) -> None:
 
     snap = client.get("/workspace/trading").json()
     assert snap["workspace_state"]["execution_override_state"] is None
+
+    object.__setattr__(_bs.override_service, "_execution_config", original_cfg)
+    _bs.override_service.rehydrate()
