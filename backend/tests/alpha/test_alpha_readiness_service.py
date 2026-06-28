@@ -5,6 +5,7 @@ from pathlib import Path
 import httpx
 
 from clay.ai_control.service import AIControlService
+from tests.support.factories import make_ingestion_settings
 from clay.alpha.service import AlphaReadinessService
 from clay.api.dependencies import (
     get_alpha_readiness_service,
@@ -36,7 +37,6 @@ from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
 from clay.runtime.manager import RuntimeManager
-from clay.settings.ingestion import IngestionSettings
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
@@ -142,7 +142,7 @@ def build_alpha_bundle(tmp_path: Path) -> dict[str, object]:
         supervisor=supervisor,
         config_loader=config_loader,
         audit_writer=audit_writer,
-        ingestion_settings=IngestionSettings(),
+        ingestion_settings=make_ingestion_settings(),
     )
     reliability_service = ReliabilityService(
         control_center_service=control_center_service,

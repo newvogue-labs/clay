@@ -22,9 +22,9 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from clay.ingestion.market.exchange_config import ExchangeConfig
+from tests.support.factories import make_ingestion_settings
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
-from clay.settings.ingestion import IngestionSettings
 
 
 class _ThrowingBinanceClient:
@@ -87,7 +87,7 @@ def _reset_sleep_tracker() -> None:
 @pytest.mark.anyio
 async def test_429_with_retry_after_uses_capped_delay() -> None:
     """429 + Retry-After "2" → sleep with 2.0."""
-    settings = IngestionSettings(binance_retry_after_cap_seconds=60.0)
+    settings = make_ingestion_settings(binance_retry_after_cap_seconds=60.0)
     client = _ThrowingBinanceClient(
         error=_make_rate_limit_error(retry_after="2"),
     )
@@ -126,7 +126,7 @@ async def test_429_with_retry_after_uses_capped_delay() -> None:
 @pytest.mark.anyio
 async def test_429_without_retry_after_falls_back_to_default() -> None:
     """429 without Retry-After header → sleep with 0.5 (default)."""
-    settings = IngestionSettings(market_fetch_retry_delay_seconds=0.5)
+    settings = make_ingestion_settings(market_fetch_retry_delay_seconds=0.5)
     client = _ThrowingBinanceClient(error=_make_rate_limit_error())
     service = IngestionCycleService(
         settings=settings,
@@ -163,7 +163,7 @@ async def test_429_without_retry_after_falls_back_to_default() -> None:
 @pytest.mark.anyio
 async def test_429_with_retry_above_cap_is_capped() -> None:
     """429 + Retry-After "300" (cap 60) → sleep with 60.0."""
-    settings = IngestionSettings(binance_retry_after_cap_seconds=60.0)
+    settings = make_ingestion_settings(binance_retry_after_cap_seconds=60.0)
     client = _ThrowingBinanceClient(error=_make_rate_limit_error(retry_after="300"))
     service = IngestionCycleService(
         settings=settings,
@@ -200,7 +200,7 @@ async def test_429_with_retry_above_cap_is_capped() -> None:
 @pytest.mark.anyio
 async def test_generic_500_uses_default_delay() -> None:
     """500 → sleep with 0.5 (unchanged behaviour)."""
-    settings = IngestionSettings(market_fetch_retry_delay_seconds=0.5)
+    settings = make_ingestion_settings(market_fetch_retry_delay_seconds=0.5)
     client = _ThrowingBinanceClient(error=_make_rate_limit_error(status_code=500))
     service = IngestionCycleService(
         settings=settings,
@@ -239,7 +239,7 @@ async def test_retry_succeeds_on_second_attempt_after_429() -> None:
     """429 on 1st attempt → retry → succeeds on 2nd → returns data."""
     error = _make_rate_limit_error(retry_after="1")
     client = _SequentialThrowingBinanceClient(error=error, fail_count=1)
-    settings = IngestionSettings(
+    settings = make_ingestion_settings(
         market_fetch_max_attempts=2, binance_retry_after_cap_seconds=60.0
     )
     service = IngestionCycleService(
@@ -277,7 +277,7 @@ async def test_retry_exhausted_raises_and_per_symbol_isolation() -> None:
     """429 × 2 attempts → exhausted → exception → isolated via _MarketBatch."""
     error = _make_rate_limit_error(retry_after="1")
     client = _ThrowingBinanceClient(error=error)
-    settings = IngestionSettings(market_fetch_max_attempts=2)
+    settings = make_ingestion_settings(market_fetch_max_attempts=2)
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
@@ -316,7 +316,7 @@ async def test_retry_exhausted_logs_per_attempt_warning_and_final_error() -> Non
     """MP4 site 2: per-attempt warning + final error on full retry exhaustion."""
     error = _make_rate_limit_error(retry_after="1")
     client = _ThrowingBinanceClient(error=error)
-    settings = IngestionSettings(market_fetch_max_attempts=3)
+    settings = make_ingestion_settings(market_fetch_max_attempts=3)
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
@@ -369,7 +369,7 @@ async def test_collect_market_bars_logs_warning_on_fetch_failure() -> None:
     """MP4 site 1: _collect_market_bars logs warning before packing error into batch."""
     error = _make_rate_limit_error(retry_after="1")
     client = _ThrowingBinanceClient(error=error)
-    settings = IngestionSettings(market_fetch_max_attempts=1)
+    settings = make_ingestion_settings(market_fetch_max_attempts=1)
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(

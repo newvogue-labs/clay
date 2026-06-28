@@ -4,7 +4,7 @@ from clay.ingestion.market.binance_client import BinanceSpotClient
 from clay.ingestion.market.bybit_client import BybitClient
 from clay.ingestion.market.exchange_config import ExchangeConfig
 from clay.ingestion.market.factory import build_exchanges_map, build_market_client
-from clay.settings.ingestion import IngestionSettings
+from tests.support.factories import make_ingestion_settings
 
 
 def test_build_market_client_returns_binance_spot_client() -> None:
@@ -55,7 +55,7 @@ def test_build_market_client_raises_on_unknown_exchange() -> None:
 
 def test_build_exchanges_map_creates_single_binance_entry() -> None:
     """``bybit_spot_enabled`` defaults to False — only Binance entry."""
-    settings = IngestionSettings(
+    settings = make_ingestion_settings(
         binance_spot_enabled=True,
         market_symbols=["BTCUSDT"],
         market_timeframes=["5m"],
@@ -74,7 +74,7 @@ def test_build_exchanges_map_creates_single_binance_entry() -> None:
 
 def test_build_exchanges_map_includes_bybit_when_enabled() -> None:
     """``bybit_spot_enabled=True`` adds second entry with correct insertion order."""
-    settings = IngestionSettings(
+    settings = make_ingestion_settings(
         binance_spot_enabled=True,
         bybit_spot_enabled=True,
         market_symbols=["BTCUSDT"],

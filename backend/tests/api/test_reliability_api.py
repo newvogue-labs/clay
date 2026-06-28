@@ -16,13 +16,13 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
+from tests.support.factories import make_ingestion_settings
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
 from clay.session_control.service import SessionControlService
 from clay.session_review.service import SessionReviewService
-from clay.settings.ingestion import IngestionSettings
 from clay.signal_engine.service import SignalEngineService
 from clay.validation_lab.models import ValidationRunCommand
 from clay.validation_lab.service import ValidationLabService
@@ -122,7 +122,7 @@ def build_reliability_bundle(tmp_path: Path) -> dict[str, object]:
         supervisor=supervisor,
         config_loader=config_loader,
         audit_writer=audit_writer,
-        ingestion_settings=IngestionSettings(),
+        ingestion_settings=make_ingestion_settings(),
     )
     reliability_service = ReliabilityService(
         control_center_service=control_center_service,

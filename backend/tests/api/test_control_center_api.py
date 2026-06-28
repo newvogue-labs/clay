@@ -16,6 +16,7 @@ from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
 from clay.settings.ingestion import IngestionSettings
+from tests.support.factories import make_ingestion_settings
 
 
 def build_control_center_service(
@@ -63,7 +64,7 @@ def build_control_center_service(
         supervisor=supervisor,
         config_loader=config_loader,
         audit_writer=audit_writer,
-        ingestion_settings=ingestion_settings or IngestionSettings(),
+        ingestion_settings=ingestion_settings or make_ingestion_settings(),
     )
 
 
@@ -184,7 +185,7 @@ def test_control_center_tight_threshold_flips_fresh_to_stale(
     sqlite_session_factory,
     tmp_path: Path,
 ) -> None:
-    tight_settings = IngestionSettings(market_freshness_5m_minutes=1)
+    tight_settings = make_ingestion_settings(market_freshness_5m_minutes=1)
     service = build_control_center_service(
         tmp_path,
         ingestion_settings=tight_settings,

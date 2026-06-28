@@ -28,7 +28,6 @@ from sqlalchemy.orm import sessionmaker
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
-from clay.settings.ingestion import IngestionSettings
 from clay.config.loader import ConfigLoader
 from clay.config.paths import XdgPaths
 from clay.control_center.service import ControlCenterService
@@ -38,6 +37,7 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
+from tests.support.factories import make_ingestion_settings
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
@@ -146,7 +146,7 @@ def build_service(session_factory: sessionmaker, tmp_path: Path) -> ReliabilityS
         supervisor=supervisor,
         config_loader=config_loader,
         audit_writer=audit_writer,
-        ingestion_settings=IngestionSettings(),
+        ingestion_settings=make_ingestion_settings(),
     )
 
     return ReliabilityService(

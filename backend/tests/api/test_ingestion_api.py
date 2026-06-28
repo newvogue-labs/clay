@@ -10,6 +10,7 @@ from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
 from clay.settings.ingestion import IngestionSettings
+from tests.support.factories import make_ingestion_settings
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
 from clay.ingestion.context.manager import ContextConnectorManager
@@ -164,7 +165,7 @@ def test_storage_backed_read_routes_return_seeded_data(
     shortlist_payload = asyncio.run(
         get_shortlist_metrics(
             session=db_session,
-            settings=IngestionSettings(),
+            settings=make_ingestion_settings(),
             limit=20,
         ),
     )

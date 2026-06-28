@@ -21,7 +21,7 @@ import pytest
 
 from clay.ingestion.market.binance_client import BinanceSpotClient
 from clay.ingestion.market.models import NormalizedMarketBar
-from clay.settings.ingestion import IngestionSettings
+from tests.support.factories import make_ingestion_settings
 
 
 @pytest.mark.anyio
@@ -161,7 +161,9 @@ async def test_fetch_klines_uses_custom_base_url_from_setting() -> None:
         called_url = str(request.url)
         return httpx.Response(200, json=[])
 
-    settings = IngestionSettings(binance_base_url="https://data-api.binance.vision")
+    settings = make_ingestion_settings(
+        binance_base_url="https://data-api.binance.vision"
+    )
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as mock_client:
         client = BinanceSpotClient(
             base_url=settings.binance_base_url,

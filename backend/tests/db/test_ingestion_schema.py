@@ -9,10 +9,11 @@ from clay.db.models_review import SignalFeedback
 from clay.db.models_validation import ActivationReview, ValidationRun
 from clay.db.session import build_engine, build_session_factory
 from clay.settings.ingestion import IngestionSettings
+from tests.support.factories import make_ingestion_settings
 
 
 def test_ingestion_settings_expose_v1_timeframes() -> None:
-    settings = IngestionSettings()
+    settings = make_ingestion_settings()
 
     assert settings.market_timeframes == ["5m", "15m", "1h"]
     assert settings.market_symbols == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
