@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from clay.audit.writer import AuditWriter
 from clay.api.routes.control_center import get_control_center_overview
@@ -142,7 +143,9 @@ def test_control_center_overview_returns_operator_snapshot(
             recorded_at=now,
         )
         session.commit()
-        payload = asyncio.run(get_control_center_overview(session, service))
+        payload: dict[str, Any] = asyncio.run(
+            get_control_center_overview(session, service)
+        )
 
     assert payload["summary"]["runtime_state"] == "background_monitoring"
     assert payload["summary"]["overall_status"] == "degraded"
@@ -174,7 +177,9 @@ def test_control_center_recomputes_stale_market_freshness(
             is_stale=False,
         )
         session.commit()
-        payload = asyncio.run(get_control_center_overview(session, service))
+        payload: dict[str, Any] = asyncio.run(
+            get_control_center_overview(session, service)
+        )
 
     assert payload["ingestion"]["market_status"] == "stale"
     assert payload["ingestion"]["blocks_active_trading"] is True
@@ -204,7 +209,9 @@ def test_control_center_tight_threshold_flips_fresh_to_stale(
             is_stale=False,
         )
         session.commit()
-        payload = asyncio.run(get_control_center_overview(session, service))
+        payload: dict[str, Any] = asyncio.run(
+            get_control_center_overview(session, service)
+        )
 
     assert payload["ingestion"]["market_status"] == "stale"
     assert payload["ingestion"]["blocks_active_trading"] is True
@@ -232,7 +239,9 @@ def test_control_center_ignores_resolved_incidents_in_active_counts(
             resolution_message="Market ingest recovered after successful refresh.",
         )
         session.commit()
-        payload = asyncio.run(get_control_center_overview(session, service))
+        payload: dict[str, Any] = asyncio.run(
+            get_control_center_overview(session, service)
+        )
 
     assert payload["summary"]["active_incident_count"] == 0
     assert payload["summary"]["critical_incident_count"] == 0

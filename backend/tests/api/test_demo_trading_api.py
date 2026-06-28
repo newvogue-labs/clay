@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from clay.ai_control.service import AIControlService
 from clay.api.routes.demo_trading import (
@@ -161,7 +162,9 @@ def test_demo_trading_overview_route_returns_snapshot(
     demo_trading_service, _ = build_demo_service(tmp_path)
     seed_demo_data(db_session)
 
-    payload = asyncio.run(get_demo_trading_overview(db_session, demo_trading_service))
+    payload: dict[str, Any] = asyncio.run(
+        get_demo_trading_overview(db_session, demo_trading_service)
+    )
 
     assert payload["readiness"]["status"] == "collecting"
     assert payload["active_session"]["can_log_decision"] is False
@@ -175,7 +178,7 @@ def test_demo_trading_route_flow_logs_and_ingests_results(
     seed_demo_data(db_session)
     session_control_service.start_session(db_session)
 
-    logged = asyncio.run(
+    logged: dict[str, Any] = asyncio.run(
         log_current_demo_trade(
             DemoTradeLogCommand(
                 operator_action="entered_late",
@@ -187,7 +190,7 @@ def test_demo_trading_route_flow_logs_and_ingests_results(
     )
     assert logged["records"][0]["outcome_status"] == "unresolved"
 
-    updated = asyncio.run(
+    updated: dict[str, Any] = asyncio.run(
         ingest_demo_result(
             DemoResultIngestCommand(
                 record_id=logged["records"][0]["record_id"],

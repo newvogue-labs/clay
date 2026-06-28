@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
@@ -143,7 +144,7 @@ def seed_workspace_data(session) -> None:
 
 def test_workspace_snapshot_route_returns_focus_pair_and_state(db_session) -> None:
     seed_workspace_data(db_session)
-    payload = asyncio.run(
+    payload: dict[str, Any] = asyncio.run(
         get_trading_workspace_snapshot(db_session, build_workspace_service())
     )
 
@@ -157,8 +158,8 @@ def test_workspace_focus_routes_return_current_focus_snapshot(db_session) -> Non
     service = build_workspace_service()
     seed_workspace_data(db_session)
 
-    before = asyncio.run(get_trading_focus(db_session, service))
-    after = asyncio.run(
+    before: dict[str, Any] = asyncio.run(get_trading_focus(db_session, service))
+    after: dict[str, Any] = asyncio.run(
         set_focus_pair(
             FocusCommand(symbol="SOLUSDT", focus_source="monitoring_click"),
             db_session,

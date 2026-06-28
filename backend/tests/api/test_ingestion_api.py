@@ -97,7 +97,9 @@ def test_ingestion_health_route_returns_market_and_context_sections(
     )
     db_session.commit()
 
-    payload = asyncio.run(get_ingestion_health(db_session, sqlite_settings))
+    payload: dict[str, Any] = asyncio.run(
+        get_ingestion_health(db_session, sqlite_settings)
+    )
 
     assert "market" in payload
     assert "context" in payload
@@ -162,14 +164,14 @@ def test_storage_backed_read_routes_return_seeded_data(
     )
     db_session.commit()
 
-    shortlist_payload = asyncio.run(
+    shortlist_payload: dict[str, Any] = asyncio.run(
         get_shortlist_metrics(
             session=db_session,
             settings=make_ingestion_settings(),
             limit=20,
         ),
     )
-    market_payload = asyncio.run(
+    market_payload: dict[str, Any] = asyncio.run(
         get_latest_market_bars(
             db_session,
             symbol=None,
@@ -177,7 +179,9 @@ def test_storage_backed_read_routes_return_seeded_data(
             limit=20,
         ),
     )
-    context_payload = asyncio.run(get_context_summary(db_session, limit=5))
+    context_payload: dict[str, Any] = asyncio.run(
+        get_context_summary(db_session, limit=5)
+    )
 
     first_row = shortlist_payload["items"][0]
     assert "rolling_volume_score" in first_row
@@ -205,7 +209,9 @@ def test_ingestion_health_recomputes_market_staleness_from_latest_bar_time(
     )
     db_session.commit()
 
-    payload = asyncio.run(get_ingestion_health(db_session, sqlite_settings))
+    payload: dict[str, Any] = asyncio.run(
+        get_ingestion_health(db_session, sqlite_settings)
+    )
 
     assert payload["market"]["status"] == "stale"
     assert payload["market"]["blocks_active_trading"] is True
@@ -235,7 +241,9 @@ def test_ingestion_health_tight_threshold_flips_fresh_to_stale(
     )
     db_session.commit()
 
-    payload = asyncio.run(get_ingestion_health(db_session, tight_settings))
+    payload: dict[str, Any] = asyncio.run(
+        get_ingestion_health(db_session, tight_settings)
+    )
 
     assert payload["market"]["status"] == "stale"
     assert payload["market"]["blocks_active_trading"] is True
@@ -277,7 +285,9 @@ def test_ingestion_health_context_threshold_flips_fresh_to_degraded(
     )
     db_session.commit()
 
-    payload = asyncio.run(get_ingestion_health(db_session, tight_settings))
+    payload: dict[str, Any] = asyncio.run(
+        get_ingestion_health(db_session, tight_settings)
+    )
 
     assert payload["context"]["status"] == "degraded"
 
@@ -322,7 +332,7 @@ def test_ingestion_run_route_executes_storage_backed_cycle(
         session_factory=sqlite_session_factory,
     )
 
-    payload = asyncio.run(run_ingestion_cycle(service))
+    payload: dict[str, Any] = asyncio.run(run_ingestion_cycle(service))
 
     assert payload["market_records_written"] == 4
     assert payload["news_records_written"] == 1

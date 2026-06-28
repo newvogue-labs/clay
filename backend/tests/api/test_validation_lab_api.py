@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from clay.ai_control.service import AIControlService
 from clay.api.routes.validation_lab import (
@@ -147,10 +148,12 @@ def test_validation_lab_overview_and_run_route(db_session, tmp_path: Path) -> No
     service = build_validation_service(tmp_path)
     seed_validation_inputs(db_session)
 
-    initial = asyncio.run(get_validation_lab_overview(db_session, service))
+    initial: dict[str, Any] = asyncio.run(
+        get_validation_lab_overview(db_session, service)
+    )
     assert initial["summary"]["total_runs"] == 0
 
-    payload = asyncio.run(
+    payload: dict[str, Any] = asyncio.run(
         run_validation_lab(
             ValidationRunCommand(
                 run_type="signal_quality", label="Signal quality replay"
@@ -172,7 +175,7 @@ def test_validation_lab_review_and_apply_route(db_session, tmp_path: Path) -> No
             service,
         )
     )
-    review = asyncio.run(
+    review: dict[str, Any] = asyncio.run(
         review_activation(
             ActivationReviewCommand(
                 target_type="strategy_mode",
@@ -183,7 +186,7 @@ def test_validation_lab_review_and_apply_route(db_session, tmp_path: Path) -> No
             service,
         )
     )
-    payload = asyncio.run(
+    payload: dict[str, Any] = asyncio.run(
         apply_activation(
             ActivationApplyCommand(review_id=review["review_id"]),
             db_session,

@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from clay.api.routes.signals import get_signal_overview
 from clay.bootstrap import signal_engine_service
@@ -74,7 +75,9 @@ def seed_signal_api_data(session) -> None:
 def test_signal_overview_route_returns_evaluated_signals(db_session) -> None:
     seed_signal_api_data(db_session)
 
-    payload = asyncio.run(get_signal_overview(db_session, signal_engine_service))
+    payload: dict[str, Any] = asyncio.run(
+        get_signal_overview(db_session, signal_engine_service)
+    )
 
     assert payload["signals"]
     assert payload["signals"][0]["response_action"] in {

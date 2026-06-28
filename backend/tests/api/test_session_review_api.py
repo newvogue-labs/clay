@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from clay.ai_control.service import AIControlService
 from clay.api.routes.session_review import (
@@ -86,7 +87,9 @@ def test_session_review_overview_route_returns_snapshot(
     service = build_review_service(tmp_path)
     seed_review_records(db_session)
 
-    payload = asyncio.run(get_session_review_overview(db_session, service))
+    payload: dict[str, Any] = asyncio.run(
+        get_session_review_overview(db_session, service)
+    )
 
     assert payload["summary"]["total_demo_records"] == 1
     assert payload["records"][0]["outcome_status"] == "late_matched"
@@ -98,7 +101,7 @@ def test_session_review_feedback_route_captures_feedback(
     service = build_review_service(tmp_path)
     seed_review_records(db_session)
 
-    payload = asyncio.run(
+    payload: dict[str, Any] = asyncio.run(
         capture_session_feedback(
             FeedbackCreateCommand(
                 record_id=1,

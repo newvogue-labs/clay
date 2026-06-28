@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 from clay.ai_control.models import AssignmentApplyCommand, AssignmentReviewCommand
 from clay.ai_control.service import AIControlService
@@ -40,7 +41,9 @@ def build_ai_service() -> AIControlService:
 
 
 def test_ai_control_overview_exposes_assignments(db_session) -> None:
-    payload = asyncio.run(get_ai_control_overview(db_session, build_ai_service()))
+    payload: dict[str, Any] = asyncio.run(
+        get_ai_control_overview(db_session, build_ai_service())
+    )
 
     assert payload["summary"]["chief_agent_model"] == "MiniMax-M3"
     assert any(item["role_id"] == "chief-agent" for item in payload["assignments"])
@@ -48,7 +51,7 @@ def test_ai_control_overview_exposes_assignments(db_session) -> None:
 
 def test_ai_control_review_and_apply_flow(db_session) -> None:
     service = build_ai_service()
-    review_payload = asyncio.run(
+    review_payload: dict[str, Any] = asyncio.run(
         review_ai_assignment(
             command=AssignmentReviewCommand(
                 role_id="forecast-model",
@@ -60,7 +63,7 @@ def test_ai_control_review_and_apply_flow(db_session) -> None:
     )
     assert review_payload["proposed_model_id"] == "forecast-lite-v1"
 
-    apply_payload = asyncio.run(
+    apply_payload: dict[str, Any] = asyncio.run(
         apply_ai_assignment(
             command=AssignmentApplyCommand(review_id=review_payload["review_id"]),
             session=db_session,

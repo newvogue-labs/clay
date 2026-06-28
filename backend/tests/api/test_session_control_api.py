@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from clay.ai_control.service import AIControlService
 from clay.api.routes.session_control import (
@@ -161,7 +162,9 @@ def seed_session_data(session) -> None:
 
 def test_session_overview_route_returns_preflight_and_briefing(db_session) -> None:
     seed_session_data(db_session)
-    payload = asyncio.run(get_session_overview(db_session, build_session_service()))
+    payload: dict[str, Any] = asyncio.run(
+        get_session_overview(db_session, build_session_service())
+    )
 
     assert payload["preflight"]["status"] == "pass"
     assert payload["briefing"]["shortlist"]
@@ -171,7 +174,7 @@ def test_session_route_flow_handles_lifecycle_and_pair_replacement(db_session) -
     service = build_session_service()
     seed_session_data(db_session)
 
-    started = asyncio.run(start_session(db_session, service))
+    started: dict[str, Any] = asyncio.run(start_session(db_session, service))
     assert started["lifecycle"]["lifecycle_state"] == "active_session"
     proposed_symbol = (
         "SOLUSDT"
@@ -179,7 +182,7 @@ def test_session_route_flow_handles_lifecycle_and_pair_replacement(db_session) -
         else "BTCUSDT"
     )
 
-    review = asyncio.run(
+    review: dict[str, Any] = asyncio.run(
         review_pair_replacement(
             PairReplacementReviewCommand(proposed_symbol=proposed_symbol),
             db_session,
@@ -188,7 +191,7 @@ def test_session_route_flow_handles_lifecycle_and_pair_replacement(db_session) -
     )
     assert review["proposed_symbol"] == proposed_symbol
 
-    replaced = asyncio.run(
+    replaced: dict[str, Any] = asyncio.run(
         apply_pair_replacement(
             PairReplacementApplyCommand(review_id=review["review_id"]),
             db_session,
@@ -197,18 +200,18 @@ def test_session_route_flow_handles_lifecycle_and_pair_replacement(db_session) -
     )
     assert replaced["lifecycle"]["current_pair_symbol"] == proposed_symbol
 
-    paused = asyncio.run(pause_session(db_session, service))
+    paused: dict[str, Any] = asyncio.run(pause_session(db_session, service))
     assert paused["lifecycle"]["lifecycle_state"] == "paused"
 
-    resumed = asyncio.run(resume_session(db_session, service))
+    resumed: dict[str, Any] = asyncio.run(resume_session(db_session, service))
     assert resumed["lifecycle"]["lifecycle_state"] == "active_session"
 
-    completed = asyncio.run(complete_session(db_session, service))
+    completed: dict[str, Any] = asyncio.run(complete_session(db_session, service))
     assert completed["lifecycle"]["lifecycle_state"] == "review"
 
-    closed = asyncio.run(close_review(db_session, service))
+    closed: dict[str, Any] = asyncio.run(close_review(db_session, service))
     assert closed["lifecycle"]["lifecycle_state"] == "idle"
     assert closed["lifecycle"]["can_start"] is True
 
-    restarted = asyncio.run(start_session(db_session, service))
+    restarted: dict[str, Any] = asyncio.run(start_session(db_session, service))
     assert restarted["lifecycle"]["lifecycle_state"] == "active_session"

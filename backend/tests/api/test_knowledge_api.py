@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import Any
 
 from clay.api.routes.knowledge import create_knowledge_item, get_knowledge_overview
 from clay.audit.writer import AuditWriter
@@ -28,7 +29,7 @@ def test_knowledge_overview_route_returns_snapshot(db_session, tmp_path: Path) -
         ),
     )
 
-    payload = asyncio.run(get_knowledge_overview(db_session, service))
+    payload: dict[str, Any] = asyncio.run(get_knowledge_overview(db_session, service))
 
     assert payload["summary"]["hot_path_dependency"] is False
     assert payload["recent_items"][0]["title"] == "Risk checklist"
@@ -50,7 +51,7 @@ def test_knowledge_create_route_and_search(db_session, tmp_path: Path) -> None:
         )
     )
 
-    payload = asyncio.run(
+    payload: dict[str, Any] = asyncio.run(
         get_knowledge_overview(
             db_session, service, query="higher timeframe momentum", category=None
         )
