@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -27,6 +28,7 @@ import type {
   WorkspaceStateSnapshot,
 } from '../../types/workspace'
 import { useWorkspace } from './use-workspace'
+import { formatMMSS, useOverrideCountdown } from './use-override-countdown'
 
 function buildBinanceUrl(symbol: string): string {
   if (!symbol.endsWith('USDT')) {
@@ -75,13 +77,26 @@ function pickSelectedSignal(snapshot: WorkspaceSnapshot | null): WorkspaceSignal
 }
 
 export function TradingWorkspacePage() {
-  const workspace = useWorkspace()
-  const snapshot = workspace.snapshot
+  const { snapshot, isLoading, error, refetch, isActing, focusSignal, focusMonitoringPair } = useWorkspace()
   const selectedSignal = pickSelectedSignal(snapshot)
   const focusPair = snapshot?.focus_pair ?? null
   const workspaceState = snapshot?.workspace_state ?? null
   const directionIsBullish = isBullish(selectedSignal)
   const hasActiveSignal = workspaceState?.focused_signal_state !== 'absent' && selectedSignal !== null
+
+  const serverOffsetMs = useMemo(
+    () =>
+      workspaceState?.server_time
+        ? Date.parse(workspaceState.server_time) - Date.now()
+        : 0,
+    [workspaceState?.server_time],
+  )
+  const isOverrideActive = workspaceState?.execution_override_state === 'confirmed'
+  const overrideRemaining = useOverrideCountdown(
+    isOverrideActive ? workspaceState?.execution_override_expires_at ?? null : null,
+    serverOffsetMs,
+    refetch,
+  )
 
   return (
     <div aria-label="trading-workspace-page" className="screen-page workspace-terminal-page" data-screen="workspace">
@@ -91,34 +106,43 @@ export function TradingWorkspacePage() {
           <p>Focused pair, active signals, risk posture, and live context</p>
         </div>
         <div className="workspace-command-strip">
-          <StatusBadge label={workspaceState?.runtime_state ?? (workspace.isLoading ? 'loading' : 'unknown')} />
+          <StatusBadge label={workspaceState?.runtime_state ?? (isLoading ? 'loading' : 'unknown')} />
           <StatusBadge label={workspaceState?.workspace_posture ?? 'monitoring'} />
+          {isOverrideActive && (
+            <StatusBadge
+              label={
+                overrideRemaining !== null && overrideRemaining > 0
+                  ? `OVERRIDE · ${formatMMSS(overrideRemaining)}`
+                  : 'OVERRIDE'
+              }
+            />
+          )}
           <span>Update {formatTime(snapshot?.update_meta.focus_last_updated_at)}</span>
         </div>
       </header>
 
-      {workspace.error ? (
+      {error ? (
         <section className="workspace-alert-panel">
           <AlertTriangle className="h-4 w-4 text-clay-danger" />
-          <span>Workspace error: {workspace.error}</span>
+          <span>Workspace error: {error}</span>
         </section>
       ) : null}
 
       <div className="workspace-terminal-grid">
         <aside className="workspace-left-rail">
           <ActiveSignalsRail
-            isActing={workspace.isActing}
+            isActing={isActing}
             onSelect={(signalId, symbol) => {
-              void workspace.focusSignal(signalId, symbol)
+              void focusSignal(signalId, symbol)
             }}
             selectedSignalId={snapshot?.focus_pair.active_signal_id ?? null}
             signals={snapshot?.signals ?? []}
           />
           <MonitoringRail
-            isActing={workspace.isActing}
+            isActing={isActing}
             items={snapshot?.monitoring_pool ?? []}
             onSelect={(symbol) => {
-              void workspace.focusMonitoringPair(symbol)
+              void focusMonitoringPair(symbol)
             }}
           />
         </aside>

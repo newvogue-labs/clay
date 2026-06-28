@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useEffectEvent, useState } from 'react'
+import { startTransition, useCallback, useEffect, useEffectEvent, useState } from 'react'
 
 import {
   getTradingWorkspace,
@@ -17,6 +17,7 @@ type WorkspaceState = {
 type WorkspaceController = WorkspaceState & {
   focusSignal: (signalId: string, symbol: string) => Promise<void>
   focusMonitoringPair: (symbol: string) => Promise<void>
+  refetch: () => void
 }
 
 function getErrorMessage(error: unknown): string {
@@ -55,6 +56,13 @@ export function useWorkspace(): WorkspaceController {
       })
     }
   })
+
+  const [refetchNonce, setRefetchNonce] = useState(0)
+  const refetch = useCallback(() => setRefetchNonce((n) => n + 1), [])
+  useEffect(() => {
+    if (refetchNonce === 0) return
+    void refresh()
+  }, [refetchNonce])
 
   useEffect(() => {
     void refresh()
@@ -115,5 +123,6 @@ export function useWorkspace(): WorkspaceController {
     ...state,
     focusSignal,
     focusMonitoringPair,
+    refetch,
   }
 }
