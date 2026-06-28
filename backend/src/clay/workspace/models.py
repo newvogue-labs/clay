@@ -25,6 +25,8 @@ class WorkspaceStateSnapshot(BaseModel):
     blocking_reason: str | None = None
     execution_mode: str | None = None
     execution_override_state: str | None = None
+    execution_override_expires_at: str | None = None
+    server_time: str
 
 
 class WorkspaceSignalSummary(BaseModel):

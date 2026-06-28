@@ -162,6 +162,14 @@ ProvenanceSource = Literal[
 
 `testnet` fills — реальные исполнения в sandbox, **не** миксовать с `baseline`/`live` в калибровке до отдельного решения.
 
+## Override expiry
+
+- Каждый активный execution-override имеет конечный TTL. Источник истины — backend; срок выражается абсолютным таймстемпом `execution_override_expires_at` (ISO 8601, UTC) в `WorkspaceStateSnapshot` (см. ADR-001 addendum 2026-06-28).
+- Backend проставляет `expires_at` при активации override и обнуляет (`null`) при revoke или по истечении.
+- Клиент НЕ владеет сроком: показывает countdown от `expires_at` с поправкой на `server_time`, а по достижении нуля делает refetch snapshot и подчиняется ответу backend (никакого локального снятия override).
+- Переходы режима (`dry_run → testnet → live`) и confirm/revoke — явные operator-действия (см. E3), не автоматические и не «тихие» (silent override остаётся out of scope).
+- По истечении override execution-режим возвращается к безопасному базовому состоянию согласно real-money gate (Q5 invariant).
+
 ## Invariants
 
 1. **Q5: no auto-execution.** Система никогда не переходит в `live` и не ставит ордер без явного override.

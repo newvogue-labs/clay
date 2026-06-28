@@ -292,6 +292,12 @@ class WorkspaceService:
                 blocking_reason=blocking_reason,
                 execution_mode=execution_mode,
                 execution_override_state=execution_override_state,
+                execution_override_expires_at=(
+                    self.override_service.expires_at.isoformat()
+                    if self.override_service and self.override_service.expires_at
+                    else None
+                ),
+                server_time=now.isoformat(),
             ),
             market_status,
             context_status,
@@ -323,6 +329,8 @@ class WorkspaceService:
             blocking_reason=base_state.blocking_reason,
             execution_mode=base_state.execution_mode,
             execution_override_state=base_state.execution_override_state,
+            execution_override_expires_at=base_state.execution_override_expires_at,
+            server_time=base_state.server_time,
         )
 
     def _build_pair_contexts(self, session: Session) -> list[PairContext]:

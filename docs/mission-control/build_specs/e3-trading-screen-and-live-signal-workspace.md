@@ -70,6 +70,8 @@
 - backtesting / replay
 - full audit/review layer
 
+> Уточнение (S-EXEC-3c): явный, операторски подтверждаемый override execution-режима ВХОДИТ в scope E3 как operator action. Out of scope остаётся только silent/auto-override и ввод ордера (п. 69–72).
+
 ## 4. Архитектурные допущения
 
 - `CLAY` = `local-first`, `single-user`, `web-first`
@@ -601,6 +603,8 @@
 - `can_open_binance`
 - `can_log_decision`
 - `blocking_reason | null`
+- `execution_override_expires_at | null` — ISO 8601 UTC, момент истечения override; `null` означает отсутствие активного override (см. ADR-025, ADR-001 addendum 2026-06-28).
+- `server_time` — ISO 8601 UTC, серверное время на момент сборки snapshot; клиент использует для компенсации часового дрейфа при расчёте countdown.
 
 ## 17. Data flow через экран
 
