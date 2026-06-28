@@ -8,6 +8,7 @@ Create Date: 2026-06-17
 т.к. SQLAlchemy Enum с create_type=False на PG всё равно триггерит
 create_type через NamedType._on_table_create.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -103,7 +104,9 @@ CREATE TABLE ops.provider_health (
 );
 """
 
-_CREATE_HYPERTABLE = "SELECT create_hypertable('ops.provider_health', 'time', if_not_exists => TRUE)"
+_CREATE_HYPERTABLE = (
+    "SELECT create_hypertable('ops.provider_health', 'time', if_not_exists => TRUE)"
+)
 
 _CREATE_INDEXES: list[str] = [
     "CREATE INDEX ix_provider_key_state ON ops.provider_key (state)",

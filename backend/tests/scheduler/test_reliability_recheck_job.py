@@ -135,7 +135,9 @@ class FakeReliabilityService:
 
     def set_snapshot(self, *, status: str, blocking: int, warning: int) -> None:
         self._current_snapshot = FakeSnapshot(
-            status=status, blocking=blocking, warning=warning,
+            status=status,
+            blocking=blocking,
+            warning=warning,
         )
 
 
@@ -196,7 +198,8 @@ def _make_job(
     event_bus = EventBus()
     event_bus.subscribe()  # so _drain_event_bus sees published events
     reliability_service = FakeReliabilityService(
-        audit_writer=audit_writer, event_bus=event_bus,
+        audit_writer=audit_writer,
+        event_bus=event_bus,
     )
     factory = _FakeSessionFactory()
     job = ReliabilityRecheckJob(
@@ -209,6 +212,7 @@ def _make_job(
 
 
 # === Tests ===
+
 
 def test_first_run_seeds_cache_no_emit(tmp_path: Path) -> None:
     """Acceptance #5: first run seeds the cache, no audit, no bus."""
@@ -308,7 +312,8 @@ def test_on_error_audits_once(tmp_path: Path) -> None:
     job.on_error(boom)
 
     failed_audits = [
-        e for e in _read_audit_events(audit_writer)
+        e
+        for e in _read_audit_events(audit_writer)
         if e["event_type"] == "reliability.recheck_failed"
     ]
     assert len(failed_audits) == 1
@@ -328,7 +333,8 @@ def test_on_error_does_not_mutate_session_scheduler(tmp_path: Path) -> None:
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
     service = FakeReliabilityService(
-        audit_writer=audit_writer, event_bus=event_bus,
+        audit_writer=audit_writer,
+        event_bus=event_bus,
     )
 
     factory = _FakeSessionFactory()
@@ -397,10 +403,10 @@ def test_failure_success_failure_audits_twice(tmp_path: Path) -> None:
     job.on_error(boom)
 
     failed_audits = [
-        e for e in _read_audit_events(audit_writer)
+        e
+        for e in _read_audit_events(audit_writer)
         if e["event_type"] == "reliability.recheck_failed"
     ]
     assert len(failed_audits) == 2, (
-        f"expected 2 audit entries (one per failing episode), "
-        f"got {len(failed_audits)}"
+        f"expected 2 audit entries (one per failing episode), got {len(failed_audits)}"
     )

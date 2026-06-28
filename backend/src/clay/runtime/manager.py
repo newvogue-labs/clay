@@ -91,6 +91,9 @@ class RuntimeManager:
         for service in self.registry.list_services():
             if (
                 service.criticality is ServiceCriticality.CRITICAL
-                and service.status not in {ServiceStatus.HEALTHY, ServiceStatus.DEGRADED}
+                and service.status
+                not in {ServiceStatus.HEALTHY, ServiceStatus.DEGRADED}
             ):
-                raise RuntimeError(f"critical service {service.service_id} is not ready")
+                raise RuntimeError(
+                    f"critical service {service.service_id} is not ready"
+                )

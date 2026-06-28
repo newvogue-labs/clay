@@ -271,6 +271,12 @@ def test_system_recommendation_focus_is_ephemeral(
 def test_typing_workspace_focus_columns() -> None:
     from clay.db.models_ops import WorkspaceFocus as Model
 
-    expected = {"id", "focus_symbol", "focus_source", "selected_signal_id", "updated_at"}
+    expected = {
+        "id",
+        "focus_symbol",
+        "focus_source",
+        "selected_signal_id",
+        "updated_at",
+    }
     assert expected.issubset(set(Model.__annotations__.keys()))
     assert cast(type, Model) is WorkspaceFocus

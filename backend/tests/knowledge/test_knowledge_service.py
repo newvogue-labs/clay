@@ -35,7 +35,9 @@ def test_knowledge_service_creates_items_and_chunks(db_session, tmp_path: Path) 
     assert snapshot.recent_items[0].chunk_count >= 1
 
 
-def test_knowledge_service_searches_with_keyword_and_priority(db_session, tmp_path: Path) -> None:
+def test_knowledge_service_searches_with_keyword_and_priority(
+    db_session, tmp_path: Path
+) -> None:
     service = build_knowledge_service(tmp_path)
     service.create_item(
         db_session,

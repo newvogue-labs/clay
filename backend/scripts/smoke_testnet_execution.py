@@ -46,7 +46,9 @@ def _env() -> tuple[str, str] | None:
     key = os.environ.get("CLAY_BINANCE_TESTNET_API_KEY", "")
     secret = os.environ.get("CLAY_BINANCE_TESTNET_API_SECRET", "")
     if not key or not secret:
-        print("[skip] CLAY_BINANCE_TESTNET_API_KEY / CLAY_BINANCE_TESTNET_API_SECRET are not set.")
+        print(
+            "[skip] CLAY_BINANCE_TESTNET_API_KEY / CLAY_BINANCE_TESTNET_API_SECRET are not set."
+        )
         return None
     return key, secret
 
@@ -78,9 +80,9 @@ async def _run() -> SmokeEvidence:
             client_order_id=client_order_id,
         )
         evidence.place_latency_ms = (time.perf_counter() - t0) * 1000
-        evidence.rate_limit_weight = getattr(ccxt_client, "last_response_headers", {}).get(
-            "x-mbx-used-weight-1m"
-        )
+        evidence.rate_limit_weight = getattr(
+            ccxt_client, "last_response_headers", {}
+        ).get("x-mbx-used-weight-1m")
 
         t0 = time.perf_counter()
         open_orders = await client.get_open_orders(symbol=evidence.symbol)
@@ -105,7 +107,9 @@ async def _run() -> SmokeEvidence:
 
         t0 = time.perf_counter()
         open_after = await client.get_open_orders(symbol=evidence.symbol)
-        evidence.query_latency_ms = max(evidence.query_latency_ms, (time.perf_counter() - t0) * 1000)
+        evidence.query_latency_ms = max(
+            evidence.query_latency_ms, (time.perf_counter() - t0) * 1000
+        )
         evidence.open_orders_after_cancel = [
             {
                 "exchange_order_id": o.exchange_order_id,
@@ -122,31 +126,45 @@ async def _run() -> SmokeEvidence:
 
 
 def _print_evidence(evidence: SmokeEvidence) -> None:
-    print(json.dumps(
-        {
-            "symbol": evidence.symbol,
-            "side": evidence.side,
-            "quantity": evidence.quantity,
-            "limit_price": evidence.limit_price,
-            "order_type": evidence.order_type,
-            "place_result": {
-                "client_order_id": evidence.place_result.client_order_id if evidence.place_result else None,
-                "exchange_order_id": evidence.place_result.exchange_order_id if evidence.place_result else None,
-                "status": evidence.place_result.status if evidence.place_result else None,
-            } if evidence.place_result else None,
-            "open_orders_before_cancel_count": len(evidence.open_orders_before_cancel),
-            "open_orders_before_cancel": evidence.open_orders_before_cancel,
-            "cancel_result": evidence.cancel_result,
-            "open_orders_after_cancel_count": len(evidence.open_orders_after_cancel),
-            "open_orders_after_cancel": evidence.open_orders_after_cancel,
-            "place_latency_ms": round(evidence.place_latency_ms, 2),
-            "query_latency_ms": round(evidence.query_latency_ms, 2),
-            "cancel_latency_ms": round(evidence.cancel_latency_ms, 2),
-            "rate_limit_weight": evidence.rate_limit_weight,
-            "error": evidence.error,
-        },
-        indent=2,
-    ))
+    print(
+        json.dumps(
+            {
+                "symbol": evidence.symbol,
+                "side": evidence.side,
+                "quantity": evidence.quantity,
+                "limit_price": evidence.limit_price,
+                "order_type": evidence.order_type,
+                "place_result": {
+                    "client_order_id": evidence.place_result.client_order_id
+                    if evidence.place_result
+                    else None,
+                    "exchange_order_id": evidence.place_result.exchange_order_id
+                    if evidence.place_result
+                    else None,
+                    "status": evidence.place_result.status
+                    if evidence.place_result
+                    else None,
+                }
+                if evidence.place_result
+                else None,
+                "open_orders_before_cancel_count": len(
+                    evidence.open_orders_before_cancel
+                ),
+                "open_orders_before_cancel": evidence.open_orders_before_cancel,
+                "cancel_result": evidence.cancel_result,
+                "open_orders_after_cancel_count": len(
+                    evidence.open_orders_after_cancel
+                ),
+                "open_orders_after_cancel": evidence.open_orders_after_cancel,
+                "place_latency_ms": round(evidence.place_latency_ms, 2),
+                "query_latency_ms": round(evidence.query_latency_ms, 2),
+                "cancel_latency_ms": round(evidence.cancel_latency_ms, 2),
+                "rate_limit_weight": evidence.rate_limit_weight,
+                "error": evidence.error,
+            },
+            indent=2,
+        )
+    )
 
 
 def main() -> int:
@@ -165,12 +183,24 @@ def main() -> int:
                 "limit_price": evidence.limit_price,
                 "order_type": evidence.order_type,
                 "place_result": {
-                    "client_order_id": evidence.place_result.client_order_id if evidence.place_result else None,
-                    "exchange_order_id": evidence.place_result.exchange_order_id if evidence.place_result else None,
-                    "status": evidence.place_result.status if evidence.place_result else None,
-                } if evidence.place_result else None,
-                "open_orders_before_cancel_count": len(evidence.open_orders_before_cancel),
-                "open_orders_after_cancel_count": len(evidence.open_orders_after_cancel),
+                    "client_order_id": evidence.place_result.client_order_id
+                    if evidence.place_result
+                    else None,
+                    "exchange_order_id": evidence.place_result.exchange_order_id
+                    if evidence.place_result
+                    else None,
+                    "status": evidence.place_result.status
+                    if evidence.place_result
+                    else None,
+                }
+                if evidence.place_result
+                else None,
+                "open_orders_before_cancel_count": len(
+                    evidence.open_orders_before_cancel
+                ),
+                "open_orders_after_cancel_count": len(
+                    evidence.open_orders_after_cancel
+                ),
                 "place_latency_ms": round(evidence.place_latency_ms, 2),
                 "query_latency_ms": round(evidence.query_latency_ms, 2),
                 "cancel_latency_ms": round(evidence.cancel_latency_ms, 2),

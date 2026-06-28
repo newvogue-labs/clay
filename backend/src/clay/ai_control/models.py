@@ -132,4 +132,3 @@ class AssignmentReviewCommand(BaseModel):
 
 class AssignmentApplyCommand(BaseModel):
     review_id: str
-

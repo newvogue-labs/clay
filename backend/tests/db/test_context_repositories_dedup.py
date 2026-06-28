@@ -6,6 +6,7 @@ Validates:
 - Savepoint isolation (outer session is not rolled back on duplicate)
 - tuples stable return contract
 """
+
 from __future__ import annotations
 
 import logging
@@ -114,8 +115,7 @@ def test_store_news_items_catches_integrity_error_on_race(
         assert written == 0
         # Verify log: dedup-skipped event
         assert any(
-            "skipped duplicate news" in record.message
-            for record in caplog.records
+            "skipped duplicate news" in record.message for record in caplog.records
         )
         # Exactly 1 row in DB (no double-insert)
         assert len(repository.latest_news()) == 1
@@ -234,8 +234,7 @@ def test_store_sentiment_snapshots_catches_integrity_error_on_race(
 
         assert written == 0
         assert any(
-            "skipped duplicate sentiment" in record.message
-            for record in caplog.records
+            "skipped duplicate sentiment" in record.message for record in caplog.records
         )
         assert len(repository.latest_sentiment()) == 1
     finally:

@@ -99,8 +99,7 @@ class OverrideService:
         """
         if not self._is_live_config():
             raise ExecutionConfigError(
-                "override request rejected: mode != live or "
-                "allow_live_override=False"
+                "override request rejected: mode != live or allow_live_override=False"
             )
         if self._state.status is not None:
             raise ExecutionConfigError(
@@ -126,7 +125,9 @@ class OverrideService:
 
         logger.info(
             "override requested id=%s actor=%s session=%s",
-            override_id, actor, session_id,
+            override_id,
+            actor,
+            session_id,
         )
         return override_id
 
@@ -169,7 +170,9 @@ class OverrideService:
 
         logger.info(
             "override confirmed id=%s actor=%s expires=%s",
-            override_id, actor, expires_at.isoformat(),
+            override_id,
+            actor,
+            expires_at.isoformat(),
         )
         return override_id
 
@@ -179,9 +182,7 @@ class OverrideService:
         Decree D4: manual-only, explicit operator action.
         """
         if self._state.status is None:
-            raise ExecutionConfigError(
-                "revoke rejected: no active override to revoke"
-            )
+            raise ExecutionConfigError("revoke rejected: no active override to revoke")
 
         override_id = self._state.override_id
         prev_status = self._state.status
@@ -198,7 +199,9 @@ class OverrideService:
 
         logger.info(
             "override revoked id=%s prev_status=%s actor=%s",
-            override_id, prev_status, actor,
+            override_id,
+            prev_status,
+            actor,
         )
         return override_id
 
@@ -239,7 +242,10 @@ class OverrideService:
         """Returns override_id if confirmed and not expired, else None."""
         if self._state.status != "confirmed":
             return None
-        if self._state.expires_at is not None and self._clock.now() >= self._state.expires_at:
+        if (
+            self._state.expires_at is not None
+            and self._clock.now() >= self._state.expires_at
+        ):
             return None
         return self._state.override_id
 
@@ -256,7 +262,10 @@ class OverrideService:
             return False
         if self._state.status != "confirmed":
             return False
-        if self._state.expires_at is not None and self._clock.now() >= self._state.expires_at:
+        if (
+            self._state.expires_at is not None
+            and self._clock.now() >= self._state.expires_at
+        ):
             return False
         return not self._is_degraded()
 
@@ -335,5 +344,3 @@ class OverrideService:
                     "session_id": session_id,
                 },
             )
-
-

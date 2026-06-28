@@ -143,7 +143,9 @@ def seed_workspace_data(session) -> None:
 
 def test_workspace_snapshot_route_returns_focus_pair_and_state(db_session) -> None:
     seed_workspace_data(db_session)
-    payload = asyncio.run(get_trading_workspace_snapshot(db_session, build_workspace_service()))
+    payload = asyncio.run(
+        get_trading_workspace_snapshot(db_session, build_workspace_service())
+    )
 
     assert payload["focus_pair"]["symbol"] == "BTCUSDT"
     assert payload["workspace_state"]["runtime_state"] == "background_monitoring"

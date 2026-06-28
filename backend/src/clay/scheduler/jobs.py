@@ -106,7 +106,9 @@ class _IngestionCycleRunnable(Protocol):
     def is_running(self) -> bool: ...
 
     async def run_once(
-        self, *, emit: bool = ...,
+        self,
+        *,
+        emit: bool = ...,
     ) -> IngestionRunSummary: ...
 
     def emit_cycle_events(self, summary: IngestionRunSummary) -> None: ...
@@ -294,7 +296,8 @@ class ReliabilityRecheckJob:
         """
         if not self._failing:
             self._audit_writer.write(
-                "reliability.recheck_failed", {"error": str(exc)},
+                "reliability.recheck_failed",
+                {"error": str(exc)},
             )
         self._failing = True
         logger.exception(
@@ -438,7 +441,8 @@ class IngestionCycleJob:
         """
         if not self._failing:
             self._audit_writer.write(
-                "ingestion.cycle_failed", {"error": str(exc)},
+                "ingestion.cycle_failed",
+                {"error": str(exc)},
             )
         self._failing = True
         logger.exception(
@@ -480,7 +484,12 @@ class OpsRetentionJob:
         """Execute one ops-retention tick — prune all 3 tables, then commit."""
         from sqlalchemy import delete
         from clay.retention.jobs import RETENTION_WINDOWS_DAYS
-        from clay.db.models_ops import AIAgentRun, IngestRun, ConnectorStatusHistory, SourceHealthEvent
+        from clay.db.models_ops import (
+            AIAgentRun,
+            IngestRun,
+            ConnectorStatusHistory,
+            SourceHealthEvent,
+        )
 
         now = datetime.now(UTC)
         deleted_total = 0
@@ -488,14 +497,20 @@ class OpsRetentionJob:
             for model_class, time_col_name, window_days in [
                 (AIAgentRun, "created_at", RETENTION_WINDOWS_DAYS["ai_agent_runs"]),
                 (IngestRun, "started_at", RETENTION_WINDOWS_DAYS["ingest_runs"]),
-                (ConnectorStatusHistory, "observed_at", RETENTION_WINDOWS_DAYS["connector_status_history"]),
-                (SourceHealthEvent, "recorded_at", RETENTION_WINDOWS_DAYS["source_health_events"]),
+                (
+                    ConnectorStatusHistory,
+                    "observed_at",
+                    RETENTION_WINDOWS_DAYS["connector_status_history"],
+                ),
+                (
+                    SourceHealthEvent,
+                    "recorded_at",
+                    RETENTION_WINDOWS_DAYS["source_health_events"],
+                ),
             ]:
                 cutoff = now - timedelta(days=window_days)
                 time_col = getattr(model_class, time_col_name)
-                result = session.execute(
-                    delete(model_class).where(time_col < cutoff)
-                )
+                result = session.execute(delete(model_class).where(time_col < cutoff))
                 deleted_total += result.rowcount
             session.commit()
         self._failing = False
@@ -515,7 +530,8 @@ class OpsRetentionJob:
         """
         if not self._failing:
             self._audit_writer.write(
-                "ops.retention_failed", {"error": str(exc)},
+                "ops.retention_failed",
+                {"error": str(exc)},
             )
         self._failing = True
         logger.exception(

@@ -22,14 +22,15 @@ async def sse_event_stream(
         yield encode_sse(ready_event, {"status": "connected"})
         while True:
             try:
-                message = await asyncio.wait_for(
-                    queue.get(), timeout=heartbeat_seconds
-                )
+                message = await asyncio.wait_for(queue.get(), timeout=heartbeat_seconds)
             except asyncio.TimeoutError:
                 yield ": keep-alive\n\n"
                 continue
 
-            if relevant_events is not None and message.event_type not in relevant_events:
+            if (
+                relevant_events is not None
+                and message.event_type not in relevant_events
+            ):
                 continue
 
             if refresh_event is not None:

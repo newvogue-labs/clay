@@ -44,7 +44,9 @@ async def run_service_action(
         else:
             service = supervisor.restart(service_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown service: {service_id}") from exc
+        raise HTTPException(
+            status_code=404, detail=f"unknown service: {service_id}"
+        ) from exc
     except ServiceActionNotAllowedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

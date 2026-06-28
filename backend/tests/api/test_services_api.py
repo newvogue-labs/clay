@@ -14,7 +14,9 @@ def build_test_registry() -> tuple[ServiceRegistry, ProcessSupervisor]:
     registry = ServiceRegistry()
     registry.register("control-api", "api", ServiceCriticality.CRITICAL, "always-on")
     registry.update_status("control-api", ServiceStatus.HEALTHY)
-    registry.register("pair-scanner", "worker", ServiceCriticality.OPTIONAL, "on-demand")
+    registry.register(
+        "pair-scanner", "worker", ServiceCriticality.OPTIONAL, "on-demand"
+    )
     supervisor = ProcessSupervisor(registry)
     return registry, supervisor
 
@@ -38,7 +40,9 @@ async def test_service_action_endpoint_starts_on_demand_service(
     monkeypatch.setattr(services_route, "audit_writer", audit_writer)
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.post(
             "/services/pair-scanner/actions",
             json={"action": "start"},
@@ -70,7 +74,9 @@ async def test_service_action_endpoint_rejects_control_api_stop(
     monkeypatch.setattr(services_route, "audit_writer", audit_writer)
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.post(
             "/services/control-api/actions",
             json={"action": "stop"},

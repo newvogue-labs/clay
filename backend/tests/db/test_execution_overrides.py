@@ -78,9 +78,7 @@ def test_append_inserts_row(db_session) -> None:
     repo.append(event)
     db_session.commit()
 
-    count = db_session.scalar(
-        select(db_session.query(ExecutionOverride).count())
-    )
+    count = db_session.scalar(select(db_session.query(ExecutionOverride).count()))
     assert count == 1
 
 
@@ -89,12 +87,21 @@ def test_list_by_override_id_returns_all_events_for_an_override(db_session) -> N
 
     oid = "override-aaa"
     events = [
-        _make_event(override_id=oid, action="requested",
-                    created_at=datetime(2026, 6, 27, 10, 0, tzinfo=UTC)),
-        _make_event(override_id=oid, action="confirmed",
-                    created_at=datetime(2026, 6, 27, 10, 1, tzinfo=UTC)),
-        _make_event(override_id="override-bbb", action="requested",
-                    created_at=datetime(2026, 6, 27, 10, 0, tzinfo=UTC)),
+        _make_event(
+            override_id=oid,
+            action="requested",
+            created_at=datetime(2026, 6, 27, 10, 0, tzinfo=UTC),
+        ),
+        _make_event(
+            override_id=oid,
+            action="confirmed",
+            created_at=datetime(2026, 6, 27, 10, 1, tzinfo=UTC),
+        ),
+        _make_event(
+            override_id="override-bbb",
+            action="requested",
+            created_at=datetime(2026, 6, 27, 10, 0, tzinfo=UTC),
+        ),
     ]
     for e in events:
         repo.append(e)
@@ -109,14 +116,20 @@ def test_latest_for_override_returns_most_recent(db_session) -> None:
     repo = OverrideRepository(db_session)
 
     oid = "override-ccc"
-    repo.append(_make_event(
-        override_id=oid, action="requested",
-        created_at=datetime(2026, 6, 27, 10, 0, tzinfo=UTC),
-    ))
-    repo.append(_make_event(
-        override_id=oid, action="revoked",
-        created_at=datetime(2026, 6, 27, 11, 0, tzinfo=UTC),
-    ))
+    repo.append(
+        _make_event(
+            override_id=oid,
+            action="requested",
+            created_at=datetime(2026, 6, 27, 10, 0, tzinfo=UTC),
+        )
+    )
+    repo.append(
+        _make_event(
+            override_id=oid,
+            action="revoked",
+            created_at=datetime(2026, 6, 27, 11, 0, tzinfo=UTC),
+        )
+    )
     db_session.commit()
 
     latest = repo.latest_for_override(oid)

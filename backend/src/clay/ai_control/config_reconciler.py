@@ -119,7 +119,9 @@ class ConfigReconciler:
         changed: list[tuple[str, str, dict, dict]] = []
         for key in sorted(common):
             if live["model_index"][key] != prop["model_index"][key]:
-                changed.append((*key, live["model_index"][key], prop["model_index"][key]))
+                changed.append(
+                    (*key, live["model_index"][key], prop["model_index"][key])
+                )
 
         rest_equal = live["rest"] == prop["rest"]
 
@@ -212,16 +214,22 @@ class ConfigWriter:
             raise ConfigValidationError("model_list must have at least one entry")
 
         if "router_settings" not in data:
-            raise ConfigValidationError("proposed config is missing router_settings (round-trip lost data)")
+            raise ConfigValidationError(
+                "proposed config is missing router_settings (round-trip lost data)"
+            )
 
         for i, entry in enumerate(model_list):
             if not entry.get("model_name"):
                 raise ConfigValidationError(f"model_list[{i}] missing model_name")
             lp = entry.get("litellm_params") or {}
             if not lp.get("model"):
-                raise ConfigValidationError(f"model_list[{i}] litellm_params.model is required")
+                raise ConfigValidationError(
+                    f"model_list[{i}] litellm_params.model is required"
+                )
 
-    def write_shadow(self, proposed: ProposedConfig, shadow_path: Path | None = None) -> Path:
+    def write_shadow(
+        self, proposed: ProposedConfig, shadow_path: Path | None = None
+    ) -> Path:
         self.validate(proposed)
 
         if shadow_path is None:
@@ -230,7 +238,9 @@ class ConfigWriter:
         parent = shadow_path.parent
         parent.mkdir(parents=True, exist_ok=True)
 
-        with NamedTemporaryFile(mode="w", suffix=".tmp", dir=parent, delete=False) as tmp:
+        with NamedTemporaryFile(
+            mode="w", suffix=".tmp", dir=parent, delete=False
+        ) as tmp:
             tmp.write(proposed.yaml)
             tmp.flush()
             os.fsync(tmp.fileno())
@@ -255,7 +265,9 @@ class ConfigWriter:
         shutil.copy2(str(target), str(bak))
         return bak
 
-    def noop_skip(self, proposed: ProposedConfig, shadow_path: Path | None = None) -> bool:
+    def noop_skip(
+        self, proposed: ProposedConfig, shadow_path: Path | None = None
+    ) -> bool:
         if shadow_path is None:
             shadow_path = self._default_shadow_path()
         ref = shadow_path if shadow_path.exists() else self._reconciler._config_path
@@ -291,10 +303,13 @@ class ConfigWriter:
                 "DegradedModeError: pool-health degraded — "
                 "available_total=%d < floor=%d; by_model_name=%s; "
                 "config NOT written, last-good preserved",
-                health.available_total, health.floor, health.by_model_name,
+                health.available_total,
+                health.floor,
+                health.by_model_name,
             )
             return ApplyReport(
-                status="degraded", applied=False,
+                status="degraded",
+                applied=False,
                 available_total=health.available_total,
                 by_model_name=health.by_model_name,
                 error=(
@@ -307,7 +322,8 @@ class ConfigWriter:
             self.validate(proposed)
         except ConfigValidationError as e:
             return ApplyReport(
-                status="failed", applied=False,
+                status="failed",
+                applied=False,
                 error=str(e),
                 available_total=health.available_total,
                 by_model_name=health.by_model_name,
@@ -342,7 +358,9 @@ class ConfigWriter:
 
         r = subprocess.run(
             ["sudo", "/usr/local/sbin/clay-config-install", str(shadow_path)],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         )
         return Path(r.stdout.strip())
 
@@ -365,7 +383,9 @@ class ConfigWriter:
                 return ApplyReport(applied=False)
 
         # Write rendered config to a temp shadow file for the helper
-        with NamedTemporaryFile(mode="w", suffix=".yaml", dir="/tmp", delete=False) as tmp:
+        with NamedTemporaryFile(
+            mode="w", suffix=".yaml", dir="/tmp", delete=False
+        ) as tmp:
             tmp.write(proposed.yaml)
             tmp.flush()
             shadow_path = Path(tmp.name)
@@ -374,7 +394,8 @@ class ConfigWriter:
             bak = self._install_via_helper(shadow_path)
         except subprocess.CalledProcessError as e:
             return ApplyReport(
-                status="failed", applied=False,
+                status="failed",
+                applied=False,
                 error=f"helper install failed: {e.stderr.strip()}",
             )
         finally:
@@ -384,8 +405,10 @@ class ConfigWriter:
         if not restart_ok:
             self._rollback_via_helper(bak)
             return ApplyReport(
-                applied=True, backup_path=bak,
-                restart_ok=False, health_ok=False,
+                applied=True,
+                backup_path=bak,
+                restart_ok=False,
+                health_ok=False,
                 rolled_back=True,
                 error="restart failed, rolled back to last-good",
             )
@@ -394,15 +417,19 @@ class ConfigWriter:
         if not health_ok:
             self._rollback_via_helper(bak)
             return ApplyReport(
-                applied=True, backup_path=bak,
-                restart_ok=True, health_ok=False,
+                applied=True,
+                backup_path=bak,
+                restart_ok=True,
+                health_ok=False,
                 rolled_back=True,
                 error="health check failed, rolled back to last-good",
             )
 
         return ApplyReport(
-            applied=True, backup_path=bak,
-            restart_ok=True, health_ok=True,
+            applied=True,
+            backup_path=bak,
+            restart_ok=True,
+            health_ok=True,
         )
 
     def _rollback_via_helper(self, bak: Path) -> None:
@@ -411,7 +438,9 @@ class ConfigWriter:
         try:
             subprocess.run(
                 ["sudo", "/usr/local/sbin/clay-config-install", str(bak)],
-                check=False, capture_output=True, text=True,
+                check=False,
+                capture_output=True,
+                text=True,
             )
         except Exception:
             pass
@@ -424,7 +453,9 @@ class ConfigWriter:
         try:
             subprocess.run(
                 [sudo_cmd, "systemctl", "restart", "clay-litellm.service"],
-                check=True, capture_output=True, text=True,
+                check=True,
+                capture_output=True,
+                text=True,
             )
             return True
         except subprocess.CalledProcessError:

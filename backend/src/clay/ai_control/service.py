@@ -159,11 +159,17 @@ class AIControlService:
         # us without one).
         conflicts = self._build_conflicts()
         assignments = self._build_assignments(conflicts=conflicts)
-        degraded_roles = [row.role_id for row in assignments if row.assignment_health == "degraded"]
+        degraded_roles = [
+            row.role_id for row in assignments if row.assignment_health == "degraded"
+        ]
         fallback_active = any(row.assignment_mode == "fallback" for row in assignments)
         chief_model = self.models[self.assignments["chief-agent"]]
 
-        pending_review = self._build_review_card(self._pending_review) if self._pending_review else None
+        pending_review = (
+            self._build_review_card(self._pending_review)
+            if self._pending_review
+            else None
+        )
 
         runs_summary = self._build_runs_summary(session)
         rpd_budgets = self._build_rpd_budgets(session)
@@ -177,7 +183,9 @@ class AIControlService:
                 degraded_role_count=len(degraded_roles),
                 fallback_active=fallback_active,
                 last_reviewed_at=(
-                    self._last_reviewed_at.isoformat() if self._last_reviewed_at is not None else None
+                    self._last_reviewed_at.isoformat()
+                    if self._last_reviewed_at is not None
+                    else None
                 ),
             ),
             roles=[
@@ -211,16 +219,16 @@ class AIControlService:
             ],
             assignments=assignments,
             conflicts=conflicts,
-            fallback=self._build_fallback_snapshot(degraded_roles=degraded_roles, fallback_active=fallback_active),
+            fallback=self._build_fallback_snapshot(
+                degraded_roles=degraded_roles, fallback_active=fallback_active
+            ),
             pending_review=pending_review,
             runs_summary=runs_summary,
             rpd_budgets=rpd_budgets,
             registry_version=registry_version,
         )
 
-    def _build_runs_summary(
-        self, session: Session | None
-    ) -> list[RoleRunSummary]:
+    def _build_runs_summary(self, session: Session | None) -> list[RoleRunSummary]:
         if session is None:
             return []
         now = self._clock.now()
@@ -248,9 +256,7 @@ class AIControlService:
             )
         return result
 
-    def _build_rpd_budgets(
-        self, session: Session | None
-    ) -> list[RPDBudget]:
+    def _build_rpd_budgets(self, session: Session | None) -> list[RPDBudget]:
         if session is None:
             return []
         now = self._clock.now()
@@ -321,7 +327,9 @@ class AIControlService:
         )
         return self._build_review_card(self._pending_review)
 
-    def apply_assignment(self, review_id: str, *, session: Session) -> AIControlSnapshot:
+    def apply_assignment(
+        self, review_id: str, *, session: Session
+    ) -> AIControlSnapshot:
         if self._pending_review is None or self._pending_review.review_id != review_id:
             raise ValueError("review card is missing or stale")
 
@@ -447,12 +455,20 @@ class AIControlService:
         if role_id not in self.models[model_id].compatible_roles:
             raise ValueError("model is not compatible with role")
 
-    def _build_assignments(self, *, conflicts: list[ConflictSnapshot]) -> list[AssignmentSnapshot]:
+    def _build_assignments(
+        self, *, conflicts: list[ConflictSnapshot]
+    ) -> list[AssignmentSnapshot]:
         runtime_state = self.runtime_manager.snapshot().state
         preflight = self.preflight_service.run()
-        conflict_roles = {role_id for conflict in conflicts for role_id in conflict.affected_roles}
-        runtime_degraded = runtime_state == RuntimeState.DEGRADED or preflight.status == "hard_fail"
-        confidence_penalty = self.config_loader.load_scope("risk").degraded_confidence_penalty
+        conflict_roles = {
+            role_id for conflict in conflicts for role_id in conflict.affected_roles
+        }
+        runtime_degraded = (
+            runtime_state == RuntimeState.DEGRADED or preflight.status == "hard_fail"
+        )
+        confidence_penalty = self.config_loader.load_scope(
+            "risk"
+        ).degraded_confidence_penalty
 
         rows: list[AssignmentSnapshot] = []
         for role in self.roles.values():
@@ -536,7 +552,8 @@ class AIControlService:
         fallback_active: bool,
     ) -> FallbackSnapshot:
         local_fallback_ready = all(
-            self.models[self.assignments[role_id]].fallback_ready for role_id in self.roles
+            self.models[self.assignments[role_id]].fallback_ready
+            for role_id in self.roles
         )
         if fallback_active:
             message = "Fallback mode is active. Operator review is required before trusting full-confidence synthesis."
@@ -570,21 +587,29 @@ class AIControlService:
 
         if runtime_state == RuntimeState.ACTIVE_SESSION:
             severity = "critical"
-            risks.append("Runtime is in active_session; changing a model now can reshape live synthesis behavior.")
+            risks.append(
+                "Runtime is in active_session; changing a model now can reshape live synthesis behavior."
+            )
 
         if preflight.status == "hard_fail":
             severity = "critical"
             blocks_apply = True
-            risks.append("Preflight is hard-failed; model changes are blocked until operator issues are resolved.")
+            risks.append(
+                "Preflight is hard-failed; model changes are blocked until operator issues are resolved."
+            )
 
         if not proposed_model.fallback_ready:
             severity = "warning" if severity != "critical" else severity
-            resulting_penalty = self.config_loader.load_scope("risk").degraded_confidence_penalty
+            resulting_penalty = self.config_loader.load_scope(
+                "risk"
+            ).degraded_confidence_penalty
             risks.append("Proposed model has no safe local fallback path.")
 
         if proposed_model.provider != current_model.provider:
             severity = "warning" if severity == "info" else severity
-            risks.append("Provider switch changes latency/error/fallback profile for this role.")
+            risks.append(
+                "Provider switch changes latency/error/fallback profile for this role."
+            )
 
         resulting_assignments = dict(self.assignments)
         resulting_assignments[pending_review.role_id] = pending_review.model_id
@@ -606,13 +631,16 @@ class AIControlService:
             approval_required=approval_required,
             blocks_apply=blocks_apply,
             summary=summary,
-            risks=risks or ["No material risks detected beyond standard operator review."],
+            risks=risks
+            or ["No material risks detected beyond standard operator review."],
             expected_effects=expected_effects,
             resulting_confidence_penalty=resulting_penalty,
             resulting_conflicts=resulting_conflicts,
         )
 
-    def _simulate_conflicts(self, assignments: dict[str, str]) -> list[ConflictSnapshot]:
+    def _simulate_conflicts(
+        self, assignments: dict[str, str]
+    ) -> list[ConflictSnapshot]:
         chief_provider = self.models[assignments["chief-agent"]].provider
         conflicts: list[ConflictSnapshot] = []
         for role_id in ("market-scanner", "news-sentiment-agent", "forecast-model"):
@@ -640,10 +668,23 @@ class AIControlService:
                 role_id="chief-agent",
                 role_name="Chief Agent",
                 responsibility="Final synthesis, operator-facing summary, and final conflict resolution.",
-                inputs=("ranked signals", "news sentiment", "forecast output", "runtime posture"),
+                inputs=(
+                    "ranked signals",
+                    "news sentiment",
+                    "forecast output",
+                    "runtime posture",
+                ),
                 outputs=("session thesis", "final confidence", "explanation layer"),
-                allowed_actions=("synthesize", "downgrade_confidence", "request_review"),
-                constraints=("cannot silent-switch", "must expose conflicts", "must explain final decision"),
+                allowed_actions=(
+                    "synthesize",
+                    "downgrade_confidence",
+                    "request_review",
+                ),
+                constraints=(
+                    "cannot silent-switch",
+                    "must expose conflicts",
+                    "must explain final decision",
+                ),
                 explanation_owner=True,
                 synthesis_owner=True,
             ),
@@ -685,6 +726,7 @@ class AIControlService:
         entry = self.models.get(model_id)
         if entry is None:
             from clay.ai_control.runner import ModelUnavailableError
+
             raise ModelUnavailableError(
                 f"model {model_id!r} not found in registry; "
                 f"no transport can be resolved"
@@ -717,7 +759,11 @@ class AIControlService:
                 metrics_summary="Free-tier 1500 RPD, 256K context, supports system prompt via LiteLLM.",
                 notes="Subagent workhorse: market-scanner + news-sentiment-agent on free tier.",
                 activation_status="active",
-                compatible_roles=("market-scanner", "news-sentiment-agent", "chief-agent"),
+                compatible_roles=(
+                    "market-scanner",
+                    "news-sentiment-agent",
+                    "chief-agent",
+                ),
                 fallback_ready=True,
                 capability_tags=("reasoning", "scan", "context"),
             ),

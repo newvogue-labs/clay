@@ -64,7 +64,8 @@ class ContextConnectorManager:
             except Exception as exc:  # pragma: no cover - defensive runtime branch
                 logger.exception(
                     "clay.ingestion.context: connector %s (%s) failed",
-                    connector.connector_id, connector.source_name,
+                    connector.connector_id,
+                    connector.source_name,
                 )
                 results.append(
                     ConnectorRunResult(

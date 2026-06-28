@@ -17,9 +17,12 @@ from clay.ingestion.service import IngestionCycleService
 
 def _market_service(client: Any, settings: Any) -> MarketIngestionService:
     cfg = ExchangeConfig(
-        exchange_id="test", source=getattr(client, "source", "test"),
-        enabled=True, base_url="http://fake",
-        symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+        exchange_id="test",
+        source=getattr(client, "source", "test"),
+        enabled=True,
+        base_url="http://fake",
+        symbols=settings.market_symbols,
+        timeframes=settings.market_timeframes,
     )
     return MarketIngestionService({"test": (client, cfg)})
 
@@ -111,8 +114,13 @@ async def test_ingestion_cycle_persists_market_context_and_ops_records(
         assert summary.freshness_updates_written == 4
         assert len(market_repository.list_latest_bars()) == 4
         assert len(market_repository.list_freshness_statuses()) == 4
-        assert context_repository.latest_news(limit=1)[0].source_name == "demo_news_feed"
-        assert context_repository.latest_sentiment(limit=1)[0].source_name == "demo_sentiment_feed"
+        assert (
+            context_repository.latest_news(limit=1)[0].source_name == "demo_news_feed"
+        )
+        assert (
+            context_repository.latest_sentiment(limit=1)[0].source_name
+            == "demo_sentiment_feed"
+        )
         assert len(ops_repository.latest_connector_statuses()) == 2
 
 
@@ -208,4 +216,7 @@ async def test_ingestion_cycle_resolves_previous_market_incident_after_success(
         assert summary.market_records_written == 1
         assert ops_repository.latest_incidents() == []
         assert resolved.lifecycle_status == "resolved"
-        assert resolved.resolution_message == "Market ingest recovered after successful refresh."
+        assert (
+            resolved.resolution_message
+            == "Market ingest recovered after successful refresh."
+        )

@@ -5,7 +5,9 @@ import pytest
 from clay.config.loader import ConfigLoader
 
 
-def test_loader_uses_xdg_runtime_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_loader_uses_xdg_runtime_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
     loader = ConfigLoader()
 
@@ -28,4 +30,6 @@ def test_invalid_config_rolls_back_to_last_valid_version(
     restored = loader.restore_last_valid("runtime")
 
     assert restored.exists()
-    assert 'default_state = "background_monitoring"' in restored.read_text(encoding="utf-8")
+    assert 'default_state = "background_monitoring"' in restored.read_text(
+        encoding="utf-8"
+    )

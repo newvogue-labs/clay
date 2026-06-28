@@ -46,7 +46,10 @@ def seed_signal_data(session) -> None:
     market_repository = MarketRepository(session)
     context_repository = ContextRepository(session)
     ops_repository = OpsRepository(session)
-    for symbol, close, volume in [("BTCUSDT", 70540.0, 260.0), ("SOLUSDT", 179.1, 95.0)]:
+    for symbol, close, volume in [
+        ("BTCUSDT", 70540.0, 260.0),
+        ("SOLUSDT", 179.1, 95.0),
+    ]:
         market_repository.upsert_market_bars(
             [
                 {
@@ -119,7 +122,9 @@ def test_signal_engine_applies_context_penalties_and_risk_actions(db_session) ->
     assert any(trigger.title == "Low context quality" for trigger in sol.risk_triggers)
 
 
-def test_signal_engine_switches_to_defensive_when_runtime_is_degraded(db_session) -> None:
+def test_signal_engine_switches_to_defensive_when_runtime_is_degraded(
+    db_session,
+) -> None:
     engine = build_signal_engine()
     seed_signal_data(db_session)
     engine.runtime_manager.enter_degraded()
@@ -128,7 +133,9 @@ def test_signal_engine_switches_to_defensive_when_runtime_is_degraded(db_session
 
     assert snapshot.workspace_posture == "restricted_by_degraded"
     assert snapshot.strategy_mode_proposal == "defensive"
-    assert any(signal.response_action == "switch_to_defensive" for signal in snapshot.signals)
+    assert any(
+        signal.response_action == "switch_to_defensive" for signal in snapshot.signals
+    )
 
 
 # === G6-obs: observability fields (Finding M, L, R3) ===
@@ -254,7 +261,10 @@ def test_signal_engine_flags_low_quote_volume(db_session) -> None:
 
     # BTCUSDT: low quote-volume. close=70540, volume=10 → quote_volume=705,400 (< 1M).
     # SOLUSDT: high quote-volume. close=179, volume=100000 → quote_volume=17,900,000 (> 1M).
-    for symbol, close, volume in [("BTCUSDT", 70540.0, 10.0), ("SOLUSDT", 179.0, 100_000.0)]:
+    for symbol, close, volume in [
+        ("BTCUSDT", 70540.0, 10.0),
+        ("SOLUSDT", 179.0, 100_000.0),
+    ]:
         market_repository.upsert_market_bars(
             [
                 {

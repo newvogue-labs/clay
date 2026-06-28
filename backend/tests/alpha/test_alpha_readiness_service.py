@@ -275,29 +275,41 @@ def next_operator_step(payload: dict[str, object]) -> dict[str, object] | None:
     )
 
 
-def assert_next_step(payload: dict[str, object], step_id: str, target_screen: str) -> None:
+def assert_next_step(
+    payload: dict[str, object], step_id: str, target_screen: str
+) -> None:
     next_step = next_operator_step(payload)
     assert next_step is not None
     assert next_step["step_id"] == step_id
     assert next_step["target_screen"] == target_screen
 
 
-def test_alpha_readiness_blocks_without_fresh_inputs(db_session, tmp_path: Path) -> None:
+def test_alpha_readiness_blocks_without_fresh_inputs(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_alpha_bundle(tmp_path)
 
     snapshot = bundle["service"].build_snapshot(db_session)
 
     assert snapshot.summary.readiness_status == "blocked"
     assert snapshot.summary.operator_path_ready is False
-    assert any(gate.gate_id == "preflight-ready" and gate.status == "fail" for gate in snapshot.gates)
-    assert any(gate.gate_id == "focused-signal" and gate.blocks_alpha for gate in snapshot.gates)
+    assert any(
+        gate.gate_id == "preflight-ready" and gate.status == "fail"
+        for gate in snapshot.gates
+    )
+    assert any(
+        gate.gate_id == "focused-signal" and gate.blocks_alpha
+        for gate in snapshot.gates
+    )
     next_steps = [step for step in snapshot.operator_steps if step.is_next]
     assert len(next_steps) == 1
     assert next_steps[0].step_id == "check_preflight"
     assert next_steps[0].target_screen == "session-control"
 
 
-def test_alpha_readiness_opens_operator_path_when_session_can_run(db_session, tmp_path: Path) -> None:
+def test_alpha_readiness_opens_operator_path_when_session_can_run(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_alpha_bundle(tmp_path)
     seed_alpha_inputs(db_session)
     bundle["session_control_service"].start_session(db_session)
@@ -308,7 +320,10 @@ def test_alpha_readiness_opens_operator_path_when_session_can_run(db_session, tm
     assert snapshot.summary.operator_path_ready is True
     assert snapshot.summary.blocking_gate_count == 0
     assert snapshot.evidence.session_lifecycle_state == "active_session"
-    assert any(step.step_id == "log_demo_decision" and step.status == "warn" for step in snapshot.operator_steps)
+    assert any(
+        step.step_id == "log_demo_decision" and step.status == "warn"
+        for step in snapshot.operator_steps
+    )
     next_step = next(step for step in snapshot.operator_steps if step.is_next)
     assert next_step.step_id == "log_demo_decision"
     assert next_step.action_label == "Log demo decision"
@@ -328,11 +343,19 @@ def test_alpha_readiness_surfaces_evidence_gates(db_session, tmp_path: Path) -> 
     assert snapshot.summary.operator_path_ready is True
     assert snapshot.evidence.demo_readiness_status == "ready_for_review"
     assert snapshot.evidence.validation_replay_ready is True
-    assert any(gate.gate_id == "demo-evidence" and gate.status == "pass" for gate in snapshot.gates)
-    assert any(gate.gate_id == "validation-replay" and gate.status == "pass" for gate in snapshot.gates)
+    assert any(
+        gate.gate_id == "demo-evidence" and gate.status == "pass"
+        for gate in snapshot.gates
+    )
+    assert any(
+        gate.gate_id == "validation-replay" and gate.status == "pass"
+        for gate in snapshot.gates
+    )
 
 
-def test_alpha_happy_path_advances_runbook_across_operator_routes(db_session, tmp_path: Path) -> None:
+def test_alpha_happy_path_advances_runbook_across_operator_routes(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_alpha_bundle(tmp_path)
     seed_alpha_inputs(db_session)
 
@@ -377,7 +400,9 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(db_session, tm
     )
     assert resolved["records"][0]["outcome_status"] == "matched"
 
-    completed = asyncio.run(complete_session(db_session, bundle["session_control_service"]))
+    completed = asyncio.run(
+        complete_session(db_session, bundle["session_control_service"])
+    )
     assert completed["lifecycle"]["lifecycle_state"] == "review"
 
     after_result = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
@@ -402,7 +427,9 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(db_session, tm
 
     validation = asyncio.run(
         run_validation_lab(
-            ValidationRunCommand(run_type="strategy_replay", label="Alpha happy path replay"),
+            ValidationRunCommand(
+                run_type="strategy_replay", label="Alpha happy path replay"
+            ),
             db_session,
             bundle["validation_lab_service"],
         )
@@ -412,7 +439,9 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(db_session, tm
     after_validation = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
     assert_next_step(after_validation, "recheck_reliability", "reliability")
 
-    reliability = asyncio.run(recheck_reliability(db_session, bundle["reliability_service"]))
+    reliability = asyncio.run(
+        recheck_reliability(db_session, bundle["reliability_service"])
+    )
     assert reliability["summary"]["last_rechecked_at"] is not None
     assert reliability["summary"]["release_readiness_status"] == "needs_attention"
 
@@ -424,7 +453,9 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(db_session, tm
     assert all(step["status"] == "pass" for step in final["operator_steps"])
 
 
-def test_alpha_operator_path_runs_through_http_api_contracts(db_session, tmp_path: Path) -> None:
+def test_alpha_operator_path_runs_through_http_api_contracts(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_alpha_bundle(tmp_path)
     seed_alpha_inputs(db_session)
     app = create_app()
@@ -434,15 +465,27 @@ def test_alpha_operator_path_runs_through_http_api_contracts(db_session, tmp_pat
 
     app.dependency_overrides[get_db_session] = override_db_session
     app.dependency_overrides[get_alpha_readiness_service] = lambda: bundle["service"]
-    app.dependency_overrides[get_session_control_service] = lambda: bundle["session_control_service"]
-    app.dependency_overrides[get_demo_trading_service] = lambda: bundle["demo_trading_service"]
-    app.dependency_overrides[get_session_review_service] = lambda: bundle["session_review_service"]
-    app.dependency_overrides[get_validation_lab_service] = lambda: bundle["validation_lab_service"]
-    app.dependency_overrides[get_reliability_service] = lambda: bundle["reliability_service"]
+    app.dependency_overrides[get_session_control_service] = lambda: bundle[
+        "session_control_service"
+    ]
+    app.dependency_overrides[get_demo_trading_service] = lambda: bundle[
+        "demo_trading_service"
+    ]
+    app.dependency_overrides[get_session_review_service] = lambda: bundle[
+        "session_review_service"
+    ]
+    app.dependency_overrides[get_validation_lab_service] = lambda: bundle[
+        "validation_lab_service"
+    ]
+    app.dependency_overrides[get_reliability_service] = lambda: bundle[
+        "reliability_service"
+    ]
 
     async def run_path() -> None:
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
             initial = (await client.get("/alpha/overview")).json()
             assert_next_step(initial, "start_or_resume_session", "session-control")
 
@@ -526,7 +569,9 @@ def test_alpha_operator_path_runs_through_http_api_contracts(db_session, tmp_pat
         app.dependency_overrides.clear()
 
 
-def test_alpha_overview_route_returns_snapshot_payload(db_session, tmp_path: Path) -> None:
+def test_alpha_overview_route_returns_snapshot_payload(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_alpha_bundle(tmp_path)
     seed_alpha_inputs(db_session)
 
@@ -535,4 +580,7 @@ def test_alpha_overview_route_returns_snapshot_payload(db_session, tmp_path: Pat
     assert payload["summary"]["operator_path_ready"] is True
     assert payload["evidence"]["focus_symbol"] == "BTCUSDT"
     assert payload["gates"]
-    assert any(step["is_next"] and step["target_screen"] == "session-control" for step in payload["operator_steps"])
+    assert any(
+        step["is_next"] and step["target_screen"] == "session-control"
+        for step in payload["operator_steps"]
+    )

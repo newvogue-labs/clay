@@ -47,7 +47,9 @@ class DemoRepository:
         self.session.flush()
         return record
 
-    def list_trade_records(self, *, limit: int = 50, source_scope: Collection[str] = DEFAULT_READ_SCOPE) -> list[DemoTradeRecord]:
+    def list_trade_records(
+        self, *, limit: int = 50, source_scope: Collection[str] = DEFAULT_READ_SCOPE
+    ) -> list[DemoTradeRecord]:
         _validate_scope(source_scope)
         query = (
             select(DemoTradeRecord)
@@ -57,7 +59,9 @@ class DemoRepository:
         )
         return list(self.session.scalars(query).all())
 
-    def list_all_trade_records(self, source_scope: Collection[str] = DEFAULT_READ_SCOPE) -> list[DemoTradeRecord]:
+    def list_all_trade_records(
+        self, source_scope: Collection[str] = DEFAULT_READ_SCOPE
+    ) -> list[DemoTradeRecord]:
         _validate_scope(source_scope)
         query = (
             select(DemoTradeRecord)
@@ -66,14 +70,18 @@ class DemoRepository:
         )
         return list(self.session.scalars(query).all())
 
-    def list_resolved_window(self, hours: int, source_scope: Collection[str] = DEFAULT_READ_SCOPE) -> list[DemoTradeRecord]:
+    def list_resolved_window(
+        self, hours: int, source_scope: Collection[str] = DEFAULT_READ_SCOPE
+    ) -> list[DemoTradeRecord]:
         _validate_scope(source_scope)
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         query = (
             select(DemoTradeRecord)
             .where(
                 DemoTradeRecord.recorded_at >= cutoff,
-                DemoTradeRecord.outcome_status.in_({"matched", "missed", "late_matched", "mismatched"}),
+                DemoTradeRecord.outcome_status.in_(
+                    {"matched", "missed", "late_matched", "mismatched"}
+                ),
                 DemoTradeRecord.operator_action == "entered",
                 DemoTradeRecord.source.in_(source_scope),
             )
@@ -81,7 +89,9 @@ class DemoRepository:
         )
         return list(self.session.scalars(query).all())
 
-    def list_ordered_recent(self, limit: int = 50, source_scope: Collection[str] = DEFAULT_READ_SCOPE) -> list[DemoTradeRecord]:
+    def list_ordered_recent(
+        self, limit: int = 50, source_scope: Collection[str] = DEFAULT_READ_SCOPE
+    ) -> list[DemoTradeRecord]:
         _validate_scope(source_scope)
         query = (
             select(DemoTradeRecord)
@@ -94,18 +104,19 @@ class DemoRepository:
         )
         return list(self.session.scalars(query).all())
 
-    def list_open_positions(self, source_scope: Collection[str] = DEFAULT_READ_SCOPE) -> list[DemoTradeRecord]:
+    def list_open_positions(
+        self, source_scope: Collection[str] = DEFAULT_READ_SCOPE
+    ) -> list[DemoTradeRecord]:
         _validate_scope(source_scope)
-        query = (
-            select(DemoTradeRecord)
-            .where(
-                DemoTradeRecord.broker_status == "awaiting_result",
-                DemoTradeRecord.source.in_(source_scope),
-            )
+        query = select(DemoTradeRecord).where(
+            DemoTradeRecord.broker_status == "awaiting_result",
+            DemoTradeRecord.source.in_(source_scope),
         )
         return list(self.session.scalars(query).all())
 
-    def list_session_trades(self, session_id: str, source_scope: Collection[str] = DEFAULT_READ_SCOPE) -> list[DemoTradeRecord]:
+    def list_session_trades(
+        self, session_id: str, source_scope: Collection[str] = DEFAULT_READ_SCOPE
+    ) -> list[DemoTradeRecord]:
         _validate_scope(source_scope)
         query = (
             select(DemoTradeRecord)

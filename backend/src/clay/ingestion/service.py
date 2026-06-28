@@ -47,13 +47,13 @@ def _resolve_retry_delay(
 
     try:
         parsed = float(retry_after)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         try:
             parsed_date = email_utils.parsedate_to_datetime(retry_after)
             if parsed_date.tzinfo is None:
                 parsed_date = parsed_date.replace(tzinfo=UTC)
             parsed = (parsed_date - datetime.now(UTC)).total_seconds()
-        except (ValueError, TypeError, OverflowError):
+        except ValueError, TypeError, OverflowError:
             return default_delay
 
     return max(0.0, min(parsed, cap))
@@ -239,7 +239,9 @@ class IngestionCycleService:
         started_at = datetime.now(UTC)
         collected = await self._collect()
         summary = await asyncio.to_thread(
-            self._persist, collected, started_at,
+            self._persist,
+            collected,
+            started_at,
         )
         return summary
 
@@ -287,27 +289,42 @@ class IngestionCycleService:
         exchange failure is captured per-batch and handled in the persist phase.
         """
         batches: list[_MarketBatch] = []
-        for _exchange_id, (client, config) in self.market_service.exchange_clients.items():
+        for _exchange_id, (
+            client,
+            config,
+        ) in self.market_service.exchange_clients.items():
             for symbol in config.symbols:
                 for timeframe in config.timeframes:
                     try:
                         bars = await self._fetch_market_bars(
-                            client=client, symbol=symbol, timeframe=timeframe,
+                            client=client,
+                            symbol=symbol,
+                            timeframe=timeframe,
                         )
-                        batches.append(_MarketBatch(
-                            source=config.source,
-                            symbol=symbol, timeframe=timeframe, bars=bars,
-                        ))
+                        batches.append(
+                            _MarketBatch(
+                                source=config.source,
+                                symbol=symbol,
+                                timeframe=timeframe,
+                                bars=bars,
+                            )
+                        )
                     except Exception as exc:
                         logger.warning(
                             "clay.ingestion: %s %s %s — fetch failed: %s",
-                            config.source, symbol, timeframe, exc,
+                            config.source,
+                            symbol,
+                            timeframe,
+                            exc,
                         )
-                        batches.append(_MarketBatch(
-                            source=config.source,
-                            symbol=symbol, timeframe=timeframe,
-                            error=exc,
-                        ))
+                        batches.append(
+                            _MarketBatch(
+                                source=config.source,
+                                symbol=symbol,
+                                timeframe=timeframe,
+                                error=exc,
+                            )
+                        )
         return batches
 
     def _persist(
@@ -383,11 +400,13 @@ class IngestionCycleService:
                     assert batch.error is not None
                     observed_at = datetime.now(UTC)
                     message = self._format_exception_message(batch.error)
-                    summary.incidents.append({
-                        "source_name": f"{source}:{batch.symbol}:{batch.timeframe}",
-                        "severity": "error",
-                        "message": message,
-                    })
+                    summary.incidents.append(
+                        {
+                            "source_name": f"{source}:{batch.symbol}:{batch.timeframe}",
+                            "severity": "error",
+                            "message": message,
+                        }
+                    )
                     ops_repo.record_source_health_event(
                         source_name=f"{source}:{batch.symbol}:{batch.timeframe}",
                         severity="error",
@@ -395,17 +414,21 @@ class IngestionCycleService:
                         recorded_at=observed_at,
                     )
                     market_repo.upsert_freshness_status(
-                        symbol=batch.symbol, timeframe=batch.timeframe,
+                        symbol=batch.symbol,
+                        timeframe=batch.timeframe,
                         source=batch.source,
-                        freshness_state="unknown", evaluated_at=observed_at,
-                        latest_bar_open_time=None, is_stale=True,
+                        freshness_state="unknown",
+                        evaluated_at=observed_at,
+                        latest_bar_open_time=None,
+                        is_stale=True,
                     )
                     summary.freshness_updates_written += 1
                     continue
 
                 assert batch.bars is not None
                 inserted, updated = self.market_service.persist_bars(
-                    market_repo, batch.bars,
+                    market_repo,
+                    batch.bars,
                 )
                 summary.market_records_inserted += inserted
                 summary.market_records_updated += updated
@@ -421,7 +444,8 @@ class IngestionCycleService:
                     market_thresholds=self._market_thresholds,
                 )
                 state_changed = market_repo.upsert_freshness_status(
-                    symbol=batch.symbol, timeframe=batch.timeframe,
+                    symbol=batch.symbol,
+                    timeframe=batch.timeframe,
                     source=latest_bar.source,
                     freshness_state=freshness.status,
                     evaluated_at=freshness.observed_at,
@@ -439,9 +463,11 @@ class IngestionCycleService:
 
             incidents_after = len(summary.incidents)
             market_status = "success"
-            if incidents_after > incidents_before and (
-                summary.market_records_inserted + summary.market_records_updated
-            ) > 0:
+            if (
+                incidents_after > incidents_before
+                and (summary.market_records_inserted + summary.market_records_updated)
+                > 0
+            ):
                 market_status = "partial_failure"
             elif incidents_after > incidents_before:
                 market_status = "failed"
@@ -505,7 +531,9 @@ class IngestionCycleService:
                 summary.incidents.append(
                     {
                         "source_name": result.source_name,
-                        "severity": "warning" if result.status == "degraded" else "error",
+                        "severity": "warning"
+                        if result.status == "degraded"
+                        else "error",
                         "message": result.details.get("error", result.status),
                     },
                 )
@@ -555,8 +583,11 @@ class IngestionCycleService:
                 last_error = exc
                 logger.warning(
                     "clay.ingestion: %s %s — attempt %d/%d failed (%s)",
-                    symbol, timeframe, attempt,
-                    self.settings.market_fetch_max_attempts, type(exc).__name__,
+                    symbol,
+                    timeframe,
+                    attempt,
+                    self.settings.market_fetch_max_attempts,
+                    type(exc).__name__,
                 )
                 if attempt >= self.settings.market_fetch_max_attempts:
                     break
@@ -568,17 +599,24 @@ class IngestionCycleService:
                 if delay != self.settings.market_fetch_retry_delay_seconds:
                     logger.warning(
                         "clay.ingestion: %s %s — Retry-After %ss honoured (capped %ss)",
-                        symbol, timeframe, delay, cap,
+                        symbol,
+                        timeframe,
+                        delay,
+                        cap,
                     )
                 await asyncio.sleep(delay)
 
         if last_error is not None:
             logger.error(
                 "clay.ingestion: %s %s — all %d attempts failed",
-                symbol, timeframe, self.settings.market_fetch_max_attempts,
+                symbol,
+                timeframe,
+                self.settings.market_fetch_max_attempts,
             )
             raise last_error
-        raise RuntimeError(f"market ingest failed without exception for {symbol}:{timeframe}")
+        raise RuntimeError(
+            f"market ingest failed without exception for {symbol}:{timeframe}"
+        )
 
     def _format_exception_message(self, exc: Exception) -> str:
         message = str(exc).strip()

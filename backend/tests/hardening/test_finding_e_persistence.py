@@ -44,21 +44,23 @@ def _seed_session_data(session) -> None:
     ops_repo = OpsRepository(session)
 
     for symbol, close in [("BTCUSDT", 70540.0), ("SOLUSDT", 181.5)]:
-        market_repo.upsert_market_bars([
-            {
-                "symbol": symbol,
-                "timeframe": "15m",
-                "open": close * 0.99,
-                "high": close * 1.01,
-                "low": close * 0.985,
-                "close": close,
-                "volume": 260.0,
-                "quote_volume": close * 260.0,
-                "source": "binance_spot",
-                "bar_open_time": now - timedelta(minutes=15),
-                "bar_close_time": now - timedelta(minutes=1),
-            }
-        ])
+        market_repo.upsert_market_bars(
+            [
+                {
+                    "symbol": symbol,
+                    "timeframe": "15m",
+                    "open": close * 0.99,
+                    "high": close * 1.01,
+                    "low": close * 0.985,
+                    "close": close,
+                    "volume": 260.0,
+                    "quote_volume": close * 260.0,
+                    "source": "binance_spot",
+                    "bar_open_time": now - timedelta(minutes=15),
+                    "bar_close_time": now - timedelta(minutes=1),
+                }
+            ]
+        )
         market_repo.upsert_freshness_status(
             symbol=symbol,
             timeframe="15m",
@@ -69,22 +71,24 @@ def _seed_session_data(session) -> None:
             is_stale=False,
         )
 
-    context_repo.store_sentiment_snapshots([
-        {
-            "source_name": "demo_sentiment_feed",
-            "symbol": "BTCUSDT",
-            "sentiment_label": "bullish",
-            "sentiment_score": 0.74,
-            "captured_at": now - timedelta(minutes=12),
-        },
-        {
-            "source_name": "demo_sentiment_feed",
-            "symbol": "SOLUSDT",
-            "sentiment_label": "bullish",
-            "sentiment_score": 0.88,
-            "captured_at": now - timedelta(minutes=8),
-        },
-    ])
+    context_repo.store_sentiment_snapshots(
+        [
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "BTCUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.74,
+                "captured_at": now - timedelta(minutes=12),
+            },
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "SOLUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.88,
+                "captured_at": now - timedelta(minutes=8),
+            },
+        ]
+    )
     ops_repo.record_connector_status(
         connector_id="demo-news",
         connector_type="news",

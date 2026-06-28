@@ -17,10 +17,12 @@ from clay.ai_control.config_reconciler import ConfigReconciler, ConfigWriter
 from clay.ai_control.provider_pool_repository import SqlProviderPoolRepository
 from clay.db.session import build_session_factory
 
-_CONFIG_PATH = Path(os.environ.get(
-    "CLAY_LITELLM_CONFIG",
-    "/home/emma/.config/clay/litellm/config.yaml",
-))
+_CONFIG_PATH = Path(
+    os.environ.get(
+        "CLAY_LITELLM_CONFIG",
+        "/home/emma/.config/clay/litellm/config.yaml",
+    )
+)
 _EXPECTED_TS = "2.27.1"
 _ENVVAR = "CLAY_PROVIDER_POOL_RECONCILE_ENABLED"
 _FLAG_VALUE = "true"

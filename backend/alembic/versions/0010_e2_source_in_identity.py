@@ -8,6 +8,7 @@ orderbook_summaries: NOT touched (dormant, E3 if needed).
 Revision ID: 0010_e2_source_in_identity
 Revises: 0009_context_unique_dedup
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -35,8 +36,7 @@ def upgrade() -> None:
         "ADD COLUMN source VARCHAR(32) NOT NULL DEFAULT 'binance_spot'"
     )
     op.execute(
-        "ALTER TABLE market.market_freshness_status "
-        "ALTER COLUMN source DROP DEFAULT"
+        "ALTER TABLE market.market_freshness_status ALTER COLUMN source DROP DEFAULT"
     )
     op.execute(
         "ALTER TABLE market.market_freshness_status "
@@ -60,15 +60,11 @@ def downgrade() -> None:
         "ADD CONSTRAINT uq_market_freshness_status "
         "UNIQUE (symbol, timeframe)"
     )
-    op.execute(
-        "ALTER TABLE market.market_freshness_status "
-        "DROP COLUMN source"
-    )
+    op.execute("ALTER TABLE market.market_freshness_status DROP COLUMN source")
 
     # market_bars — восстановить server_default + old UC
     op.execute(
-        "ALTER TABLE market.market_bars "
-        "ALTER COLUMN source SET DEFAULT 'binance_spot'"
+        "ALTER TABLE market.market_bars ALTER COLUMN source SET DEFAULT 'binance_spot'"
     )
     op.execute("ALTER TABLE market.market_bars DROP CONSTRAINT uq_market_bar")
     op.execute(

@@ -1,2 +1,1 @@
 """Alpha core readiness contracts."""
-

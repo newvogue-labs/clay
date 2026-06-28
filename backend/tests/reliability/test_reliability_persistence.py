@@ -49,9 +49,7 @@ from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
 
 
-def build_service(
-    session_factory: sessionmaker, tmp_path: Path
-) -> ReliabilityService:
+def build_service(session_factory: sessionmaker, tmp_path: Path) -> ReliabilityService:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",

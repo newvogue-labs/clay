@@ -41,7 +41,9 @@ def evaluate_market_freshness(
     last_received_at = _coerce_timezone(last_received_at)
     now = _coerce_timezone(now)
     delta = now - last_received_at
-    thresholds = market_thresholds if market_thresholds is not None else MARKET_THRESHOLDS
+    thresholds = (
+        market_thresholds if market_thresholds is not None else MARKET_THRESHOLDS
+    )
     threshold = thresholds[timeframe]
     status = "fresh" if delta <= threshold else "stale"
     return FreshnessResult(
@@ -71,7 +73,9 @@ def evaluate_context_freshness(
 
     last_received_at = _coerce_timezone(last_received_at)
     now = _coerce_timezone(now)
-    thresholds = context_thresholds if context_thresholds is not None else CONTEXT_THRESHOLDS
+    thresholds = (
+        context_thresholds if context_thresholds is not None else CONTEXT_THRESHOLDS
+    )
     delta = now - last_received_at
     threshold = thresholds[stream_name]
     status = "fresh" if delta <= threshold else "degraded"

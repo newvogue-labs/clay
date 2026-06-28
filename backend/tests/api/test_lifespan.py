@@ -36,7 +36,9 @@ async def test_lifespan_starts_scheduler_by_default() -> None:
 
 
 @pytest.mark.anyio
-async def test_lifespan_skips_scheduler_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_lifespan_skips_scheduler_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """``CLAY_SCHEDULER_ENABLED=false`` → ``app.state.scheduler is None``.
 
     B0 / B3a dev-mode path: uvicorn ``--reload``, multi-worker
@@ -73,8 +75,12 @@ async def test_lifespan_injects_http_client_before_scheduler_start(
     monkeypatch.setattr(
         lifespan_module._market_ingestion_service,
         "set_http_client",
-        lambda c: calls.append("set_http_client") or lifespan_module._market_ingestion_service.__class__
-        .set_http_client(lifespan_module._market_ingestion_service, c),
+        lambda c: (
+            calls.append("set_http_client")
+            or lifespan_module._market_ingestion_service.__class__.set_http_client(
+                lifespan_module._market_ingestion_service, c
+            )
+        ),
     )
 
     real_start = ClayScheduler.start
@@ -86,7 +92,9 @@ async def test_lifespan_injects_http_client_before_scheduler_start(
     monkeypatch.setattr(ClayScheduler, "start", recording_start)
 
     # Patch httpx.AsyncClient to return our fake (no real network).
-    monkeypatch.setattr(lifespan_module.httpx, "AsyncClient", lambda **kwargs: fake_client)
+    monkeypatch.setattr(
+        lifespan_module.httpx, "AsyncClient", lambda **kwargs: fake_client
+    )
 
     async with LifespanManager(app):
         pass
@@ -115,7 +123,9 @@ async def test_lifespan_aclose_after_scheduler_shutdown(
 
     fake_client.aclose = fake_aclose
     fake_client.is_closed = False
-    monkeypatch.setattr(lifespan_module.httpx, "AsyncClient", lambda **kwargs: fake_client)
+    monkeypatch.setattr(
+        lifespan_module.httpx, "AsyncClient", lambda **kwargs: fake_client
+    )
 
     real_shutdown = ClayScheduler.shutdown
 
@@ -142,6 +152,7 @@ async def test_lifespan_initializes_http_client_none_before_try(
     ``finally`` block referencing an undefined name — which would
     raise ``UnboundLocalError`` and mask the real startup error.
     """
+
     # Force an exception inside the startup body, AFTER app.state stamps
     # but BEFORE we would create the AsyncClient. Simplest trigger: make
     # ``set_http_client`` blow up on the very first call.

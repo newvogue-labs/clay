@@ -11,7 +11,15 @@ env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
 
 from clay.db.base import Base
-from clay.db import models_context, models_demo, models_knowledge, models_market, models_ops, models_review, models_validation  # noqa: F401 — models imported for Alembic autogenerate target metadata
+from clay.db import (
+    models_context,
+    models_demo,
+    models_knowledge,
+    models_market,
+    models_ops,
+    models_review,
+    models_validation,
+)  # noqa: F401 — models imported for Alembic autogenerate target metadata
 from clay.settings.ingestion import IngestionSettings
 
 config = context.config
@@ -27,21 +35,25 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 # (служебные схемы TimescaleDB, chunk-таблицы в _timescaledb_internal,
 # information_schema, pg_catalog, public) должно быть НЕВИДИМО для
 # autogenerate, чтобы он не предлагал create/drop для объектов вне модели.
-APP_SCHEMAS = frozenset({
-    "context",
-    "demo",
-    "knowledge",
-    "market",
-    "ops",
-    "review",
-    "validation",
-})
+APP_SCHEMAS = frozenset(
+    {
+        "context",
+        "demo",
+        "knowledge",
+        "market",
+        "ops",
+        "review",
+        "validation",
+    }
+)
+
 
 def include_name(name, type_, parent_names):
     # Сравниваем/рефлектим только объекты в схемах, которыми владеет Clay.
     if type_ == "schema":
         return name in APP_SCHEMAS
     return True
+
 
 def run_migrations_offline() -> None:
     context.configure(
@@ -55,6 +67,7 @@ def run_migrations_offline() -> None:
 
     with context.begin_transaction():
         context.run_migrations()
+
 
 def run_migrations_online() -> None:
     connectable = engine_from_config(
@@ -73,6 +86,7 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()

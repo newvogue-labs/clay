@@ -2,7 +2,11 @@ import asyncio
 
 from clay.ai_control.models import AssignmentApplyCommand, AssignmentReviewCommand
 from clay.ai_control.service import AIControlService
-from clay.api.routes.ai_control import apply_ai_assignment, get_ai_control_overview, review_ai_assignment
+from clay.api.routes.ai_control import (
+    apply_ai_assignment,
+    get_ai_control_overview,
+    review_ai_assignment,
+)
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
 from clay.events.bus import EventBus

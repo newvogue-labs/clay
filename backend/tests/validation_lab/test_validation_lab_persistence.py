@@ -280,7 +280,9 @@ def test_apply_activation_model_assignment_persists_via_ai_control(
     seed_validation_inputs(db_session)
     service1.run_validation(
         db_session,
-        ValidationRunCommand(run_type="model_comparison", label="Promote forecast-lite"),
+        ValidationRunCommand(
+            run_type="model_comparison", label="Promote forecast-lite"
+        ),
     )
     review = service1.review_activation(
         db_session,
@@ -291,7 +293,9 @@ def test_apply_activation_model_assignment_persists_via_ai_control(
     service1.apply_activation(db_session, review.review_id)
 
     # In-memory state in BOTH services reflects the promotion.
-    assert service1.ai_control_service.assignments["forecast-model"] == "forecast-lite-v1"
+    assert (
+        service1.ai_control_service.assignments["forecast-model"] == "forecast-lite-v1"
+    )
 
     # DB-level: the row was actually written to ai_assignments (not just
     # mutated in-memory as the pre-A5.5 direct-dict path did).
@@ -304,7 +308,9 @@ def test_apply_activation_model_assignment_persists_via_ai_control(
     # Brand-new service instance → simulates a process restart against
     # the same DB. The promoted assignment MUST survive.
     service2 = build_service(sqlite_session_factory)
-    assert service2.ai_control_service.assignments["forecast-model"] == "forecast-lite-v1"
+    assert (
+        service2.ai_control_service.assignments["forecast-model"] == "forecast-lite-v1"
+    )
     assert service2.ai_control_service.assignments["chief-agent"] == "minimax-m3"
 
 

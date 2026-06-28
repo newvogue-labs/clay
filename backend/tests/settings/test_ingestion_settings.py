@@ -125,4 +125,5 @@ class TestFootgunAFix:
 class TestSettingsExports:
     def test_scheduler_settings_exported(self) -> None:
         from clay.settings import SchedulerSettings as ExportedSchedulerSettings
+
         assert ExportedSchedulerSettings is SchedulerSettings

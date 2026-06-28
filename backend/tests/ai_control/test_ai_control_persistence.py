@@ -85,7 +85,9 @@ def test_first_boot_persists_initial_assignments_to_db(sqlite_session_factory) -
         assert session.scalar(select(func.count()).select_from(AIAssignment)) == 4
 
 
-def test_first_boot_creates_singleton_ai_control_state_row(sqlite_session_factory) -> None:
+def test_first_boot_creates_singleton_ai_control_state_row(
+    sqlite_session_factory,
+) -> None:
     build_service(sqlite_session_factory)
 
     with sqlite_session_factory() as session:
@@ -213,9 +215,7 @@ def test_last_reviewed_at_is_restored_after_restart(
     db_session, sqlite_session_factory: sessionmaker
 ) -> None:
     service1 = build_service(sqlite_session_factory)
-    service1.review_assignment(
-        "chief-agent", "gemma4:e2b-it-qat", session=db_session
-    )
+    service1.review_assignment("chief-agent", "gemma4:e2b-it-qat", session=db_session)
     db_session.commit()
 
     service2 = build_service(sqlite_session_factory)
@@ -330,7 +330,6 @@ def test_set_assignment_persists_assignment_via_ai_assignments(
     assert service1.assignments["forecast-model"] == "forecast-lite-v1"
     # Other roles keep their initial mapping.
     assert service1.assignments["chief-agent"] == "minimax-m3"
-
 
     # Brand-new service instance → simulates a process restart against
     # the same DB.
@@ -528,8 +527,12 @@ def test_set_assignment_emits_audit_and_event_with_source_validation_lab(
     # --- Audit: distinct verb, source tagged ---
     audit_path = Path(audit_writer.path)
     assert audit_path.exists()
-    audit_lines = [json.loads(line) for line in audit_path.read_text().splitlines() if line]
-    set_assignment_audits = [e for e in audit_lines if e["event_type"] == "ai.assignment.set"]
+    audit_lines = [
+        json.loads(line) for line in audit_path.read_text().splitlines() if line
+    ]
+    set_assignment_audits = [
+        e for e in audit_lines if e["event_type"] == "ai.assignment.set"
+    ]
     assert len(set_assignment_audits) == 1
     assert set_assignment_audits[0]["payload"] == {
         "role_id": "forecast-model",
@@ -539,5 +542,7 @@ def test_set_assignment_emits_audit_and_event_with_source_validation_lab(
     }
     # Cross-check: apply_assignment's verb must NOT have been emitted
     # by this path (it lives on the operator-review side only).
-    applied_audits = [e for e in audit_lines if e["event_type"] == "ai.assignment.applied"]
+    applied_audits = [
+        e for e in audit_lines if e["event_type"] == "ai.assignment.applied"
+    ]
     assert applied_audits == []

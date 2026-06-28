@@ -132,7 +132,9 @@ def seed_validation_inputs(session) -> None:
     session.commit()
 
 
-def test_validation_lab_runs_replay_and_creates_activation_review(db_session, tmp_path: Path) -> None:
+def test_validation_lab_runs_replay_and_creates_activation_review(
+    db_session, tmp_path: Path
+) -> None:
     service = build_validation_service(tmp_path)
     seed_validation_inputs(db_session)
 
@@ -152,7 +154,9 @@ def test_validation_lab_runs_replay_and_creates_activation_review(db_session, tm
     assert review.review_id
 
 
-def test_validation_lab_applies_review_when_not_blocked(db_session, tmp_path: Path) -> None:
+def test_validation_lab_applies_review_when_not_blocked(
+    db_session, tmp_path: Path
+) -> None:
     service = build_validation_service(tmp_path)
     seed_validation_inputs(db_session)
     service.run_validation(

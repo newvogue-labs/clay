@@ -28,8 +28,5 @@ async def get_shortlist_metrics(
     )
 
     return {
-        "items": [
-            row.model_dump(mode="json")
-            for row in items
-        ],
+        "items": [row.model_dump(mode="json") for row in items],
     }

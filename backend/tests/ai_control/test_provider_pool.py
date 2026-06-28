@@ -82,7 +82,9 @@ class FakeRepo:
         self.deployments: dict[int, Deployment] = {}
         self.health_records: list[dict] = []
 
-    def add(self, key: ProviderKey | None = None, dep: Deployment | None = None) -> None:
+    def add(
+        self, key: ProviderKey | None = None, dep: Deployment | None = None
+    ) -> None:
         if key is not None:
             self.keys[key.id] = key
         if dep is not None:
@@ -91,7 +93,11 @@ class FakeRepo:
     # --- Protocol ---
 
     def get_available_for_model(self, model_name: str) -> list[Deployment]:
-        return [d for d in self.deployments.values() if d.model_name == model_name and d.enabled]
+        return [
+            d
+            for d in self.deployments.values()
+            if d.model_name == model_name and d.enabled
+        ]
 
     def get_deployment(self, deployment_id: int) -> Deployment | None:
         return self.deployments.get(deployment_id)
@@ -118,16 +124,18 @@ class FakeRepo:
         error_excerpt: str | None,
         time: datetime,
     ) -> None:
-        self.health_records.append({
-            "provider_key_id": provider_key_id,
-            "deployment_id": deployment_id,
-            "model_name": model_name,
-            "outcome": outcome,
-            "latency_ms": latency_ms,
-            "tokens": tokens,
-            "error_excerpt": error_excerpt,
-            "time": time,
-        })
+        self.health_records.append(
+            {
+                "provider_key_id": provider_key_id,
+                "deployment_id": deployment_id,
+                "model_name": model_name,
+                "outcome": outcome,
+                "latency_ms": latency_ms,
+                "tokens": tokens,
+                "error_excerpt": error_excerpt,
+                "time": time,
+            }
+        )
 
     def list_enabled_deployments(self) -> list:
         return []
@@ -135,7 +143,11 @@ class FakeRepo:
     def expire_cooling(self, now: datetime) -> int:
         count = 0
         for k in self.keys.values():
-            if k.state == KeyState.COOLING and k.cooling_until is not None and k.cooling_until <= now:
+            if (
+                k.state == KeyState.COOLING
+                and k.cooling_until is not None
+                and k.cooling_until <= now
+            ):
                 k.state = KeyState.AVAILABLE
                 k.cooling_until = None
                 count += 1
@@ -144,7 +156,11 @@ class FakeRepo:
     def expire_exhausted(self, now: datetime) -> int:
         count = 0
         for k in self.keys.values():
-            if k.state == KeyState.EXHAUSTED and k.reset_at is not None and k.reset_at <= now:
+            if (
+                k.state == KeyState.EXHAUSTED
+                and k.reset_at is not None
+                and k.reset_at <= now
+            ):
                 k.state = KeyState.AVAILABLE
                 k.rpd_used = 0
                 k.daily_token_used = 0
@@ -190,7 +206,10 @@ def test_select_available_skips_rpd_exhausted() -> None:
 
 def test_select_available_skips_daily_token_exhausted() -> None:
     repo = FakeRepo()
-    repo.add(key=_key(id=1, daily_token_limit=1000, daily_token_used=1000), dep=_dep(id=1, key_id=1))
+    repo.add(
+        key=_key(id=1, daily_token_limit=1000, daily_token_used=1000),
+        dep=_dep(id=1, key_id=1),
+    )
     repo.add(key=_key(id=2), dep=_dep(id=2, key_id=2))
     pool = ProviderPool(repo)
     result = pool.select_available("test-model", now=_EPOCH)
@@ -278,7 +297,9 @@ class TestMarkFailure:
             HealthOutcome.UPSTREAM,
         ],
     )
-    def test_soft_fail_below_threshold_increments_fails(self, outcome: HealthOutcome) -> None:
+    def test_soft_fail_below_threshold_increments_fails(
+        self, outcome: HealthOutcome
+    ) -> None:
         repo = FakeRepo()
         k = _key(id=1, fails=0)
         repo.add(key=k, dep=_dep(id=10, key_id=1))
@@ -295,7 +316,9 @@ class TestMarkFailure:
             HealthOutcome.UPSTREAM,
         ],
     )
-    def test_soft_fail_at_threshold_triggers_cooling(self, outcome: HealthOutcome) -> None:
+    def test_soft_fail_at_threshold_triggers_cooling(
+        self, outcome: HealthOutcome
+    ) -> None:
         repo = FakeRepo()
         k = _key(id=1, fails=1)
         repo.add(key=k, dep=_dep(id=10, key_id=1))
@@ -364,7 +387,13 @@ def test_reconcile_cooling_not_yet_expired() -> None:
 def test_reconcile_exhausted_reset() -> None:
     repo = FakeRepo()
     past = _EPOCH - timedelta(hours=1)
-    k = _key(id=1, state=KeyState.EXHAUSTED, reset_at=past, rpd_used=100, daily_token_used=5000)
+    k = _key(
+        id=1,
+        state=KeyState.EXHAUSTED,
+        reset_at=past,
+        rpd_used=100,
+        daily_token_used=5000,
+    )
     repo.add(key=k, dep=_dep(id=10, key_id=1))
     pool = ProviderPool(repo)
     n = pool.reconcile_states(now=_EPOCH)
@@ -389,7 +418,15 @@ def test_reconcile_both_transitions() -> None:
     repo = FakeRepo()
     past = _EPOCH - timedelta(hours=1)
     repo.add(key=_key(id=1, state=KeyState.COOLING, cooling_until=past))
-    repo.add(key=_key(id=2, state=KeyState.EXHAUSTED, reset_at=past, rpd_used=50, daily_token_used=2000))
+    repo.add(
+        key=_key(
+            id=2,
+            state=KeyState.EXHAUSTED,
+            reset_at=past,
+            rpd_used=50,
+            daily_token_used=2000,
+        )
+    )
     pool = ProviderPool(repo)
     n = pool.reconcile_states(now=_EPOCH)
     assert n == 2

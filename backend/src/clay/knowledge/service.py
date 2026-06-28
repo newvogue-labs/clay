@@ -55,10 +55,7 @@ class KnowledgeService:
 
         return KnowledgeSnapshot(
             summary=self._build_summary(session, items),
-            recent_items=[
-                self._serialize_item(session, item)
-                for item in items
-            ],
+            recent_items=[self._serialize_item(session, item) for item in items],
             search_results=search_results,
         )
 
@@ -171,7 +168,9 @@ class KnowledgeService:
 
     def _build_summary(self, session: Session, items) -> KnowledgeSummarySnapshot:
         repository = KnowledgeRepository(session)
-        total_chunks = sum(len(repository.list_chunks_for_item(item.id)) for item in items)
+        total_chunks = sum(
+            len(repository.list_chunks_for_item(item.id)) for item in items
+        )
         return KnowledgeSummarySnapshot(
             total_items=len(items),
             total_chunks=total_chunks,
@@ -204,10 +203,16 @@ class KnowledgeService:
         normalized = content.strip()
         if not normalized:
             return [("paragraph", "")]
-        paragraphs = [part.strip() for part in re.split(r"\n\s*\n", normalized) if part.strip()]
+        paragraphs = [
+            part.strip() for part in re.split(r"\n\s*\n", normalized) if part.strip()
+        ]
         chunks: list[tuple[str, str]] = []
         for paragraph in paragraphs:
-            sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", paragraph) if sentence.strip()]
+            sentences = [
+                sentence.strip()
+                for sentence in re.split(r"(?<=[.!?])\s+", paragraph)
+                if sentence.strip()
+            ]
             if len(sentences) <= 2:
                 chunks.append(("paragraph", paragraph))
                 continue
@@ -241,7 +246,9 @@ class KnowledgeService:
         if not haystack_tokens:
             return 0.0
         hit_count = sum(haystack_tokens.count(token) for token in query_tokens)
-        coverage = len({token for token in query_tokens if token in haystack_tokens}) / len(query_tokens)
+        coverage = len(
+            {token for token in query_tokens if token in haystack_tokens}
+        ) / len(query_tokens)
         priority_bonus = {"low": 0.0, "medium": 0.15, "high": 0.3}.get(priority, 0.0)
         density = hit_count / max(math.sqrt(len(haystack_tokens)), 1)
         return (coverage * 1.4) + density + priority_bonus

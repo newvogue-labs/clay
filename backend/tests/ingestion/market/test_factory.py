@@ -14,7 +14,8 @@ def test_build_market_client_returns_binance_spot_client() -> None:
         source="binance_spot",
         enabled=True,
         base_url="https://custom.api.com",
-        symbols=[], timeframes=[],
+        symbols=[],
+        timeframes=[],
     )
     client = build_market_client(cfg)
     assert isinstance(client, BinanceSpotClient)
@@ -28,7 +29,8 @@ def test_build_market_client_returns_bybit_client() -> None:
         source="bybit_spot",
         enabled=True,
         base_url="https://api.bybit.com",
-        symbols=[], timeframes=[],
+        symbols=[],
+        timeframes=[],
     )
     client = build_market_client(cfg)
     assert isinstance(client, BybitClient)
@@ -42,9 +44,11 @@ def test_build_market_client_raises_on_unknown_exchange() -> None:
         source="unknown",
         enabled=True,
         base_url="https://example.invalid",
-        symbols=[], timeframes=[],
+        symbols=[],
+        timeframes=[],
     )
     from pytest import raises
+
     with raises(ValueError, match="unknown exchange_id"):
         build_market_client(cfg)
 

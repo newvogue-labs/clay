@@ -145,10 +145,11 @@ def main() -> int:
 
     demo = DemoRepository(session)
 
-    all_bars = list(session.scalars(
-        select(MarketBar)
-        .order_by(MarketBar.bar_close_time.asc())
-    ).all())
+    all_bars = list(
+        session.scalars(
+            select(MarketBar).order_by(MarketBar.bar_close_time.asc())
+        ).all()
+    )
     sol_bars = [b for b in all_bars if b.symbol == SYMBOL and b.timeframe == TF]
     real_n = len(sol_bars)
     assert real_n >= 200, f"Нужно ≥200 SOLUSDT 1h баров, есть {real_n}"
@@ -228,6 +229,7 @@ def main() -> int:
             now=now,
         )
         from types import SimpleNamespace
+
         return SimpleNamespace(
             symbol=SYMBOL,
             timeframe=TF,
@@ -263,13 +265,15 @@ def main() -> int:
     default_before = se._compute_sizing_stats(
         session, risk_cfg, source_scope=DEFAULT_READ_SCOPE
     )
-    replay_before = se._compute_sizing_stats(
-        session, risk_cfg, source_scope={"replay"}
-    )
+    replay_before = se._compute_sizing_stats(session, risk_cfg, source_scope={"replay"})
 
     print("\n📐 p/b до soak:")
-    print(f"   default-scope:  p={default_before[0]:.5f}, b={default_before[1]:.5f}, ev={default_before[2]:.5f}")
-    print(f"   replay-scope:   p={replay_before[0]:.5f}, b={replay_before[1]:.5f}, ev={replay_before[2]:.5f}")
+    print(
+        f"   default-scope:  p={default_before[0]:.5f}, b={default_before[1]:.5f}, ev={default_before[2]:.5f}"
+    )
+    print(
+        f"   replay-scope:   p={replay_before[0]:.5f}, b={replay_before[1]:.5f}, ev={replay_before[2]:.5f}"
+    )
 
     # ── 4. Run the soak ────────────────────────────────────────────
 
@@ -288,12 +292,17 @@ def main() -> int:
     # Monkey-patch build_snapshot to report progress
     _orig_bs = SignalEngineService.build_snapshot
     _call_count = [0]
+
     def _counting_bs(self, session, source_scope=None):
         _call_count[0] += 1
         result = _orig_bs(self, session, source_scope=source_scope)
         if _call_count[0] % 50 == 0:
-            print(f"        build_snapshot call #{_call_count[0]}: clock={clock.now().strftime('%m-%d %H:%M')}", flush=True)
+            print(
+                f"        build_snapshot call #{_call_count[0]}: clock={clock.now().strftime('%m-%d %H:%M')}",
+                flush=True,
+            )
         return result
+
     SignalEngineService._orig_build_snapshot = SignalEngineService.build_snapshot
     SignalEngineService.build_snapshot = _counting_bs
 
@@ -334,26 +343,28 @@ def main() -> int:
 
     # ── 5. Recalibration proof ─────────────────────────────────────
 
-    replay_after = se._compute_sizing_stats(
-        session, risk_cfg, source_scope={"replay"}
-    )
+    replay_after = se._compute_sizing_stats(session, risk_cfg, source_scope={"replay"})
 
     results["replay_p_b_before"] = {
-        "p": replay_before[0], "b": replay_before[1], "ev": replay_before[2],
+        "p": replay_before[0],
+        "b": replay_before[1],
+        "ev": replay_before[2],
     }
     results["replay_p_b_after"] = {
-        "p": replay_after[0], "b": replay_after[1], "ev": replay_after[2],
+        "p": replay_after[0],
+        "b": replay_after[1],
+        "ev": replay_after[2],
     }
 
     print("\n📐 p/b после soak:")
-    print(f"   replay-scope:    p={replay_after[0]:.5f}, b={replay_after[1]:.5f}, ev={replay_after[2]:.5f}")
+    print(
+        f"   replay-scope:    p={replay_after[0]:.5f}, b={replay_after[1]:.5f}, ev={replay_after[2]:.5f}"
+    )
 
     assert replay_after[0] > 0.0, (
         f"replay p должен быть > 0 после recalb, got {replay_after[0]}"
     )
-    assert replay_after[0] != replay_before[0], (
-        "replay p не изменился после soak"
-    )
+    assert replay_after[0] != replay_before[0], "replay p не изменился после soak"
 
     # b_emp проверка
     if losses > 0:
@@ -364,7 +375,9 @@ def main() -> int:
         print(f" ✅ b пересчитан: {replay_before[1]} → {replay_after[1]}")
     else:
         print(f" ⚠️  Нет потерь — b остался fallback {replay_after[1]}")
-        print(f"    wins={wins}, losses=0 → b_emp не определён, fallback 1.0 — корректно")
+        print(
+            f"    wins={wins}, losses=0 → b_emp не определён, fallback 1.0 — корректно"
+        )
         results["wins_only"] = True
 
     results["replay_p_moved"] = replay_after[0] != replay_before[0]
@@ -378,15 +391,23 @@ def main() -> int:
         session, risk_cfg, source_scope=DEFAULT_READ_SCOPE
     )
     results["default_p_b_before"] = {
-        "p": default_before[0], "b": default_before[1], "ev": default_before[2],
+        "p": default_before[0],
+        "b": default_before[1],
+        "ev": default_before[2],
     }
     results["default_p_b_after"] = {
-        "p": default_after[0], "b": default_after[1], "ev": default_after[2],
+        "p": default_after[0],
+        "b": default_after[1],
+        "ev": default_after[2],
     }
 
     print("\n🔒 default-scope:")
-    print(f"   before: p={default_before[0]:.5f}, b={default_before[1]:.5f}, ev={default_before[2]:.5f}")
-    print(f"   after:  p={default_after[0]:.5f}, b={default_after[1]:.5f}, ev={default_after[2]:.5f}")
+    print(
+        f"   before: p={default_before[0]:.5f}, b={default_before[1]:.5f}, ev={default_before[2]:.5f}"
+    )
+    print(
+        f"   after:  p={default_after[0]:.5f}, b={default_after[1]:.5f}, ev={default_after[2]:.5f}"
+    )
 
     assert default_before == default_after, (
         f"default-scope p/b изменился!\n"
@@ -400,15 +421,15 @@ def main() -> int:
         r.id: (r.pnl_pct, r.outcome_status, r.source)
         for r in demo.list_all_trade_records(source_scope={"baseline", "live"})
     }
-    replay_ids = {
-        r.id for r in demo.list_all_trade_records(source_scope={"replay"})
-    }
+    replay_ids = {r.id for r in demo.list_all_trade_records(source_scope={"replay"})}
     default_ids = {r.id for r in demo.list_all_trade_records()}
     isolation_ok = default_ids.isdisjoint(replay_ids)
 
     results["replay_record_count"] = len(replay_ids)
     results["scope_isolation"] = isolation_ok
-    print(f"\n🔍 Изоляция: {len(replay_ids)} replay записей, {len(bl_after)} baseline/live")
+    print(
+        f"\n🔍 Изоляция: {len(replay_ids)} replay записей, {len(bl_after)} baseline/live"
+    )
     assert isolation_ok, "default scope содержит replay записи!"
     print("   ✅ scope_isolation: OK")
     assert bl_wins == sum(1 for r in bl_after.values() if r[0] and r[0] > 0), (
@@ -431,7 +452,9 @@ def main() -> int:
         if l2_check is not None:
             results["l2_status"] = l2_check.status
             results["l2_blocks_start"] = l2_check.blocks_start
-            print(f"   🛑 L2 status={l2_check.status}, blocks_start={l2_check.blocks_start}")
+            print(
+                f"   🛑 L2 status={l2_check.status}, blocks_start={l2_check.blocks_start}"
+            )
     else:
         print(f"   ⚠️  На {wins}W/{losses}L — естественный loss-streak < 3")
         print("   L2 не сработал (корректно: нет 3 последовательных потерь)")
@@ -445,21 +468,23 @@ def main() -> int:
     trades_clock = VirtualClock(start=clock.now())
     trades_clock.tick(timedelta(hours=2))
     for i in range(3):
-        demo.create_trade_record({
-            "session_id": f"desync-check-{i}",
-            "signal_id": "desync-check",
-            "symbol": SYMBOL,
-            "executed_symbol": SYMBOL,
-            "operator_action": "entered",
-            "recorded_at": trades_clock.now(),
-            "broker_status": "closed",
-            "entry_price": 100.0,
-            "exit_price": 99.4,
-            "pnl_pct": -0.6,
-            "observed_at": trades_clock.now(),
-            "outcome_status": "matched",
-            "source": "replay",
-        })
+        demo.create_trade_record(
+            {
+                "session_id": f"desync-check-{i}",
+                "signal_id": "desync-check",
+                "symbol": SYMBOL,
+                "executed_symbol": SYMBOL,
+                "operator_action": "entered",
+                "recorded_at": trades_clock.now(),
+                "broker_status": "closed",
+                "entry_price": 100.0,
+                "exit_price": 99.4,
+                "pnl_pct": -0.6,
+                "observed_at": trades_clock.now(),
+                "outcome_status": "matched",
+                "source": "replay",
+            }
+        )
     session.commit()
 
     guard_fired = False
@@ -511,6 +536,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ ОШИБКА: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         results["status"] = "ERROR"
         results["error"] = f"{type(e).__name__}: {e}"

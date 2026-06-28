@@ -203,7 +203,9 @@ class ExecutionOverride(Base):
 
     __tablename__ = "execution_overrides"
     __table_args__ = (
-        Index("ix_execution_overrides_override_created_at", "override_id", "created_at"),
+        Index(
+            "ix_execution_overrides_override_created_at", "override_id", "created_at"
+        ),
         Index("ix_execution_overrides_actor_created_at", "actor", "created_at"),
         {"schema": "ops"},
     )

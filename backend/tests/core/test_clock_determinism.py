@@ -3,6 +3,7 @@
 Verifies that every ``build_snapshot()`` on the auto-pilot replay path
 derives ``now`` from the injected clock, not from ``datetime.now(UTC)``.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -159,21 +160,23 @@ def _seed_data(session: Any) -> None:
     ops_repo = OpsRepository(session)
     demo_repo = DemoRepository(session)
 
-    market_repo.upsert_market_bars([
-        {
-            "symbol": "BTCUSDT",
-            "timeframe": "15m",
-            "open": 70000.0,
-            "high": 70600.0,
-            "low": 69950.0,
-            "close": 70500.0,
-            "volume": 250.0,
-            "quote_volume": 17600000.0,
-            "source": "binance_spot",
-            "bar_open_time": now - timedelta(minutes=15),
-            "bar_close_time": now - timedelta(minutes=1),
-        },
-    ])
+    market_repo.upsert_market_bars(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "open": 70000.0,
+                "high": 70600.0,
+                "low": 69950.0,
+                "close": 70500.0,
+                "volume": 250.0,
+                "quote_volume": 17600000.0,
+                "source": "binance_spot",
+                "bar_open_time": now - timedelta(minutes=15),
+                "bar_close_time": now - timedelta(minutes=1),
+            },
+        ]
+    )
     market_repo.upsert_freshness_status(
         symbol="BTCUSDT",
         timeframe="15m",
@@ -183,25 +186,29 @@ def _seed_data(session: Any) -> None:
         latest_bar_open_time=now - timedelta(minutes=15),
         is_stale=False,
     )
-    context_repo.store_news_items([
-        {
-            "source_name": "demo_news_feed",
-            "headline": "test",
-            "summary": "test",
-            "published_at": now - timedelta(minutes=30),
-            "symbol": "BTCUSDT",
-            "source_url": "https://example.invalid/news/test",
-        },
-    ])
-    context_repo.store_sentiment_snapshots([
-        {
-            "source_name": "demo_sentiment_feed",
-            "symbol": "BTCUSDT",
-            "sentiment_label": "bullish",
-            "sentiment_score": 0.8,
-            "captured_at": now - timedelta(minutes=20),
-        },
-    ])
+    context_repo.store_news_items(
+        [
+            {
+                "source_name": "demo_news_feed",
+                "headline": "test",
+                "summary": "test",
+                "published_at": now - timedelta(minutes=30),
+                "symbol": "BTCUSDT",
+                "source_url": "https://example.invalid/news/test",
+            },
+        ]
+    )
+    context_repo.store_sentiment_snapshots(
+        [
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "BTCUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.8,
+                "captured_at": now - timedelta(minutes=20),
+            },
+        ]
+    )
     ops_repo.record_connector_status(
         connector_id="demo-news",
         connector_type="news",
@@ -215,21 +222,23 @@ def _seed_data(session: Any) -> None:
         observed_at=now,
     )
     for i in range(3):
-        demo_repo.create_trade_record({
-            "session_id": f"det-session-{i}",
-            "signal_id": f"sig-{i}",
-            "symbol": "BTCUSDT",
-            "executed_symbol": "BTCUSDT",
-            "operator_action": "entered",
-            "operator_notes": "determinism seed",
-            "recorded_at": now - timedelta(hours=i + 1),
-            "broker_status": "closed",
-            "entry_price": 70000.0 + i,
-            "exit_price": 70120.0 + i,
-            "pnl_pct": 1.2 + (i * 0.1),
-            "observed_at": now - timedelta(hours=i + 1) + timedelta(minutes=20),
-            "outcome_status": "matched",
-        })
+        demo_repo.create_trade_record(
+            {
+                "session_id": f"det-session-{i}",
+                "signal_id": f"sig-{i}",
+                "symbol": "BTCUSDT",
+                "executed_symbol": "BTCUSDT",
+                "operator_action": "entered",
+                "operator_notes": "determinism seed",
+                "recorded_at": now - timedelta(hours=i + 1),
+                "broker_status": "closed",
+                "entry_price": 70000.0 + i,
+                "exit_price": 70120.0 + i,
+                "pnl_pct": 1.2 + (i * 0.1),
+                "observed_at": now - timedelta(hours=i + 1) + timedelta(minutes=20),
+                "outcome_status": "matched",
+            }
+        )
     session.commit()
 
 
@@ -237,7 +246,9 @@ class TestReplayPathDeterminism:
     """All timestamps in the reliability snapshot must derive from VirtualClock."""
 
     def test_reliability_last_evaluated_at_matches_virtual_clock(
-        self, db_session: Any, tmp_path: Path,
+        self,
+        db_session: Any,
+        tmp_path: Path,
     ) -> None:
         clock = VirtualClock(start=AS_OF)
         bundle = _build_bundle(tmp_path, clock)
@@ -248,7 +259,9 @@ class TestReplayPathDeterminism:
         assert snapshot.summary.last_evaluated_at == AS_OF.isoformat()
 
     def test_control_center_last_evaluated_at_matches_virtual_clock(
-        self, db_session: Any, tmp_path: Path,
+        self,
+        db_session: Any,
+        tmp_path: Path,
     ) -> None:
         clock = VirtualClock(start=AS_OF)
         bundle = _build_bundle(tmp_path, clock)
@@ -261,7 +274,9 @@ class TestReplayPathDeterminism:
         assert snapshot.summary.last_evaluated_at == AS_OF.isoformat()
 
     def test_clock_not_wall_clock(
-        self, db_session: Any, tmp_path: Path,
+        self,
+        db_session: Any,
+        tmp_path: Path,
     ) -> None:
         """With VirtualClock at historical AS_OF, the snapshot must NOT
         contain a wall-clock timestamp."""

@@ -18,7 +18,9 @@ async def get_knowledge_overview(
     query: Annotated[str | None, Query()] = None,
     category: Annotated[str | None, Query()] = None,
 ) -> dict[str, object]:
-    return service.build_snapshot(session, query=query, category=category).model_dump(mode="json")
+    return service.build_snapshot(session, query=query, category=category).model_dump(
+        mode="json"
+    )
 
 
 @router.post("/items")

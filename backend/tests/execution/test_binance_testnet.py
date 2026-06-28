@@ -25,7 +25,9 @@ def mock_ccxt():
     return mock_cls, mock_instance
 
 
-def test_client_order_id_passthrough(mock_ccxt, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_client_order_id_passthrough(
+    mock_ccxt, monkeypatch: pytest.MonkeyPatch
+) -> None:
     mock_cls, mock_instance = mock_ccxt
     monkeypatch.setattr("ccxt.async_support.binance", mock_cls, raising=False)
     client = BinanceTestnetExecutionClient(api_key="k", api_secret="s")
@@ -52,11 +54,14 @@ def test_client_order_id_passthrough(mock_ccxt, monkeypatch: pytest.MonkeyPatch)
     }
 
     async def run() -> None:
-        result = await client.place_order("BTCUSDT", "buy", 0.01, "MARKET", client_order_id="cid-1")
+        result = await client.place_order(
+            "BTCUSDT", "buy", 0.01, "MARKET", client_order_id="cid-1"
+        )
         assert result.client_order_id == "cid-1"
         assert result.exchange_order_id == "123"
 
     import asyncio
+
     asyncio.run(run())
 
 
@@ -82,6 +87,7 @@ def test_partial_fill_raises(mock_ccxt, monkeypatch: pytest.MonkeyPatch) -> None
             await client.place_order("BTCUSDT", "buy", 0.01, "MARKET")
 
     import asyncio
+
     asyncio.run(run())
 
 

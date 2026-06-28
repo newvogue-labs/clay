@@ -181,8 +181,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         else:
             app.state.scheduler = None
             logger.info(
-                "clay.api.lifespan: scheduler disabled "
-                "(CLAY_SCHEDULER_ENABLED=false)"
+                "clay.api.lifespan: scheduler disabled (CLAY_SCHEDULER_ENABLED=false)"
             )
         yield
     finally:

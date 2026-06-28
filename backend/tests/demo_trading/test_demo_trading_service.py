@@ -21,7 +21,9 @@ from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
 
 
-def build_demo_service(tmp_path: Path) -> tuple[DemoTradingService, SessionControlService]:
+def build_demo_service(
+    tmp_path: Path,
+) -> tuple[DemoTradingService, SessionControlService]:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",
@@ -109,9 +111,9 @@ def seed_demo_data(session) -> None:
         )
         market_repository.upsert_freshness_status(
             symbol=symbol,
-        timeframe="15m",
-        source="binance_spot",
-        freshness_state="fresh",
+            timeframe="15m",
+            source="binance_spot",
+            freshness_state="fresh",
             evaluated_at=now,
             latest_bar_open_time=now - timedelta(minutes=15),
             is_stale=False,
@@ -158,7 +160,9 @@ def test_demo_trading_service_logs_trade_and_ingests_result(
     session_control_service.start_session(db_session)
     snapshot = demo_trading_service.log_current_trade(
         db_session,
-        DemoTradeLogCommand(operator_action="entered", operator_notes="Entered on Binance demo."),
+        DemoTradeLogCommand(
+            operator_action="entered", operator_notes="Entered on Binance demo."
+        ),
     )
 
     assert snapshot.active_session.can_log_decision is True

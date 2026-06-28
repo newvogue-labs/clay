@@ -1,6 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
-from clay.freshness.evaluator import evaluate_context_freshness, evaluate_market_freshness
+from clay.freshness.evaluator import (
+    evaluate_context_freshness,
+    evaluate_market_freshness,
+)
 
 
 def test_market_freshness_becomes_stale_after_threshold() -> None:

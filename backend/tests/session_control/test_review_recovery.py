@@ -6,6 +6,7 @@ back to ``BACKGROUND_MONITORING``. ``SessionControlService.close_review``
 is the explicit operator-driven recovery; this module proves it
 satisfies the 5-session-in-a-row smoke and the negative guards.
 """
+
 import pytest
 
 from clay.runtime.states import RuntimeState
@@ -53,7 +54,10 @@ def test_five_sessions_in_a_row_after_close_review_resets_to_idle(db_session) ->
         assert service._active_session is None, (
             f"iter {i}: _active_session leaked after close_review"
         )
-        assert service.runtime_manager.snapshot().state == RuntimeState.BACKGROUND_MONITORING, (
+        assert (
+            service.runtime_manager.snapshot().state
+            == RuntimeState.BACKGROUND_MONITORING
+        ), (
             f"iter {i}: runtime not BACKGROUND_MONITORING after close_review "
             f"(state={service.runtime_manager.snapshot().state})"
         )
@@ -74,7 +78,9 @@ def test_close_review_from_idle_raises(db_session) -> None:
     """close_review must reject calls when runtime is BACKGROUND_MONITORING (idle)."""
     service = build_session_service()
     seed_session_data(db_session)
-    assert service.runtime_manager.snapshot().state == RuntimeState.BACKGROUND_MONITORING
+    assert (
+        service.runtime_manager.snapshot().state == RuntimeState.BACKGROUND_MONITORING
+    )
 
     with pytest.raises(ValueError, match="session is not in review"):
         service.close_review(db_session)

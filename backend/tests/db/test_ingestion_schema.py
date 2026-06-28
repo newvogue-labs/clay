@@ -40,12 +40,10 @@ def test_market_schema_contains_expected_tables() -> None:
 
 def test_timescale_partition_columns_are_part_of_market_primary_keys() -> None:
     market_bar_primary_key = {
-        column.name
-        for column in MarketBar.__table__.primary_key.columns
+        column.name for column in MarketBar.__table__.primary_key.columns
     }
     orderbook_primary_key = {
-        column.name
-        for column in OrderBookSummary.__table__.primary_key.columns
+        column.name for column in OrderBookSummary.__table__.primary_key.columns
     }
 
     assert market_bar_primary_key == {"id", "bar_open_time"}

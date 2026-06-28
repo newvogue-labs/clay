@@ -37,6 +37,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "Base your answer only on the provided context."
 )
 
+
 class ModelUnavailableError(RuntimeError):
     """Raised when a model backend cannot be reached or returns an error.
 
@@ -64,6 +65,7 @@ def _format_gateway_error(exc: httpx.HTTPError, *, model: str, base_url: str) ->
         f"[{type(exc).__name__}] {exc}"
     )
 
+
 @dataclass(slots=True)
 class ModelResponse:
     """Normalized result of a single model call."""
@@ -72,6 +74,7 @@ class ModelResponse:
     thinking: str | None = None
     model: str | None = None
     raw: dict | None = None
+
 
 @dataclass(slots=True)
 class AgentRunResult:
@@ -82,6 +85,7 @@ class AgentRunResult:
     content: str
     thinking: str | None
     messages: list[ChatMessage]
+
 
 @runtime_checkable
 class ModelClient(Protocol):
@@ -96,21 +100,25 @@ class ModelClient(Protocol):
         num_predict: int | None = None,
     ) -> ModelResponse: ...
 
+
 @runtime_checkable
 class ModelResolver(Protocol):
     """Resolves a role id to its assigned model id."""
 
     def resolve_model_id(self, role_id: str) -> str: ...
 
+
 @runtime_checkable
 class _AssignmentsProvider(Protocol):
     assignments: dict[str, str]
+
 
 @runtime_checkable
 class _OllamaSettingsLike(Protocol):
     base_url: str
     timeout_seconds: float
     num_ctx: int
+
 
 class ServiceModelResolver:
     """ModelResolver backed by ai_control_service.assignments.
@@ -131,6 +139,7 @@ class ServiceModelResolver:
         if not model_id:
             raise ValueError(f"empty model assignment for role_id={role_id!r}")
         return model_id
+
 
 class OllamaNativeClient:
     """ModelClient backed by the native Ollama /api/chat endpoint.
@@ -180,9 +189,7 @@ class OllamaNativeClient:
             options["num_predict"] = num_predict
         payload = {
             "model": model,
-            "messages": [
-                {"role": m.role, "content": m.content} for m in messages
-            ],
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
             "stream": False,
             "think": think,
             "options": options,
@@ -207,6 +214,7 @@ class OllamaNativeClient:
             model=data.get("model", model),
             raw=data,
         )
+
 
 class LiteLLMModelClient:
     """ModelClient backed by the LiteLLM gateway via LLMAdapter.
@@ -234,7 +242,9 @@ class LiteLLMModelClient:
             max_tokens=num_predict or 512,
         )
         try:
-            response: _ChatCompletionResponse = await self._adapter.chat_completion(request)
+            response: _ChatCompletionResponse = await self._adapter.chat_completion(
+                request
+            )
         except httpx.HTTPError as exc:
             raise ModelUnavailableError(
                 _format_gateway_error(

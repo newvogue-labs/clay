@@ -26,7 +26,9 @@ from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
 
 
-def build_demo_service(tmp_path: Path) -> tuple[DemoTradingService, SessionControlService]:
+def build_demo_service(
+    tmp_path: Path,
+) -> tuple[DemoTradingService, SessionControlService]:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",
@@ -153,7 +155,9 @@ def seed_demo_data(session) -> None:
     session.commit()
 
 
-def test_demo_trading_overview_route_returns_snapshot(db_session, tmp_path: Path) -> None:
+def test_demo_trading_overview_route_returns_snapshot(
+    db_session, tmp_path: Path
+) -> None:
     demo_trading_service, _ = build_demo_service(tmp_path)
     seed_demo_data(db_session)
 
@@ -173,7 +177,10 @@ def test_demo_trading_route_flow_logs_and_ingests_results(
 
     logged = asyncio.run(
         log_current_demo_trade(
-            DemoTradeLogCommand(operator_action="entered_late", operator_notes="Entered after confirmation candle."),
+            DemoTradeLogCommand(
+                operator_action="entered_late",
+                operator_notes="Entered after confirmation candle.",
+            ),
             db_session,
             demo_trading_service,
         )

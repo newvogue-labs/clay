@@ -9,7 +9,9 @@ def test_validation_lab_stream_emits_refresh_for_validation_events() -> None:
         event_bus = EventBus()
         stream = validation_lab_event_lines(event_bus)
         ready_event = await anext(stream)
-        event_bus.publish("validation.updated", {"event_type": "validation.run.completed"})
+        event_bus.publish(
+            "validation.updated", {"event_type": "validation.run.completed"}
+        )
         refresh_event = await anext(stream)
         await stream.aclose()
         return ready_event, refresh_event

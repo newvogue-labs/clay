@@ -33,22 +33,28 @@ router_settings:
 
 def _row() -> DeploymentRow:
     return DeploymentRow(
-        deployment_id=1, model_name="gemini-2.5-flash",
+        deployment_id=1,
+        model_name="gemini-2.5-flash",
         upstream_model="gemini/gemini-2.5-flash",
-        base_url=None, key_ref="GEMINI_API_KEY",
-        key_state="available", params={},
+        base_url=None,
+        key_ref="GEMINI_API_KEY",
+        key_state="available",
+        params={},
     )
 
 
 def _different_yaml() -> ProposedConfig:
-    return ProposedConfig(document={}, yaml="""\
+    return ProposedConfig(
+        document={},
+        yaml="""\
 model_list:
   - model_name: minimax-m3
     litellm_params:
       model: openai/minimaxai/minimax-m3
 router_settings:
   strategy: test
-""")
+""",
+    )
 
 
 def _healthy_resp():
@@ -126,7 +132,9 @@ def test_apply_happy_path(
         patch("subprocess.run", side_effect=_helper_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
+        mock_client.return_value.__enter__.return_value.get.return_value = (
+            _healthy_resp()
+        )
 
         report = writer.apply_live(diff_proposed, force=True)
 
@@ -155,7 +163,9 @@ def test_apply_happy_path_calls_restart_once(
         patch("subprocess.run", side_effect=_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
+        mock_client.return_value.__enter__.return_value.get.return_value = (
+            _healthy_resp()
+        )
         writer.apply_live(diff_proposed, force=True)
 
     assert len(restart_calls) == 1
@@ -190,7 +200,9 @@ def test_apply_noop_can_be_forced(
         patch("subprocess.run", side_effect=_helper_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
+        mock_client.return_value.__enter__.return_value.get.return_value = (
+            _healthy_resp()
+        )
         report = writer.apply_live(proposed, force=True)
 
     assert report.applied is True
@@ -235,8 +247,12 @@ def test_apply_rollback_on_unhealthy(
         patch("subprocess.run", side_effect=_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_client.return_value.__enter__.return_value.get.return_value = _unhealthy_resp()
-        report = writer.apply_live(diff_proposed, force=True, health_timeout=0.5, health_interval=0.1)
+        mock_client.return_value.__enter__.return_value.get.return_value = (
+            _unhealthy_resp()
+        )
+        report = writer.apply_live(
+            diff_proposed, force=True, health_timeout=0.5, health_interval=0.1
+        )
 
     assert report.applied is True
     assert report.restart_ok is True
@@ -283,7 +299,9 @@ def test_apply_health_parse_db_not_connected_is_healthy(
         patch("subprocess.run", side_effect=_helper_side_effect),
         patch("httpx.Client") as mock_client,
     ):
-        mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
+        mock_client.return_value.__enter__.return_value.get.return_value = (
+            _healthy_resp()
+        )
 
         report = writer.apply_live(diff_proposed, force=True)
 
@@ -310,7 +328,9 @@ def test_apply_writes_via_helper(
         patch("subprocess.run", side_effect=_record),
         patch("httpx.Client") as mock_client,
     ):
-        mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
+        mock_client.return_value.__enter__.return_value.get.return_value = (
+            _healthy_resp()
+        )
         writer.apply_live(diff_proposed, force=True)
 
     assert len(helper_calls) >= 1  # at least one install call
@@ -320,9 +340,7 @@ def test_apply_writes_via_helper(
 # ── 8. No os.kill calls ──────────────────────────────────────────────
 
 
-def test_apply_no_os_kill(
-    writer: ConfigWriter, proposed: ProposedConfig
-) -> None:
+def test_apply_no_os_kill(writer: ConfigWriter, proposed: ProposedConfig) -> None:
     diff_proposed = _different_yaml()
     kill_calls: list = []
 
@@ -336,7 +354,9 @@ def test_apply_no_os_kill(
         patch("os.kill", _guard_kill),
     ):
         mock_run.return_value = MagicMock(returncode=0)
-        mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
+        mock_client.return_value.__enter__.return_value.get.return_value = (
+            _healthy_resp()
+        )
         writer.apply_live(diff_proposed, force=True)
 
     assert len(kill_calls) == 0
@@ -369,10 +389,13 @@ class TestEvaluatePoolHealth:
     def test_partial_model_name_not_degraded(self) -> None:
         r1 = _row()  # model_name="gemini-2.5-flash"
         r2 = DeploymentRow(
-            deployment_id=2, model_name="minimax-m3",
+            deployment_id=2,
+            model_name="minimax-m3",
             upstream_model="openai/minimaxai/minimax-m3",
-            base_url=None, key_ref="NVIDIA_API_KEY",
-            key_state="available", params={},
+            base_url=None,
+            key_ref="NVIDIA_API_KEY",
+            key_state="available",
+            params={},
         )
         health = evaluate_pool_health([r1, r2], floor=1)
         assert health.degraded is False
@@ -390,7 +413,8 @@ class TestReconcileDegraded:
     """ConfigWriter.reconcile() — degraded branch via mocks."""
 
     def test_zero_available_degraded(
-        self, writer: ConfigWriter,
+        self,
+        writer: ConfigWriter,
     ) -> None:
         subprocess_calls: list = []
 
@@ -408,7 +432,8 @@ class TestReconcileDegraded:
         assert len(subprocess_calls) == 0  # no write, no restart
 
     def test_below_floor_degraded(
-        self, writer: ConfigWriter,
+        self,
+        writer: ConfigWriter,
     ) -> None:
         rows = [_row()]  # 1 available, floor=2
         subprocess_calls: list = []
@@ -425,14 +450,17 @@ class TestReconcileDegraded:
         assert len(subprocess_calls) == 0
 
     def test_healthy_applies(
-        self, writer: ConfigWriter,
+        self,
+        writer: ConfigWriter,
     ) -> None:
         rows = [_row()]
         with (
             patch("subprocess.run", side_effect=_helper_side_effect),
             patch("httpx.Client") as mock_client,
         ):
-            mock_client.return_value.__enter__.return_value.get.return_value = _healthy_resp()
+            mock_client.return_value.__enter__.return_value.get.return_value = (
+                _healthy_resp()
+            )
             report = writer.reconcile(rows, force=True)
 
         assert report.status == "applied"
@@ -442,23 +470,31 @@ class TestReconcileDegraded:
         assert report.available_total == 1
 
     def test_rolled_back(
-        self, writer: ConfigWriter,
+        self,
+        writer: ConfigWriter,
     ) -> None:
         rows = [_row()]
         with (
             patch("subprocess.run", side_effect=_helper_side_effect),
             patch("httpx.Client") as mock_client,
         ):
-            mock_client.return_value.__enter__.return_value.get.return_value = _unhealthy_resp()
+            mock_client.return_value.__enter__.return_value.get.return_value = (
+                _unhealthy_resp()
+            )
             report = writer.reconcile(
-                rows, force=True, health_timeout=0.5, health_interval=0.1,
+                rows,
+                force=True,
+                health_timeout=0.5,
+                health_interval=0.1,
             )
 
         assert report.status == "rolled_back"
         assert report.rolled_back is True
 
     def test_noop_when_equivalent(
-        self, writer: ConfigWriter, proposed: ProposedConfig,
+        self,
+        writer: ConfigWriter,
+        proposed: ProposedConfig,
     ) -> None:
         rows = [_row()]
         subprocess_calls: list = []
@@ -475,14 +511,16 @@ class TestReconcileDegraded:
         assert len(subprocess_calls) == 0
 
     def test_degraded_never_raises(
-        self, writer: ConfigWriter,
+        self,
+        writer: ConfigWriter,
     ) -> None:
         """reconcile() never raises on degraded — returns status."""
         report = writer.reconcile([])
         assert report.status == "degraded"
 
     def test_classification_degraded_vs_validation(
-        self, writer: ConfigWriter,
+        self,
+        writer: ConfigWriter,
     ) -> None:
         """0 rows → degraded; malformed (after render) → fails.
 

@@ -100,11 +100,7 @@ class ControlCenterService:
         blocking_reason: str | None = None
         if preflight.status == "hard_fail":
             failed_check = next(
-                (
-                    check
-                    for check in preflight.checks
-                    if check.status == "hard_fail"
-                ),
+                (check for check in preflight.checks if check.status == "hard_fail"),
                 None,
             )
             blocking_reason = (
@@ -115,7 +111,9 @@ class ControlCenterService:
 
         return RuntimeStatusSnapshot(
             state=runtime_snapshot.state.value,
-            allowed_transitions=[item.value for item in runtime_snapshot.allowed_transitions],
+            allowed_transitions=[
+                item.value for item in runtime_snapshot.allowed_transitions
+            ],
             preflight_status=preflight.status,
             blocking_reason=blocking_reason,
         )
@@ -136,7 +134,9 @@ class ControlCenterService:
                 ),
                 last_error=service.last_error,
                 freshness_status=None,
-                allowed_actions=list(self.supervisor.allowed_actions(service.service_id)),
+                allowed_actions=list(
+                    self.supervisor.allowed_actions(service.service_id)
+                ),
             )
             for service in self.registry.list_services()
         ]
@@ -194,7 +194,9 @@ class ControlCenterService:
         )
         sentiment_freshness = evaluate_context_freshness(
             stream_name="sentiment",
-            last_received_at=latest_sentiment[0].captured_at if latest_sentiment else None,
+            last_received_at=latest_sentiment[0].captured_at
+            if latest_sentiment
+            else None,
             now=now,
             context_thresholds=context_thresholds,
         )
@@ -233,7 +235,9 @@ class ControlCenterService:
                 lifecycle_status=row.lifecycle_status,
                 message=row.message,
                 recorded_at=row.recorded_at.isoformat(),
-                resolved_at=row.resolved_at.isoformat() if row.resolved_at is not None else None,
+                resolved_at=row.resolved_at.isoformat()
+                if row.resolved_at is not None
+                else None,
                 resolution_message=row.resolution_message,
             )
             for row in ops_repo.latest_incidents(limit=10, active_only=True)
@@ -280,21 +284,15 @@ class ControlCenterService:
             blocking_reason = "market data freshness blocks active trading"
 
         critical_incidents = sum(
-            1
-            for incident in incidents
-            if incident.severity in {"critical", "error"}
+            1 for incident in incidents if incident.severity in {"critical", "error"}
         )
         service_degradation = any(
             service.status in {"degraded", "stale", "error"}
-            or (
-                service.status == "stopped"
-                and service.criticality != "optional"
-            )
+            or (service.status == "stopped" and service.criticality != "optional")
             for service in services
         )
         ingestion_degradation = (
-            ingestion.market_status != "fresh"
-            or ingestion.context_status != "fresh"
+            ingestion.market_status != "fresh" or ingestion.context_status != "fresh"
         )
 
         overall_status = "healthy"

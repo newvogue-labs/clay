@@ -137,7 +137,11 @@ def test_workspace_snapshot_contains_required_e3_fields(db_session) -> None:
     assert snapshot.focus_pair.symbol == "BTCUSDT"
     assert snapshot.workspace_state.runtime_state == "background_monitoring"
     assert snapshot.workspace_state.workspace_posture in {"normal", "monitoring_only"}
-    assert snapshot.workspace_state.focused_signal_state in {"active", "weakening", "absent"}
+    assert snapshot.workspace_state.focused_signal_state in {
+        "active",
+        "weakening",
+        "absent",
+    }
     assert snapshot.monitoring_pool
     assert snapshot.update_meta.market_status == "fresh"
 
@@ -195,7 +199,9 @@ def test_workspace_focus_selection_updates_focus_source(db_session) -> None:
     db_session.commit()
 
     service = build_workspace_service()
-    service.set_focus(symbol="SOLUSDT", focus_source="monitoring_click", session=db_session)
+    service.set_focus(
+        symbol="SOLUSDT", focus_source="monitoring_click", session=db_session
+    )
     snapshot = service.build_snapshot(db_session)
 
     assert snapshot.focus_pair.symbol == "SOLUSDT"

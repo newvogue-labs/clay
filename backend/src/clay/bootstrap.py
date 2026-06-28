@@ -186,7 +186,10 @@ def build_services(
     exchanges_map = build_exchanges_map(ingestion_settings)
     set_source_priority([cfg.source for cfg in exchanges_map.values()])
     exchange_clients = {
-        eid: (build_market_client(cfg, timeout=ingestion_settings.market_fetch_timeout), cfg)
+        eid: (
+            build_market_client(cfg, timeout=ingestion_settings.market_fetch_timeout),
+            cfg,
+        )
         for eid, cfg in exchanges_map.items()
         if cfg.enabled
     }

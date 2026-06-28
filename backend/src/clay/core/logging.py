@@ -15,9 +15,11 @@ def configure_clay_logging() -> None:
     if _CONFIGURED or logger.handlers:
         return
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)s %(name)s: %(message)s",
-    ))
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s",
+        )
+    )
     logger.addHandler(handler)
     logger.propagate = False
     _CONFIGURED = True

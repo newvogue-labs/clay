@@ -108,7 +108,9 @@ def _make_registry(
             service_id=service_id,
             service_type="worker" if service_id != "session-scheduler" else "scheduler",
             criticality=criticality,
-            startup_policy="always-on" if service_id == "session-scheduler" else "on-demand",
+            startup_policy="always-on"
+            if service_id == "session-scheduler"
+            else "on-demand",
         )
     return registry
 
@@ -123,7 +125,8 @@ def _make_tick(
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
     health_monitor = HealthMonitor(
-        registry=registry, stale_after_seconds=stale_after_seconds,
+        registry=registry,
+        stale_after_seconds=stale_after_seconds,
     )
     tick = HealthTickJob(
         registry=registry,
@@ -144,7 +147,9 @@ def test_tick_heartbeats_only_scheduler(tmp_path: Path) -> None:
     transition on the bus is that one for ``session-scheduler``.
     """
     registry = _make_registry(
-        "session-scheduler", "fake-A", "fake-B",
+        "session-scheduler",
+        "fake-A",
+        "fake-B",
     )
     assert registry.get("session-scheduler").last_heartbeat_at is None
     assert registry.get("fake-A").last_heartbeat_at is None
@@ -169,8 +174,7 @@ def test_tick_heartbeats_only_scheduler(tmp_path: Path) -> None:
     drained = _drain_event_bus(event_bus)
     assert [t for t, _ in drained].count("health.tick") == 1
     status_changed = [
-        payload for evt_type, payload in drained
-        if evt_type == "service.status_changed"
+        payload for evt_type, payload in drained if evt_type == "service.status_changed"
     ]
     assert len(status_changed) == 1
     assert status_changed[0]["service_id"] == "session-scheduler"
@@ -185,7 +189,9 @@ def test_tick_heartbeats_only_scheduler(tmp_path: Path) -> None:
 
 
 def test_refresh_marks_stale_service(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_clock: datetime,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_clock: datetime,
 ) -> None:
     """Stale service → ``STALE`` on the same tick (FakeDatetime driven).
 
@@ -202,12 +208,12 @@ def test_refresh_marks_stale_service(
     # `refresh()` will skip it (None-guard).
     # stale-worker had a heartbeat 2 hours ago — well past the 60s
     # stale threshold. The None-guard does NOT save it.
-    registry.get("stale-worker").last_heartbeat_at = (
-        fake_clock - timedelta(hours=2)
-    )
+    registry.get("stale-worker").last_heartbeat_at = fake_clock - timedelta(hours=2)
 
     tick, audit_writer, event_bus, _ = _make_tick(
-        tmp_path, registry, stale_after_seconds=60,
+        tmp_path,
+        registry,
+        stale_after_seconds=60,
     )
     event_bus.subscribe()
 
@@ -276,7 +282,9 @@ def test_recovery_error_to_healthy(tmp_path: Path) -> None:
     """
     registry = _make_registry("session-scheduler")
     registry.update_status(
-        "session-scheduler", ServiceStatus.ERROR, error="previous boom",
+        "session-scheduler",
+        ServiceStatus.ERROR,
+        error="previous boom",
     )
     assert registry.get("session-scheduler").status is ServiceStatus.ERROR
     assert registry.get("session-scheduler").last_error == "previous boom"
@@ -303,7 +311,8 @@ def test_recovery_error_to_healthy(tmp_path: Path) -> None:
 
 
 def test_exception_marks_scheduler_error_no_audit_on_repeat(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Exception in tick → ``ERROR`` + 1 audit; second failure → 0 new audit.
 
@@ -341,7 +350,8 @@ def test_exception_marks_scheduler_error_no_audit_on_repeat(
     assert rec.last_error == "boom"
 
     error_audits = [
-        e for e in _read_audit_events(audit_writer)
+        e
+        for e in _read_audit_events(audit_writer)
         if e["event_type"] == "service.status_changed"
         and e["payload"].get("to") == "error"
     ]
@@ -360,7 +370,8 @@ def test_exception_marks_scheduler_error_no_audit_on_repeat(
     assert rec.last_error == "boom"  # last_error refreshed (still "boom")
 
     error_audits_after = [
-        e for e in _read_audit_events(audit_writer)
+        e
+        for e in _read_audit_events(audit_writer)
         if e["event_type"] == "service.status_changed"
         and e["payload"].get("to") == "error"
     ]

@@ -77,50 +77,84 @@ def _seed_ops_data(
     for i in range(old_count):
         t = old_cutoff - timedelta(hours=i)
         if table == "ai_agent_runs":
-            session.add(AIAgentRun(
-                created_at=t, role_id="test", model_id="test",
-                content="old", error=None,
-            ))
+            session.add(
+                AIAgentRun(
+                    created_at=t,
+                    role_id="test",
+                    model_id="test",
+                    content="old",
+                    error=None,
+                )
+            )
         elif table == "ingest_runs":
-            session.add(IngestRun(
-                source_name="test", source_type="market",
-                status="completed", started_at=t,
-                finished_at=t + timedelta(seconds=10),
-            ))
+            session.add(
+                IngestRun(
+                    source_name="test",
+                    source_type="market",
+                    status="completed",
+                    started_at=t,
+                    finished_at=t + timedelta(seconds=10),
+                )
+            )
         elif table == "connector_status_history":
-            session.add(ConnectorStatusHistory(
-                connector_id="test", connector_type="news",
-                status="healthy", observed_at=t,
-            ))
+            session.add(
+                ConnectorStatusHistory(
+                    connector_id="test",
+                    connector_type="news",
+                    status="healthy",
+                    observed_at=t,
+                )
+            )
         elif table == "source_health_events":
-            session.add(SourceHealthEvent(
-                source_name="test", severity="error",
-                message="test", recorded_at=t,
-            ))
+            session.add(
+                SourceHealthEvent(
+                    source_name="test",
+                    severity="error",
+                    message="test",
+                    recorded_at=t,
+                )
+            )
 
     for i in range(fresh_count):
         t = now - timedelta(hours=i)
         if table == "ai_agent_runs":
-            session.add(AIAgentRun(
-                created_at=t, role_id="test", model_id="test",
-                content="fresh", error=None,
-            ))
+            session.add(
+                AIAgentRun(
+                    created_at=t,
+                    role_id="test",
+                    model_id="test",
+                    content="fresh",
+                    error=None,
+                )
+            )
         elif table == "ingest_runs":
-            session.add(IngestRun(
-                source_name="test", source_type="market",
-                status="completed", started_at=t,
-                finished_at=t + timedelta(seconds=10),
-            ))
+            session.add(
+                IngestRun(
+                    source_name="test",
+                    source_type="market",
+                    status="completed",
+                    started_at=t,
+                    finished_at=t + timedelta(seconds=10),
+                )
+            )
         elif table == "connector_status_history":
-            session.add(ConnectorStatusHistory(
-                connector_id="test", connector_type="news",
-                status="healthy", observed_at=t,
-            ))
+            session.add(
+                ConnectorStatusHistory(
+                    connector_id="test",
+                    connector_type="news",
+                    status="healthy",
+                    observed_at=t,
+                )
+            )
         elif table == "source_health_events":
-            session.add(SourceHealthEvent(
-                source_name="test", severity="error",
-                message="test", recorded_at=t,
-            ))
+            session.add(
+                SourceHealthEvent(
+                    source_name="test",
+                    severity="error",
+                    message="test",
+                    recorded_at=t,
+                )
+            )
 
     session.commit()
 
@@ -139,12 +173,15 @@ def _count_rows(session: Session, table: str) -> int:
     return result if result is not None else 0
 
 
-@pytest.mark.parametrize("table", [
-    "ai_agent_runs",
-    "ingest_runs",
-    "connector_status_history",
-    "source_health_events",
-])
+@pytest.mark.parametrize(
+    "table",
+    [
+        "ai_agent_runs",
+        "ingest_runs",
+        "connector_status_history",
+        "source_health_events",
+    ],
+)
 def test_prune_removes_old_rows_keeps_fresh(
     sqlite_session_factory,
     table: str,
@@ -166,12 +203,15 @@ def test_prune_removes_old_rows_keeps_fresh(
     )
 
 
-@pytest.mark.parametrize("table", [
-    "ai_agent_runs",
-    "ingest_runs",
-    "connector_status_history",
-    "source_health_events",
-])
+@pytest.mark.parametrize(
+    "table",
+    [
+        "ai_agent_runs",
+        "ingest_runs",
+        "connector_status_history",
+        "source_health_events",
+    ],
+)
 def test_prune_idempotent(
     sqlite_session_factory,
     table: str,
@@ -205,7 +245,12 @@ def test_prune_all_four_tables(sqlite_session_factory) -> None:
         session_factory=sqlite_session_factory,
         audit_writer=MagicMock(),
     )
-    tables = ["ai_agent_runs", "ingest_runs", "connector_status_history", "source_health_events"]
+    tables = [
+        "ai_agent_runs",
+        "ingest_runs",
+        "connector_status_history",
+        "source_health_events",
+    ]
     with sqlite_session_factory() as session:
         for table in tables:
             _seed_ops_data(session, old_count=4, fresh_count=2, table=table)
@@ -215,9 +260,7 @@ def test_prune_all_four_tables(sqlite_session_factory) -> None:
     with sqlite_session_factory() as session:
         for table in tables:
             remaining = _count_rows(session, table)
-            assert remaining == 2, (
-                f"{table}: expected 2 fresh rows, got {remaining}"
-            )
+            assert remaining == 2, f"{table}: expected 2 fresh rows, got {remaining}"
 
 
 def test_ops_retention_job_on_error_writes_audit_first_episode_only(

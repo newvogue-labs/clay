@@ -58,11 +58,15 @@ class _FakeBinanceClient:
         return
 
 
-def _build_service(sqlite_settings: IngestionSettings, session_factory: Any) -> IngestionCycleService:
+def _build_service(
+    sqlite_settings: IngestionSettings, session_factory: Any
+) -> IngestionCycleService:
     client = _FakeBinanceClient()
     exchange_config = ExchangeConfig(
-        exchange_id="test", source=client.source,
-        enabled=True, base_url="http://fake",
+        exchange_id="test",
+        source=client.source,
+        enabled=True,
+        base_url="http://fake",
         symbols=list(sqlite_settings.market_symbols),
         timeframes=list(sqlite_settings.market_timeframes),
     )

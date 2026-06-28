@@ -50,7 +50,11 @@ def test_knowledge_create_route_and_search(db_session, tmp_path: Path) -> None:
         )
     )
 
-    payload = asyncio.run(get_knowledge_overview(db_session, service, query="higher timeframe momentum", category=None))
+    payload = asyncio.run(
+        get_knowledge_overview(
+            db_session, service, query="higher timeframe momentum", category=None
+        )
+    )
 
     assert payload["search_results"]
     assert payload["search_results"][0]["title"] == "Strategy rule"

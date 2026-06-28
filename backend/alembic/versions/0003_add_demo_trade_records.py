@@ -28,7 +28,12 @@ def upgrade() -> None:
         sa.Column("exit_price", sa.Float(), nullable=True),
         sa.Column("pnl_pct", sa.Float(), nullable=True),
         sa.Column("observed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("outcome_status", sa.String(length=32), nullable=False, server_default="unresolved"),
+        sa.Column(
+            "outcome_status",
+            sa.String(length=32),
+            nullable=False,
+            server_default="unresolved",
+        ),
         schema="demo",
     )
     op.create_index(
@@ -104,14 +109,52 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_demo_trade_records_outcome_status", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_observed_at", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_broker_status", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_external_trade_id", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_recorded_at", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_operator_action", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_executed_symbol", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_symbol", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_signal_id", table_name="demo_trade_records", schema="demo")
-    op.drop_index("ix_demo_trade_records_session_id", table_name="demo_trade_records", schema="demo")
+    op.drop_index(
+        "ix_demo_trade_records_outcome_status",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_observed_at",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_broker_status",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_external_trade_id",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_recorded_at",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_operator_action",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_executed_symbol",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_symbol", table_name="demo_trade_records", schema="demo"
+    )
+    op.drop_index(
+        "ix_demo_trade_records_signal_id",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
+    op.drop_index(
+        "ix_demo_trade_records_session_id",
+        table_name="demo_trade_records",
+        schema="demo",
+    )
     op.drop_table("demo_trade_records", schema="demo")

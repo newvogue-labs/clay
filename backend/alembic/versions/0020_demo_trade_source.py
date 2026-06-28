@@ -35,12 +35,8 @@ def upgrade() -> None:
     # 2. Backfill existing rows (R1: record_id boundary)
     #    Baseline = ids 1-21 (has gap at 5, gives exactly 20 rows)
     #    Live    = id 22 (the S-LIVE-DEMO-2 live session)
-    op.execute(
-        "UPDATE demo.demo_trade_records SET source = 'baseline' WHERE id <= 21"
-    )
-    op.execute(
-        "UPDATE demo.demo_trade_records SET source = 'live' WHERE id = 22"
-    )
+    op.execute("UPDATE demo.demo_trade_records SET source = 'baseline' WHERE id <= 21")
+    op.execute("UPDATE demo.demo_trade_records SET source = 'live' WHERE id = 22")
 
     # 3. SET NOT NULL + server_default for future rows
     op.alter_column(

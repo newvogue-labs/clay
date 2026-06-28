@@ -57,7 +57,9 @@ def _read_audit_events(audit_path: Path) -> list[dict[str, Any]]:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def _events_by_type(events: list[dict[str, Any]], event_type: str) -> list[dict[str, Any]]:
+def _events_by_type(
+    events: list[dict[str, Any]], event_type: str
+) -> list[dict[str, Any]]:
     return [e for e in events if e.get("event_type") == event_type]
 
 
@@ -83,12 +85,24 @@ def isolated_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(lifespan_module, "_audit_writer", services["audit_writer"])
     monkeypatch.setattr(lifespan_module, "_event_bus", services["event_bus"])
     monkeypatch.setattr(lifespan_module, "_health_monitor", services["health_monitor"])
-    monkeypatch.setattr(lifespan_module, "_ingestion_cycle_service", services["ingestion_cycle_service"])
-    monkeypatch.setattr(lifespan_module, "_market_ingestion_service", services["market_ingestion_service"])
+    monkeypatch.setattr(
+        lifespan_module, "_ingestion_cycle_service", services["ingestion_cycle_service"]
+    )
+    monkeypatch.setattr(
+        lifespan_module,
+        "_market_ingestion_service",
+        services["market_ingestion_service"],
+    )
     monkeypatch.setattr(lifespan_module, "_registry", services["registry"])
-    monkeypatch.setattr(lifespan_module, "_reliability_service", services["reliability_service"])
-    monkeypatch.setattr(lifespan_module, "_session_factory", services["session_factory"])
-    monkeypatch.setattr(lifespan_module, "scheduler_settings", services["scheduler_settings"])
+    monkeypatch.setattr(
+        lifespan_module, "_reliability_service", services["reliability_service"]
+    )
+    monkeypatch.setattr(
+        lifespan_module, "_session_factory", services["session_factory"]
+    )
+    monkeypatch.setattr(
+        lifespan_module, "scheduler_settings", services["scheduler_settings"]
+    )
 
     return app, services
 
@@ -110,7 +124,9 @@ async def test_jobs_registered_all_three(isolated_app) -> None:
 
 
 @pytest.mark.anyio
-async def test_session_scheduler_state_walk_stopped_healthy_stopped(isolated_app) -> None:
+async def test_session_scheduler_state_walk_stopped_healthy_stopped(
+    isolated_app,
+) -> None:
     """``session-scheduler`` walks ``STOPPED → HEALTHY → STOPPED`` in lockstep
     with the FastAPI lifespan (B3a real-status contract)."""
     app, services = isolated_app
@@ -162,8 +178,7 @@ async def test_routing_matrix_sync_vs_async(isolated_app) -> None:
             job = apscheduler.get_job(job_id)
             assert job is not None
             assert not inspect.iscoroutinefunction(job.func), (
-                f"{job_id} must be registered with sync wrapper, "
-                f"got {job.func!r}"
+                f"{job_id} must be registered with sync wrapper, got {job.func!r}"
             )
         ingestion_job = apscheduler.get_job(INGESTION_CYCLE)
         assert ingestion_job is not None
@@ -395,9 +410,7 @@ async def test_startup_failure_keeps_state_clean(
     if audit_path.exists():
         events = _read_audit_events(audit_path)
         started = _events_by_type(events, "scheduler.started")
-        assert len(started) == 0, (
-            f"expected no scheduler.started audit, got {started}"
-        )
+        assert len(started) == 0, f"expected no scheduler.started audit, got {started}"
 
 
 # --- #13: shutdown-failure partial-failure anti-test ---
@@ -485,8 +498,12 @@ async def test_http_client_is_open_during_lifespan_and_closed_after(
     async with LifespanManager(app):
         # Inside lifespan: client is open and reachable through the singleton.
         assert first_client._client is not None, "set_http_client never called"
-        assert first_client._client.is_closed is False, "client should be open during lifespan"
+        assert first_client._client.is_closed is False, (
+            "client should be open during lifespan"
+        )
 
     # After lifespan exit: client is closed (MED-3 — closed strictly after
     # scheduler.shutdown(wait=True) return, so no in-flight job races).
-    assert first_client._client.is_closed is True, "client must be closed after shutdown"
+    assert first_client._client.is_closed is True, (
+        "client must be closed after shutdown"
+    )

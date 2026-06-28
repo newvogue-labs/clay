@@ -8,6 +8,7 @@ Create Date: 2026-06-22
 WHERE broker_status = 'awaiting_result' — гарантирует не более одной
 открытой записи на сессию на уровне БД.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

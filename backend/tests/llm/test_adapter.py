@@ -1,4 +1,5 @@
 """Offline stub smoke test for the LLM adapter (0 external egress)."""
+
 from __future__ import annotations
 
 import asyncio

@@ -22,7 +22,9 @@ class ExecutionConfig:
     def from_env(cls) -> ExecutionConfig:
         mode = os.environ.get("CLAY_EXECUTION_MODE", "dry_run")
         if mode not in {"dry_run", "testnet"}:
-            logger.warning("CLAY_EXECUTION_MODE=%r rejected, defaulting to dry_run", mode)
+            logger.warning(
+                "CLAY_EXECUTION_MODE=%r rejected, defaulting to dry_run", mode
+            )
             mode = "dry_run"
         return cls(
             mode=mode,
@@ -32,6 +34,8 @@ class ExecutionConfig:
             api_secret=os.environ.get("CLAY_BINANCE_TESTNET_API_SECRET", ""),
             testnet=os.environ.get("CLAY_EXECUTION_TESTNET", "false").lower() == "true",
             recv_window=int(os.environ.get("CLAY_EXECUTION_RECV_WINDOW", "5000")),
-            allow_live_override=os.environ.get("CLAY_EXECUTION_ALLOW_LIVE_OVERRIDE", "false").lower()
+            allow_live_override=os.environ.get(
+                "CLAY_EXECUTION_ALLOW_LIVE_OVERRIDE", "false"
+            ).lower()
             == "true",
         )

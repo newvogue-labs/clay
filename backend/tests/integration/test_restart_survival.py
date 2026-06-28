@@ -252,13 +252,8 @@ def test_full_restart_survives_all_six_persisted_areas(tmp_path: Path) -> None:
     assert post_strategy.strategy_mode == pre_strategy.strategy_mode
 
     # 6. reliability_state restored.
-    assert (
-        services2["reliability_service"]._last_rechecked_at is not None
-    )
-    assert (
-        services2["reliability_service"]._last_rechecked_at
-        == pre_last_rechecked_at
-    )
+    assert services2["reliability_service"]._last_rechecked_at is not None
+    assert services2["reliability_service"]._last_rechecked_at == pre_last_rechecked_at
     with session_factory2() as session:
         post_reliability = ReliabilityStateRepository(session).read()
     assert post_reliability is not None

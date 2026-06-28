@@ -31,7 +31,9 @@ async def apply_config(
     try:
         updated = config_loader.apply_config(scope, payload.config)
     except UnknownConfigScopeError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown config scope: {scope}") from exc
+        raise HTTPException(
+            status_code=404, detail=f"unknown config scope: {scope}"
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -46,7 +48,9 @@ async def restore_config(scope: str) -> dict[str, object]:
         restored_from = config_loader.restore_last_valid(scope)
         restored = config_loader.load_scope(scope).model_dump(mode="json")
     except UnknownConfigScopeError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown config scope: {scope}") from exc
+        raise HTTPException(
+            status_code=404, detail=f"unknown config scope: {scope}"
+        ) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

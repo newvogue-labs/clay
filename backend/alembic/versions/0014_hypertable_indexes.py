@@ -8,6 +8,7 @@ propagated to all existing/future chunks under a brief
 ACCESS EXCLUSIVE lock instead. On the empty R6 state this is
 instant and safe. Downgrade drops the index the same way.
 """
+
 from typing import Sequence, Union
 
 from alembic import op

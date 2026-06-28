@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from clay.api.dependencies import get_db_session, get_session_control_service
-from clay.session_control.models import PairReplacementApplyCommand, PairReplacementReviewCommand
+from clay.session_control.models import (
+    PairReplacementApplyCommand,
+    PairReplacementReviewCommand,
+)
 from clay.session_control.service import SessionControlService
 
 
@@ -86,7 +89,9 @@ async def review_pair_replacement(
     service: Annotated[SessionControlService, Depends(get_session_control_service)],
 ) -> dict[str, object]:
     try:
-        review = service.review_pair_replacement(session, proposed_symbol=command.proposed_symbol)
+        review = service.review_pair_replacement(
+            session, proposed_symbol=command.proposed_symbol
+        )
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     return review.model_dump(mode="json")

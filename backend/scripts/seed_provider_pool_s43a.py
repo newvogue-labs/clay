@@ -18,50 +18,188 @@ from clay.db.session import build_session_factory
 EXPECTED_TS_VERSION = os.environ.get("EXPECTED_TS_VERSION", "2.27.1")
 
 PROVIDERS = [
-    {"name": "groq", "route_class": "upstream", "base_url": None, "trust": "us", "egress": "demo_only"},
-    {"name": "cerebras", "route_class": "upstream", "base_url": None, "trust": "us", "egress": "demo_only"},
-    {"name": "openrouter", "route_class": "upstream", "base_url": None, "trust": "us", "egress": "demo_only"},
+    {
+        "name": "groq",
+        "route_class": "upstream",
+        "base_url": None,
+        "trust": "us",
+        "egress": "demo_only",
+    },
+    {
+        "name": "cerebras",
+        "route_class": "upstream",
+        "base_url": None,
+        "trust": "us",
+        "egress": "demo_only",
+    },
+    {
+        "name": "openrouter",
+        "route_class": "upstream",
+        "base_url": None,
+        "trust": "us",
+        "egress": "demo_only",
+    },
 ]
 
 KEYS = [
     {"provider_name": "groq", "account_label": "groq-1", "key_ref": "GROQ_API_KEY"},
     {"provider_name": "groq", "account_label": "groq-2", "key_ref": "GROQ_API_KEY_2"},
-    {"provider_name": "cerebras", "account_label": "cerebras-1", "key_ref": "CEREBRAS_API_KEY"},
-    {"provider_name": "cerebras", "account_label": "cerebras-2", "key_ref": "CEREBRAS_API_KEY_2"},
-    {"provider_name": "openrouter", "account_label": "openrouter-1", "key_ref": "OPENROUTER_API_KEY"},
-    {"provider_name": "openrouter", "account_label": "openrouter-2", "key_ref": "OPENROUTER_API_KEY_2"},
-    {"provider_name": "openrouter", "account_label": "openrouter-3", "key_ref": "OPENROUTER_API_KEY_3"},
+    {
+        "provider_name": "cerebras",
+        "account_label": "cerebras-1",
+        "key_ref": "CEREBRAS_API_KEY",
+    },
+    {
+        "provider_name": "cerebras",
+        "account_label": "cerebras-2",
+        "key_ref": "CEREBRAS_API_KEY_2",
+    },
+    {
+        "provider_name": "openrouter",
+        "account_label": "openrouter-1",
+        "key_ref": "OPENROUTER_API_KEY",
+    },
+    {
+        "provider_name": "openrouter",
+        "account_label": "openrouter-2",
+        "key_ref": "OPENROUTER_API_KEY_2",
+    },
+    {
+        "provider_name": "openrouter",
+        "account_label": "openrouter-3",
+        "key_ref": "OPENROUTER_API_KEY_3",
+    },
 ]
 
 DEPLOYMENTS = [
     # llama-3.3-70b: groq (×2)
-    {"model_name": "llama-3.3-70b", "provider_name": "groq", "account_label": "groq-1", "upstream_model": "groq/llama-3.3-70b-versatile"},
-    {"model_name": "llama-3.3-70b", "provider_name": "groq", "account_label": "groq-2", "upstream_model": "groq/llama-3.3-70b-versatile"},
+    {
+        "model_name": "llama-3.3-70b",
+        "provider_name": "groq",
+        "account_label": "groq-1",
+        "upstream_model": "groq/llama-3.3-70b-versatile",
+    },
+    {
+        "model_name": "llama-3.3-70b",
+        "provider_name": "groq",
+        "account_label": "groq-2",
+        "upstream_model": "groq/llama-3.3-70b-versatile",
+    },
     # llama-3.3-70b: openrouter (×3)
-    {"model_name": "llama-3.3-70b", "provider_name": "openrouter", "account_label": "openrouter-1", "upstream_model": "openrouter/meta-llama/llama-3.3-70b-instruct:free"},
-    {"model_name": "llama-3.3-70b", "provider_name": "openrouter", "account_label": "openrouter-2", "upstream_model": "openrouter/meta-llama/llama-3.3-70b-instruct:free"},
-    {"model_name": "llama-3.3-70b", "provider_name": "openrouter", "account_label": "openrouter-3", "upstream_model": "openrouter/meta-llama/llama-3.3-70b-instruct:free"},
+    {
+        "model_name": "llama-3.3-70b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-1",
+        "upstream_model": "openrouter/meta-llama/llama-3.3-70b-instruct:free",
+    },
+    {
+        "model_name": "llama-3.3-70b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-2",
+        "upstream_model": "openrouter/meta-llama/llama-3.3-70b-instruct:free",
+    },
+    {
+        "model_name": "llama-3.3-70b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-3",
+        "upstream_model": "openrouter/meta-llama/llama-3.3-70b-instruct:free",
+    },
     # gpt-oss-120b: groq (×2)
-    {"model_name": "gpt-oss-120b", "provider_name": "groq", "account_label": "groq-1", "upstream_model": "groq/openai/gpt-oss-120b"},
-    {"model_name": "gpt-oss-120b", "provider_name": "groq", "account_label": "groq-2", "upstream_model": "groq/openai/gpt-oss-120b"},
+    {
+        "model_name": "gpt-oss-120b",
+        "provider_name": "groq",
+        "account_label": "groq-1",
+        "upstream_model": "groq/openai/gpt-oss-120b",
+    },
+    {
+        "model_name": "gpt-oss-120b",
+        "provider_name": "groq",
+        "account_label": "groq-2",
+        "upstream_model": "groq/openai/gpt-oss-120b",
+    },
     # gpt-oss-120b: cerebras (×2)
-    {"model_name": "gpt-oss-120b", "provider_name": "cerebras", "account_label": "cerebras-1", "upstream_model": "cerebras/gpt-oss-120b"},
-    {"model_name": "gpt-oss-120b", "provider_name": "cerebras", "account_label": "cerebras-2", "upstream_model": "cerebras/gpt-oss-120b"},
+    {
+        "model_name": "gpt-oss-120b",
+        "provider_name": "cerebras",
+        "account_label": "cerebras-1",
+        "upstream_model": "cerebras/gpt-oss-120b",
+    },
+    {
+        "model_name": "gpt-oss-120b",
+        "provider_name": "cerebras",
+        "account_label": "cerebras-2",
+        "upstream_model": "cerebras/gpt-oss-120b",
+    },
     # gpt-oss-120b: openrouter (×3)
-    {"model_name": "gpt-oss-120b", "provider_name": "openrouter", "account_label": "openrouter-1", "upstream_model": "openrouter/openai/gpt-oss-120b:free"},
-    {"model_name": "gpt-oss-120b", "provider_name": "openrouter", "account_label": "openrouter-2", "upstream_model": "openrouter/openai/gpt-oss-120b:free"},
-    {"model_name": "gpt-oss-120b", "provider_name": "openrouter", "account_label": "openrouter-3", "upstream_model": "openrouter/openai/gpt-oss-120b:free"},
+    {
+        "model_name": "gpt-oss-120b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-1",
+        "upstream_model": "openrouter/openai/gpt-oss-120b:free",
+    },
+    {
+        "model_name": "gpt-oss-120b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-2",
+        "upstream_model": "openrouter/openai/gpt-oss-120b:free",
+    },
+    {
+        "model_name": "gpt-oss-120b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-3",
+        "upstream_model": "openrouter/openai/gpt-oss-120b:free",
+    },
     # gpt-oss-20b: groq (×2)
-    {"model_name": "gpt-oss-20b", "provider_name": "groq", "account_label": "groq-1", "upstream_model": "groq/openai/gpt-oss-20b"},
-    {"model_name": "gpt-oss-20b", "provider_name": "groq", "account_label": "groq-2", "upstream_model": "groq/openai/gpt-oss-20b"},
+    {
+        "model_name": "gpt-oss-20b",
+        "provider_name": "groq",
+        "account_label": "groq-1",
+        "upstream_model": "groq/openai/gpt-oss-20b",
+    },
+    {
+        "model_name": "gpt-oss-20b",
+        "provider_name": "groq",
+        "account_label": "groq-2",
+        "upstream_model": "groq/openai/gpt-oss-20b",
+    },
     # gpt-oss-20b: openrouter (×3)
-    {"model_name": "gpt-oss-20b", "provider_name": "openrouter", "account_label": "openrouter-1", "upstream_model": "openrouter/openai/gpt-oss-20b:free"},
-    {"model_name": "gpt-oss-20b", "provider_name": "openrouter", "account_label": "openrouter-2", "upstream_model": "openrouter/openai/gpt-oss-20b:free"},
-    {"model_name": "gpt-oss-20b", "provider_name": "openrouter", "account_label": "openrouter-3", "upstream_model": "openrouter/openai/gpt-oss-20b:free"},
+    {
+        "model_name": "gpt-oss-20b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-1",
+        "upstream_model": "openrouter/openai/gpt-oss-20b:free",
+    },
+    {
+        "model_name": "gpt-oss-20b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-2",
+        "upstream_model": "openrouter/openai/gpt-oss-20b:free",
+    },
+    {
+        "model_name": "gpt-oss-20b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-3",
+        "upstream_model": "openrouter/openai/gpt-oss-20b:free",
+    },
     # gemma-4-31b: openrouter (×3)
-    {"model_name": "gemma-4-31b", "provider_name": "openrouter", "account_label": "openrouter-1", "upstream_model": "openrouter/google/gemma-4-31b-it:free"},
-    {"model_name": "gemma-4-31b", "provider_name": "openrouter", "account_label": "openrouter-2", "upstream_model": "openrouter/google/gemma-4-31b-it:free"},
-    {"model_name": "gemma-4-31b", "provider_name": "openrouter", "account_label": "openrouter-3", "upstream_model": "openrouter/google/gemma-4-31b-it:free"},
+    {
+        "model_name": "gemma-4-31b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-1",
+        "upstream_model": "openrouter/google/gemma-4-31b-it:free",
+    },
+    {
+        "model_name": "gemma-4-31b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-2",
+        "upstream_model": "openrouter/google/gemma-4-31b-it:free",
+    },
+    {
+        "model_name": "gemma-4-31b",
+        "provider_name": "openrouter",
+        "account_label": "openrouter-3",
+        "upstream_model": "openrouter/google/gemma-4-31b-it:free",
+    },
 ]
 
 
@@ -98,14 +236,22 @@ def _upsert_providers(session: Session) -> dict[str, int]:
                     updated_at = EXCLUDED.updated_at
                 RETURNING id
             """),
-            {"name": p["name"], "route_class": p["route_class"], "base_url": p["base_url"],
-             "trust": p["trust"], "egress": p["egress"], "now": now},
+            {
+                "name": p["name"],
+                "route_class": p["route_class"],
+                "base_url": p["base_url"],
+                "trust": p["trust"],
+                "egress": p["egress"],
+                "now": now,
+            },
         ).one()
         ids[p["name"]] = int(row[0])
     return ids
 
 
-def _upsert_keys(session: Session, provider_ids: dict[str, int]) -> dict[tuple[str, str], int]:
+def _upsert_keys(
+    session: Session, provider_ids: dict[str, int]
+) -> dict[tuple[str, str], int]:
     now = datetime.now(UTC)
     ids: dict[tuple[str, str], int] = {}
     for k in KEYS:
@@ -118,10 +264,12 @@ def _upsert_keys(session: Session, provider_ids: dict[str, int]) -> dict[tuple[s
                     updated_at = EXCLUDED.updated_at
                 RETURNING id
             """),
-            {"provider_id": provider_ids[k["provider_name"]],
-             "account_label": k["account_label"],
-             "key_ref": k["key_ref"],
-             "now": now},
+            {
+                "provider_id": provider_ids[k["provider_name"]],
+                "account_label": k["account_label"],
+                "key_ref": k["key_ref"],
+                "now": now,
+            },
         ).one()
         ids[(k["provider_name"], k["account_label"])] = int(row[0])
     return ids
@@ -153,9 +301,13 @@ def _upsert_deployments(
                         updated_at = :now
                     WHERE id = :id
                 """),
-                {"provider_key_id": key_id, "provider_id": provider_id,
-                 "upstream_model": dep["upstream_model"],
-                 "now": now, "id": int(existing[0])},
+                {
+                    "provider_key_id": key_id,
+                    "provider_id": provider_id,
+                    "upstream_model": dep["upstream_model"],
+                    "now": now,
+                    "id": int(existing[0]),
+                },
             )
         else:
             session.execute(
@@ -165,10 +317,13 @@ def _upsert_deployments(
                     VALUES (:model_name, :provider_key_id, :provider_id, :upstream_model, :now, :now)
                     ON CONFLICT (model_name, provider_key_id, upstream_model) DO NOTHING
                 """),
-                {"model_name": dep["model_name"], "provider_key_id": key_id,
-                 "provider_id": provider_id,
-                 "upstream_model": dep["upstream_model"],
-                 "now": now},
+                {
+                    "model_name": dep["model_name"],
+                    "provider_key_id": key_id,
+                    "provider_id": provider_id,
+                    "upstream_model": dep["upstream_model"],
+                    "now": now,
+                },
             )
     session.flush()
 

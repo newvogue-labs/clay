@@ -183,9 +183,7 @@ def test_litellm_client_raises_model_unavailable_on_http_500() -> None:
     client = LiteLLMModelClient(adapter=adapter)
     raised = False
     try:
-        asyncio.run(
-            client.chat([ChatMessage(role="user", content="x")], model="m")
-        )
+        asyncio.run(client.chat([ChatMessage(role="user", content="x")], model="m"))
     except ModelUnavailableError:
         raised = True
     assert raised
@@ -202,9 +200,7 @@ def test_litellm_client_raises_model_unavailable_on_connect_error() -> None:
     client = LiteLLMModelClient(adapter=adapter)
     raised = False
     try:
-        asyncio.run(
-            client.chat([ChatMessage(role="user", content="x")], model="m")
-        )
+        asyncio.run(client.chat([ChatMessage(role="user", content="x")], model="m"))
     except ModelUnavailableError:
         raised = True
     assert raised
@@ -215,8 +211,11 @@ def test_litellm_client_raises_model_unavailable_on_connect_error() -> None:
 
 def test_litellm_client_429_body_in_error_message() -> None:
     """FOOTGUN E: 429 with body → error contains status code + body fragment."""
+
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(429, json={"error": {"message": "Rate limit exceeded", "retry_after": 60}})
+        return httpx.Response(
+            429, json={"error": {"message": "Rate limit exceeded", "retry_after": 60}}
+        )
 
     adapter = LLMAdapter(
         LLMSettings(base_url="http://test:4000"),
@@ -232,6 +231,7 @@ def test_litellm_client_429_body_in_error_message() -> None:
 
 def test_litellm_client_400_empty_body_in_error_message() -> None:
     """FOOTGUN E: 400 empty body → error contains '400' without crash."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(400, text="")
 
@@ -250,6 +250,7 @@ def test_litellm_client_400_empty_body_in_error_message() -> None:
 
 def test_litellm_client_connect_error_has_type_name() -> None:
     """FOOTGUN E: ConnectError without response → error contains type name, no AttributeError."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused to backend")
 

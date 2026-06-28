@@ -15,17 +15,19 @@ from clay.workspace.models import WorkspaceStateSnapshot
 
 @pytest.fixture
 def mock_repositories():
-    with patch('clay.workspace.service.MarketRepository') as market_cls, \
-         patch('clay.workspace.service.ContextRepository') as ctx_cls, \
-         patch('clay.workspace.service.OpsRepository') as ops_cls, \
-         patch('clay.workspace.service.resolve_market_freshness_status') as resolve_mock, \
-         patch('clay.workspace.service.collapse_market_statuses', return_value='fresh'):
+    with (
+        patch("clay.workspace.service.MarketRepository") as market_cls,
+        patch("clay.workspace.service.ContextRepository") as ctx_cls,
+        patch("clay.workspace.service.OpsRepository") as ops_cls,
+        patch("clay.workspace.service.resolve_market_freshness_status") as resolve_mock,
+        patch("clay.workspace.service.collapse_market_statuses", return_value="fresh"),
+    ):
         market_cls.return_value.list_freshness_statuses.return_value = []
         market_cls.return_value.list_latest_bars.return_value = []
         ctx_cls.return_value.latest_news.return_value = []
         ctx_cls.return_value.latest_sentiment.return_value = []
         ops_cls.return_value.latest_connector_statuses.return_value = []
-        resolve_mock.return_value.status = 'fresh'
+        resolve_mock.return_value.status = "fresh"
         yield
 
 
@@ -76,4 +78,6 @@ def test_live_without_override_blocks(mock_repositories) -> None:
     state = _snapshot(service, session)
     assert state.can_open_binance is False
     assert state.execution_mode == "live"
-    assert state.blocking_reason == "Live execution requires Q5 override (not confirmed)"
+    assert (
+        state.blocking_reason == "Live execution requires Q5 override (not confirmed)"
+    )

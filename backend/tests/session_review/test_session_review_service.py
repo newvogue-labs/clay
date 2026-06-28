@@ -45,7 +45,10 @@ def build_review_service(tmp_path: Path) -> SessionReviewService:
         audit_writer=audit_writer,
         event_bus=event_bus,
     )
-    audit_writer.write("demo.trade.logged", {"record_id": 1, "signal_id": "sig-btc", "symbol": "BTCUSDT"})
+    audit_writer.write(
+        "demo.trade.logged",
+        {"record_id": 1, "signal_id": "sig-btc", "symbol": "BTCUSDT"},
+    )
     return SessionReviewService(
         audit_writer=audit_writer,
         event_bus=event_bus,
@@ -91,7 +94,9 @@ def seed_review_records(session) -> None:
     session.commit()
 
 
-def test_session_review_snapshot_includes_filters_and_cards(db_session, tmp_path: Path) -> None:
+def test_session_review_snapshot_includes_filters_and_cards(
+    db_session, tmp_path: Path
+) -> None:
     service = build_review_service(tmp_path)
     seed_review_records(db_session)
 
@@ -103,13 +108,17 @@ def test_session_review_snapshot_includes_filters_and_cards(db_session, tmp_path
     assert snapshot.audit
 
 
-def test_session_review_feedback_capture_updates_snapshot(db_session, tmp_path: Path) -> None:
+def test_session_review_feedback_capture_updates_snapshot(
+    db_session, tmp_path: Path
+) -> None:
     service = build_review_service(tmp_path)
     seed_review_records(db_session)
 
     snapshot = service.capture_feedback(
         db_session,
-        FeedbackCreateCommand(record_id=1, feedback_label="useful", notes="Good structure."),
+        FeedbackCreateCommand(
+            record_id=1, feedback_label="useful", notes="Good structure."
+        ),
     )
 
     assert snapshot.feedback[0].feedback_label == "useful"

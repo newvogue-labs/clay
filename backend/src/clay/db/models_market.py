@@ -1,6 +1,15 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Identity, Index, String, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    Identity,
+    Index,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from clay.db.base import Base
@@ -9,7 +18,9 @@ from clay.db.base import Base
 class MarketBar(Base):
     __tablename__ = "market_bars"
     __table_args__ = (
-        UniqueConstraint("source", "symbol", "timeframe", "bar_open_time", name="uq_market_bar"),
+        UniqueConstraint(
+            "source", "symbol", "timeframe", "bar_open_time", name="uq_market_bar"
+        ),
         Index("market_bars_bar_open_time_idx", text("bar_open_time DESC")),
         {"schema": "market"},
     )
@@ -28,7 +39,9 @@ class MarketBar(Base):
         DateTime(timezone=True),
         primary_key=True,
     )
-    bar_close_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    bar_close_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
 
 
 class OrderBookSummary(Base):
@@ -54,7 +67,9 @@ class OrderBookSummary(Base):
 class MarketFreshnessStatus(Base):
     __tablename__ = "market_freshness_status"
     __table_args__ = (
-        UniqueConstraint("source", "symbol", "timeframe", name="uq_market_freshness_status"),
+        UniqueConstraint(
+            "source", "symbol", "timeframe", name="uq_market_freshness_status"
+        ),
         {"schema": "market"},
     )
 
@@ -65,4 +80,6 @@ class MarketFreshnessStatus(Base):
     freshness_state: Mapped[str] = mapped_column(String(32), index=True)
     is_stale: Mapped[bool] = mapped_column(Boolean, default=False)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    latest_bar_open_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    latest_bar_open_time: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

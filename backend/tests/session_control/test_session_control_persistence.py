@@ -107,7 +107,10 @@ def seed_session_data(session) -> None:
     context_repository = ContextRepository(session)
     ops_repository = OpsRepository(session)
 
-    for symbol, close, volume in [("BTCUSDT", 70540.0, 260.0), ("SOLUSDT", 181.5, 320.0)]:
+    for symbol, close, volume in [
+        ("BTCUSDT", 70540.0, 260.0),
+        ("SOLUSDT", 181.5, 320.0),
+    ]:
         market_repository.upsert_market_bars(
             [
                 {
@@ -336,7 +339,9 @@ def test_restart_survives_review_pair_replacement(
     current_symbol = started.lifecycle.current_pair_symbol
     proposed_symbol = "SOLUSDT" if current_symbol != "SOLUSDT" else "BTCUSDT"
 
-    review = service1.review_pair_replacement(db_session, proposed_symbol=proposed_symbol)
+    review = service1.review_pair_replacement(
+        db_session, proposed_symbol=proposed_symbol
+    )
     db_session.commit()
 
     service2 = build_service(sqlite_session_factory)
@@ -359,7 +364,9 @@ def test_apply_pair_replacement_clears_pending_in_db(
     current_symbol = started.lifecycle.current_pair_symbol
     proposed_symbol = "SOLUSDT" if current_symbol != "SOLUSDT" else "BTCUSDT"
 
-    review = service1.review_pair_replacement(db_session, proposed_symbol=proposed_symbol)
+    review = service1.review_pair_replacement(
+        db_session, proposed_symbol=proposed_symbol
+    )
     service1.apply_pair_replacement(db_session, review.review_id)
     db_session.commit()
 
@@ -433,7 +440,9 @@ def test_multiple_restarts_preserve_full_lifecycle(
     current_symbol = started.lifecycle.current_pair_symbol
     proposed_symbol = "SOLUSDT" if current_symbol != "SOLUSDT" else "BTCUSDT"
 
-    review = service1.review_pair_replacement(db_session, proposed_symbol=proposed_symbol)
+    review = service1.review_pair_replacement(
+        db_session, proposed_symbol=proposed_symbol
+    )
     service1.apply_pair_replacement(db_session, review.review_id)
     service1.pause_session(db_session)
     service1.resume_session(db_session)

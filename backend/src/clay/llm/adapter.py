@@ -4,6 +4,7 @@ No external egress happens at import or construction time — only when
 ``chat_completion`` is awaited. Inject a custom ``transport``
 (e.g. ``httpx.MockTransport``) in tests to stay fully offline.
 """
+
 from __future__ import annotations
 
 import httpx

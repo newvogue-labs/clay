@@ -75,8 +75,12 @@ class DemoTradingService:
             )
 
         now = self._clock.now()
-        initial_outcome = "missed" if command.operator_action == "skipped" else "unresolved"
-        initial_status = "not_entered" if command.operator_action == "skipped" else "awaiting_result"
+        initial_outcome = (
+            "missed" if command.operator_action == "skipped" else "unresolved"
+        )
+        initial_status = (
+            "not_entered" if command.operator_action == "skipped" else "awaiting_result"
+        )
 
         try:
             record = repository.create_trade_record(
@@ -160,7 +164,9 @@ class DemoTradingService:
     def _require_active_session(self, session: Session) -> DemoActiveSessionSnapshot:
         active_session = self._build_active_session(session)
         if not active_session.can_log_decision:
-            raise ValueError(active_session.blocking_reason or "demo logging is blocked")
+            raise ValueError(
+                active_session.blocking_reason or "demo logging is blocked"
+            )
         if (
             active_session.session_id is None
             or active_session.current_pair_symbol is None
@@ -212,9 +218,7 @@ class DemoTradingService:
         total_records = len(records)
         resolved_record_count = total_records - counts["unresolved"]
         losing_record_count = sum(
-            1
-            for record in records
-            if record.pnl_pct is not None and record.pnl_pct < 0
+            1 for record in records if record.pnl_pct is not None and record.pnl_pct < 0
         )
 
         gates = [
@@ -241,7 +245,8 @@ class DemoTradingService:
                 label="PnL discipline",
                 status=(
                     "pass"
-                    if cumulative_pnl_pct > 0 and profitable_record_count >= losing_record_count
+                    if cumulative_pnl_pct > 0
+                    and profitable_record_count >= losing_record_count
                     else "warn"
                 ),
                 detail=(
@@ -254,12 +259,18 @@ class DemoTradingService:
         if len(distinct_sessions) < 5:
             status = "collecting"
             operator_message = "Keep collecting disciplined demo sessions before the review gate unlocks."
-        elif counts["mismatched"] > 0 or counts["unresolved"] > 0 or cumulative_pnl_pct <= 0:
+        elif (
+            counts["mismatched"] > 0
+            or counts["unresolved"] > 0
+            or cumulative_pnl_pct <= 0
+        ):
             status = "at_risk"
             operator_message = "Demo stage is not ready yet: resolve mismatches, close open records, or improve PnL."
         else:
             status = "ready_for_review"
-            operator_message = "Demo evidence is strong enough to move into formal review."
+            operator_message = (
+                "Demo evidence is strong enough to move into formal review."
+            )
 
         return DemoReadinessSnapshot(
             status=status,
@@ -288,7 +299,9 @@ class DemoTradingService:
             entry_price=record.entry_price,
             exit_price=record.exit_price,
             pnl_pct=record.pnl_pct,
-            observed_at=record.observed_at.isoformat() if record.observed_at is not None else None,
+            observed_at=record.observed_at.isoformat()
+            if record.observed_at is not None
+            else None,
             outcome_status=record.outcome_status,
             awaiting_result=record.outcome_status == "unresolved",
             advisory_size_pct=record.advisory_size_pct,

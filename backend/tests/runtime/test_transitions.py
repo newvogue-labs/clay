@@ -29,7 +29,9 @@ def test_paused_allows_return_to_active_session() -> None:
     validate_transition(RuntimeState.PAUSED, RuntimeState.ACTIVE_SESSION)
 
 
-def test_runtime_manager_can_enter_pre_session_when_critical_services_are_healthy() -> None:
+def test_runtime_manager_can_enter_pre_session_when_critical_services_are_healthy() -> (
+    None
+):
     registry = ServiceRegistry()
     registry.register("control-api", "api", ServiceCriticality.CRITICAL, "always-on")
     registry.update_status("control-api", ServiceStatus.HEALTHY)
@@ -40,7 +42,9 @@ def test_runtime_manager_can_enter_pre_session_when_critical_services_are_health
     assert manager.state is RuntimeState.PRE_SESSION
 
 
-def test_runtime_manager_rejects_pre_session_when_critical_service_is_not_ready() -> None:
+def test_runtime_manager_rejects_pre_session_when_critical_service_is_not_ready() -> (
+    None
+):
     registry = ServiceRegistry()
     registry.register("control-api", "api", ServiceCriticality.CRITICAL, "always-on")
     manager = RuntimeManager(registry=registry)

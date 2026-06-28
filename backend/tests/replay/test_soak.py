@@ -177,9 +177,7 @@ def _seed_baseline_live(session: Any, clock: VirtualClock) -> None:
                 "entry_price": 90.0 + i,
                 "exit_price": 93.0 + i,
                 "pnl_pct": 3.0 + i,
-                "observed_at": clock_now
-                - timedelta(days=30 - i)
-                + timedelta(hours=1),
+                "observed_at": clock_now - timedelta(days=30 - i) + timedelta(hours=1),
                 "outcome_status": "matched",
                 "source": "baseline",
             }
@@ -210,9 +208,7 @@ TEST_RESULTS: dict[str, Any] = {}
 
 class TestSoak:
     @pytest.mark.slow
-    def test_full_soak(
-        self, db_session: Any, tmp_path: Any
-    ) -> None:
+    def test_full_soak(self, db_session: Any, tmp_path: Any) -> None:
         """Single soak run → verify ≥30 sessions, recalibration, live frozen, isolation."""
         global TEST_SET, TEST_RESULTS
 
@@ -236,9 +232,7 @@ class TestSoak:
         )
         bl_before = {
             r.id: (r.pnl_pct, r.outcome_status, r.source)
-            for r in demo_repo.list_all_trade_records(
-                source_scope={"baseline", "live"}
-            )
+            for r in demo_repo.list_all_trade_records(source_scope={"baseline", "live"})
         }
 
         # ── Run soak ─────────────────────────────────────────────────
@@ -282,9 +276,7 @@ class TestSoak:
         assert replay_after[0] > 0.0, (
             f"post-soak replay p must be > 0, got {replay_after[0]}"
         )
-        assert replay_after[0] != replay_before[0], (
-            "replay p unchanged after soak"
-        )
+        assert replay_after[0] != replay_before[0], "replay p unchanged after soak"
         assert replay_before[1] == 1.0, (
             f"pre-soak replay b must be fallback 1.0, got {replay_before[1]}"
         )
@@ -305,27 +297,18 @@ class TestSoak:
 
         bl_after = {
             r.id: (r.pnl_pct, r.outcome_status, r.source)
-            for r in demo_repo.list_all_trade_records(
-                source_scope={"baseline", "live"}
-            )
+            for r in demo_repo.list_all_trade_records(source_scope={"baseline", "live"})
         }
-        assert bl_before == bl_after, (
-            "baseline/live records changed after soak"
-        )
+        assert bl_before == bl_after, "baseline/live records changed after soak"
 
         replay_ids = {
-            r.id
-            for r in demo_repo.list_all_trade_records(source_scope={"replay"})
+            r.id for r in demo_repo.list_all_trade_records(source_scope={"replay"})
         }
         assert len(replay_ids) >= 30, (
             f"expected ≥30 replay records, got {len(replay_ids)}"
         )
-        default_ids = {
-            r.id for r in demo_repo.list_all_trade_records()
-        }
-        assert default_ids.isdisjoint(replay_ids), (
-            "default scope leaks replay records"
-        )
+        default_ids = {r.id for r in demo_repo.list_all_trade_records()}
+        assert default_ids.isdisjoint(replay_ids), "default scope leaks replay records"
 
         # ── Store results for report ─────────────────────────────────
 
@@ -354,10 +337,13 @@ class TestSoak:
                 "ev": default_after[2],
             },
             "replay_record_count": len(replay_ids),
-            "replay_wins": sum(1 for t in summary.trades if t.pnl_pct and t.pnl_pct > 0),
-            "replay_losses": sum(1 for t in summary.trades if t.pnl_pct and t.pnl_pct < 0),
+            "replay_wins": sum(
+                1 for t in summary.trades if t.pnl_pct and t.pnl_pct > 0
+            ),
+            "replay_losses": sum(
+                1 for t in summary.trades if t.pnl_pct and t.pnl_pct < 0
+            ),
         }
-
 
     # ── 4. L2 hard-block (separate, self-contained) ─────────────────
 
@@ -404,9 +390,7 @@ class TestSoak:
                 "entry_price": 100.0,
                 "exit_price": 101.2,
                 "pnl_pct": 1.2,
-                "observed_at": now
-                - timedelta(hours=2)
-                + timedelta(minutes=5),
+                "observed_at": now - timedelta(hours=2) + timedelta(minutes=5),
                 "outcome_status": "matched",
                 "source": "replay",
             }
@@ -425,15 +409,9 @@ class TestSoak:
         assert losses >= 3, f"need ≥3 losses in replay scope, got {losses}"
 
         # Direct proof: build_snapshot(for_start=True) shows L2 hard_fail
-        pf = sc.build_snapshot(
-            db_session, for_start=True, source_scope={"replay"}
-        )
+        pf = sc.build_snapshot(db_session, for_start=True, source_scope={"replay"})
         l2_check = next(
-            (
-                c
-                for c in pf.preflight.checks
-                if c.check_id == "risk-limit-cooldown"
-            ),
+            (c for c in pf.preflight.checks if c.check_id == "risk-limit-cooldown"),
             None,
         )
         assert l2_check is not None, "L2 check not found in preflight"
@@ -486,7 +464,4 @@ class TestSoak:
         sc = bundle["session_control"]
 
         with pytest.raises(ValueError, match="clock desync"):
-            sc.build_snapshot(
-                db_session, for_start=True, source_scope={"replay"}
-            )
-
+            sc.build_snapshot(db_session, for_start=True, source_scope={"replay"})

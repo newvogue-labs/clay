@@ -89,30 +89,65 @@ def live_config() -> Path:
 @pytest.fixture
 def seed_rows() -> list[DeploymentRow]:
     return [
-        _row(model_name="gemma4-e2b", upstream_model="ollama/gemma4:e2b-it-qat",
-             base_url="http://127.0.0.1:11434", key_ref=None, key_state=None),
-        _row(model_name="local-ollama", upstream_model="ollama/deepseek-v4-flash:cloud",
-             base_url="http://127.0.0.1:11434", key_ref=None, key_state=None),
-        _row(model_name="gemini-2.5-flash", upstream_model="gemini/gemini-2.5-flash",
-             base_url=None, key_ref="GEMINI_API_KEY", key_state="available"),
-        _row(model_name="gemini-3.1-flash-lite", upstream_model="gemini/gemini-3.1-flash-lite",
-             base_url=None, key_ref="GEMINI_API_KEY", key_state="available"),
-        _row(model_name="gemma-4-31b", upstream_model="gemini/gemma-4-31b-it",
-             base_url=None, key_ref="GEMINI_API_KEY", key_state="available"),
-        _row(model_name="minimax-m3", upstream_model="openai/minimaxai/minimax-m3",
-             base_url="https://integrate.api.nvidia.com/v1",
-             key_ref="NVIDIA_API_KEY", key_state="available",
-             params={"rpm": 40}),
-        _row(model_name="minimax-m2.7", upstream_model="openai/minimax-m2.7",
-             base_url="https://llm.kimchi.dev/openai/v1",
-             key_ref="KIMCHI_API_KEY", key_state="available"),
+        _row(
+            model_name="gemma4-e2b",
+            upstream_model="ollama/gemma4:e2b-it-qat",
+            base_url="http://127.0.0.1:11434",
+            key_ref=None,
+            key_state=None,
+        ),
+        _row(
+            model_name="local-ollama",
+            upstream_model="ollama/deepseek-v4-flash:cloud",
+            base_url="http://127.0.0.1:11434",
+            key_ref=None,
+            key_state=None,
+        ),
+        _row(
+            model_name="gemini-2.5-flash",
+            upstream_model="gemini/gemini-2.5-flash",
+            base_url=None,
+            key_ref="GEMINI_API_KEY",
+            key_state="available",
+        ),
+        _row(
+            model_name="gemini-3.1-flash-lite",
+            upstream_model="gemini/gemini-3.1-flash-lite",
+            base_url=None,
+            key_ref="GEMINI_API_KEY",
+            key_state="available",
+        ),
+        _row(
+            model_name="gemma-4-31b",
+            upstream_model="gemini/gemma-4-31b-it",
+            base_url=None,
+            key_ref="GEMINI_API_KEY",
+            key_state="available",
+        ),
+        _row(
+            model_name="minimax-m3",
+            upstream_model="openai/minimaxai/minimax-m3",
+            base_url="https://integrate.api.nvidia.com/v1",
+            key_ref="NVIDIA_API_KEY",
+            key_state="available",
+            params={"rpm": 40},
+        ),
+        _row(
+            model_name="minimax-m2.7",
+            upstream_model="openai/minimax-m2.7",
+            base_url="https://llm.kimchi.dev/openai/v1",
+            key_ref="KIMCHI_API_KEY",
+            key_state="available",
+        ),
     ]
 
 
 # ── 1. Unit render ───────────────────────────────────────────────────
 
 
-def test_render_maps_all_seven_deployments(live_config: Path, seed_rows: list[DeploymentRow]) -> None:
+def test_render_maps_all_seven_deployments(
+    live_config: Path, seed_rows: list[DeploymentRow]
+) -> None:
     reconciler = ConfigReconciler(live_config)
     proposed = reconciler.render(seed_rows)
 
@@ -149,19 +184,25 @@ def test_render_keyless_omits_api_base(live_config: Path) -> None:
 
 def test_render_inlines_extra_params(live_config: Path) -> None:
     reconciler = ConfigReconciler(live_config)
-    proposed = reconciler.render([_row(
-        model_name="minimax-m3",
-        upstream_model="openai/minimaxai/minimax-m3",
-        key_ref="NVIDIA_API_KEY",
-        params={"rpm": 40},
-    )])
+    proposed = reconciler.render(
+        [
+            _row(
+                model_name="minimax-m3",
+                upstream_model="openai/minimaxai/minimax-m3",
+                key_ref="NVIDIA_API_KEY",
+                params={"rpm": 40},
+            )
+        ]
+    )
     data = reconciler._parse_semantic_str(proposed.yaml)
     key = ("minimax-m3", "openai/minimaxai/minimax-m3")
     lp = data["model_index"].get(key, {})
     assert lp.get("rpm") == 40
 
 
-def test_render_preserves_existing_sections(live_config: Path, seed_rows: list[DeploymentRow]) -> None:
+def test_render_preserves_existing_sections(
+    live_config: Path, seed_rows: list[DeploymentRow]
+) -> None:
     reconciler = ConfigReconciler(live_config)
     proposed = reconciler.render(seed_rows)
 
@@ -169,13 +210,18 @@ def test_render_preserves_existing_sections(live_config: Path, seed_rows: list[D
     rest = data["rest"]
 
     assert rest.get("litellm_settings") == {"drop_params": True, "telemetry": False}
-    assert rest.get("router_settings", {}).get("routing_strategy") == "usage-based-routing-v2"
+    assert (
+        rest.get("router_settings", {}).get("routing_strategy")
+        == "usage-based-routing-v2"
+    )
 
 
 # ── 2. Parity no-op (GATE) ───────────────────────────────────────────
 
 
-def test_parity_no_op_with_seed_data(live_config: Path, seed_rows: list[DeploymentRow]) -> None:
+def test_parity_no_op_with_seed_data(
+    live_config: Path, seed_rows: list[DeploymentRow]
+) -> None:
     reconciler = ConfigReconciler(live_config)
     proposed = reconciler.render(seed_rows)
     report = reconciler.diff(proposed.yaml)
@@ -191,7 +237,9 @@ def test_parity_no_op_with_seed_data(live_config: Path, seed_rows: list[Deployme
 # ── 3. Exclusion ─────────────────────────────────────────────────────
 
 
-def test_excludes_cooling_deployment(live_config: Path, seed_rows: list[DeploymentRow]) -> None:
+def test_excludes_cooling_deployment(
+    live_config: Path, seed_rows: list[DeploymentRow]
+) -> None:
     for row in seed_rows:
         if row.model_name == "minimax-m3":
             row.key_state = "cooling"
@@ -205,7 +253,9 @@ def test_excludes_cooling_deployment(live_config: Path, seed_rows: list[Deployme
     assert ("minimax-m3", "openai/minimaxai/minimax-m3") in report.removed
 
 
-def test_excludes_exhausted_deployment(live_config: Path, seed_rows: list[DeploymentRow]) -> None:
+def test_excludes_exhausted_deployment(
+    live_config: Path, seed_rows: list[DeploymentRow]
+) -> None:
     for row in seed_rows:
         if row.model_name == "gemini-2.5-flash":
             row.key_state = "exhausted"
@@ -219,7 +269,9 @@ def test_excludes_exhausted_deployment(live_config: Path, seed_rows: list[Deploy
     assert ("gemini-2.5-flash", "gemini/gemini-2.5-flash") in report.removed
 
 
-def test_excludes_dead_deployment(live_config: Path, seed_rows: list[DeploymentRow]) -> None:
+def test_excludes_dead_deployment(
+    live_config: Path, seed_rows: list[DeploymentRow]
+) -> None:
     for row in seed_rows:
         if row.model_name == "minimax-m2.7":
             row.key_state = "dead"
@@ -237,7 +289,9 @@ def test_excludes_dead_deployment(live_config: Path, seed_rows: list[DeploymentR
 
 
 @pytest.mark.parametrize("write_flag", ["w", "wb", "a", "ab"])
-def test_guard_no_file_write(live_config: Path, seed_rows: list[DeploymentRow], write_flag: str) -> None:
+def test_guard_no_file_write(
+    live_config: Path, seed_rows: list[DeploymentRow], write_flag: str
+) -> None:
     write_calls: list[tuple] = []
 
     original_open = open

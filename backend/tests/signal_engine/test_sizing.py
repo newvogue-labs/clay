@@ -20,6 +20,7 @@ from clay.signal_engine.sizing import (
 
 # ── Wilson lower bound ──────────────────────────────────────────────────────
 
+
 def test_wilson_lower_zero_n() -> None:
     assert wilson_lower(0, 0) == 0.0
 
@@ -41,6 +42,7 @@ def test_wilson_lower_small_n() -> None:
 
 # ── Empirical b ─────────────────────────────────────────────────────────────
 
+
 def test_empirical_b_normal() -> None:
     b = empirical_b(win_pnl_sum=6.0, loss_pnl_sum=-2.0, win_count=3, loss_count=2)
     assert math.isclose(b, 2.0, rel_tol=1e-4)
@@ -57,6 +59,7 @@ def test_empirical_b_no_losses() -> None:
 
 
 # ── Kelly fraction ──────────────────────────────────────────────────────────
+
 
 def test_kelly_positive_edge() -> None:
     f = kelly_fraction(0.65, 1.5)
@@ -80,6 +83,7 @@ def test_kelly_below_one() -> None:
 
 # ── EV ──────────────────────────────────────────────────────────────────────
 
+
 def test_ev_positive() -> None:
     val = ev(0.65, 1.5)
     assert math.isclose(val, 0.625, rel_tol=1e-4)
@@ -97,6 +101,7 @@ def test_ev_negative() -> None:
 
 # ── Advisory fraction ───────────────────────────────────────────────────────
 
+
 def test_advisory_caps() -> None:
     assert advisory_fraction(0.5, lambda_=0.25, cap=0.02) == 0.02  # 0.125 > 0.02
 
@@ -111,10 +116,16 @@ def test_advisory_no_edge() -> None:
 
 # ── compute_sizing_stats ────────────────────────────────────────────────────
 
+
 def test_compute_sizing_stats_typical() -> None:
     p, b, ev_val, f_star, f = compute_sizing_stats(
-        wins=13, losses=7, win_pnl_sum=7.1305, loss_pnl_sum=-2.1798,
-        min_outcomes=5, lambda_=0.25, cap=0.02,
+        wins=13,
+        losses=7,
+        win_pnl_sum=7.1305,
+        loss_pnl_sum=-2.1798,
+        min_outcomes=5,
+        lambda_=0.25,
+        cap=0.02,
     )
     assert p > 0.0
     assert b > 1.0
@@ -125,7 +136,10 @@ def test_compute_sizing_stats_typical() -> None:
 
 def test_compute_sizing_stats_no_data() -> None:
     p, b, ev_val, f_star, f = compute_sizing_stats(
-        wins=0, losses=0, win_pnl_sum=0.0, loss_pnl_sum=0.0,
+        wins=0,
+        losses=0,
+        win_pnl_sum=0.0,
+        loss_pnl_sum=0.0,
     )
     assert p == 0.0
     assert b == 1.0  # fallback
@@ -136,7 +150,10 @@ def test_compute_sizing_stats_no_data() -> None:
 
 # ── _apply_kelly_sizing ─────────────────────────────────────────────────────
 
-def _make_trigger(trigger_id: str = "test", response_action: str = "warning_only") -> RiskTriggerSnapshot:
+
+def _make_trigger(
+    trigger_id: str = "test", response_action: str = "warning_only"
+) -> RiskTriggerSnapshot:
     return RiskTriggerSnapshot(
         trigger_id=trigger_id,
         severity="warning",
@@ -205,10 +222,16 @@ def test_kelly_sizing_ev_above_min_passes() -> None:
 
 # ── Annotation tests (_build_sizing_note) ────────────────────────────────────
 
+
 def test_sizing_note_degraded() -> None:
     result = KellySizingResult(
-        updated_risk_triggers=[], p=None, b=None, ev_val=None,
-        f_star=None, f=None, ev_gate_triggered=False,
+        updated_risk_triggers=[],
+        p=None,
+        b=None,
+        ev_val=None,
+        f_star=None,
+        f=None,
+        ev_gate_triggered=False,
     )
     note = SignalEngineService._build_sizing_note(result)
     assert note == "System degraded — advisory size suppressed (0)."
@@ -216,8 +239,13 @@ def test_sizing_note_degraded() -> None:
 
 def test_sizing_note_ev_below_zero() -> None:
     result = KellySizingResult(
-        updated_risk_triggers=[], p=0.3, b=1.0, ev_val=-0.4,
-        f_star=0.0, f=0.0, ev_gate_triggered=True,
+        updated_risk_triggers=[],
+        p=0.3,
+        b=1.0,
+        ev_val=-0.4,
+        f_star=0.0,
+        f=0.0,
+        ev_gate_triggered=True,
     )
     note = SignalEngineService._build_sizing_note(result)
     assert "EV ≤ 0" in note
@@ -226,8 +254,13 @@ def test_sizing_note_ev_below_zero() -> None:
 
 def test_sizing_note_ev_below_min() -> None:
     result = KellySizingResult(
-        updated_risk_triggers=[], p=0.5, b=1.05, ev_val=0.025,
-        f_star=0.0, f=0.0, ev_gate_triggered=True,
+        updated_risk_triggers=[],
+        p=0.5,
+        b=1.05,
+        ev_val=0.025,
+        f_star=0.0,
+        f=0.0,
+        ev_gate_triggered=True,
     )
     note = SignalEngineService._build_sizing_note(result)
     assert "EV 0.03R below min" in note
@@ -236,8 +269,13 @@ def test_sizing_note_ev_below_min() -> None:
 
 def test_sizing_note_gate_open() -> None:
     result = KellySizingResult(
-        updated_risk_triggers=[], p=0.65, b=1.76, ev_val=0.79,
-        f_star=0.45, f=0.02, ev_gate_triggered=False,
+        updated_risk_triggers=[],
+        p=0.65,
+        b=1.76,
+        ev_val=0.79,
+        f_star=0.45,
+        f=0.02,
+        ev_gate_triggered=False,
     )
     note = SignalEngineService._build_sizing_note(result)
     assert "Advisory size: 2.0%" in note

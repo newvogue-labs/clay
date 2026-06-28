@@ -25,7 +25,9 @@ class BinanceTestnetExecutionClient:
     SOURCE = "testnet"
     BASE_URL = "https://testnet.binance.vision"
 
-    def __init__(self, *, api_key: str, api_secret: str, recv_window: int = 5000) -> None:
+    def __init__(
+        self, *, api_key: str, api_secret: str, recv_window: int = 5000
+    ) -> None:
         if not api_key or not api_secret:
             raise ExecutionConfigError(
                 "CLAY_BINANCE_TESTNET_API_KEY / CLAY_BINANCE_TESTNET_API_SECRET "
@@ -58,7 +60,9 @@ class BinanceTestnetExecutionClient:
         time_in_force: str = "GTC",
         client_order_id: str | None = None,
     ) -> OrderResult:
-        params: dict[str, Any] = {"newClientOrderId": client_order_id} if client_order_id else {}
+        params: dict[str, Any] = (
+            {"newClientOrderId": client_order_id} if client_order_id else {}
+        )
         try:
             response = await self._client.create_order(
                 symbol=symbol,
@@ -71,7 +75,9 @@ class BinanceTestnetExecutionClient:
                 else {**params, "timeInForce": time_in_force},
             )
         except ccxt.InsufficientFunds as exc:
-            raise OrderRejectedError("insufficient funds", raw=getattr(exc, "args", {})) from exc
+            raise OrderRejectedError(
+                "insufficient funds", raw=getattr(exc, "args", {})
+            ) from exc
         except ccxt.InvalidOrder as exc:
             raise OrderRejectedError("invalid order", raw={"msg": str(exc)}) from exc
         except ccxt.NetworkError as exc:
@@ -105,7 +111,9 @@ class BinanceTestnetExecutionClient:
             status=response.get("status", ""),
             transact_time=int(response.get("timestamp", 0)),
             price=float(response.get("price", 0.0)) if response.get("price") else None,
-            stop_price=float(response.get("stopPrice", 0.0)) if response.get("stopPrice") else None,
+            stop_price=float(response.get("stopPrice", 0.0))
+            if response.get("stopPrice")
+            else None,
             fills=fills,
         )
 
@@ -137,8 +145,12 @@ class BinanceTestnetExecutionClient:
                 status="not_found",
                 quantity=float(response.get("amount", 0.0)),
                 executed_qty=float(response.get("filled", 0.0)),
-                price=float(response.get("price", 0.0)) if response.get("price") else None,
-                stop_price=float(response.get("stopPrice", 0.0)) if response.get("stopPrice") else None,
+                price=float(response.get("price", 0.0))
+                if response.get("price")
+                else None,
+                stop_price=float(response.get("stopPrice", 0.0))
+                if response.get("stopPrice")
+                else None,
                 transact_time=int(response.get("timestamp", 0)),
             )
         except ccxt.ExchangeError as exc:
@@ -156,7 +168,9 @@ class BinanceTestnetExecutionClient:
         try:
             response = await self._client.fetch_balance()
         except ccxt.AuthenticationError as exc:
-            raise ExecutionConfigError("binance auth failed",) from exc
+            raise ExecutionConfigError(
+                "binance auth failed",
+            ) from exc
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
 
@@ -175,11 +189,15 @@ class BinanceTestnetExecutionClient:
             )
         return balances
 
-    async def get_recent_trades(self, symbol: str, *, limit: int = 500) -> list[TradeFill]:
+    async def get_recent_trades(
+        self, symbol: str, *, limit: int = 500
+    ) -> list[TradeFill]:
         try:
             trades = await self._client.fetch_my_trades(symbol=symbol, limit=limit)
         except ccxt.AuthenticationError as exc:
-            raise ExecutionConfigError("binance auth failed",) from exc
+            raise ExecutionConfigError(
+                "binance auth failed",
+            ) from exc
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
 
@@ -212,7 +230,9 @@ class BinanceTestnetExecutionClient:
             quantity=float(response.get("amount", 0.0)),
             executed_qty=float(response.get("filled", 0.0)),
             price=float(response.get("price", 0.0)) if response.get("price") else None,
-            stop_price=float(response.get("stopPrice", 0.0)) if response.get("stopPrice") else None,
+            stop_price=float(response.get("stopPrice", 0.0))
+            if response.get("stopPrice")
+            else None,
             transact_time=int(response.get("timestamp", 0)),
         )
 
@@ -226,7 +246,7 @@ class DryRunExecutionClient:
     SOURCE = "dry_run"
 
     async def place_order(self, *args: Any, **kwargs: Any) -> OrderResult:
-        client_order_id = (kwargs.get("client_order_id") or "")
+        client_order_id = kwargs.get("client_order_id") or ""
         return OrderResult(
             client_order_id=client_order_id,
             exchange_order_id="",
@@ -259,7 +279,9 @@ class DryRunExecutionClient:
     async def get_balances(self) -> list[Balance]:
         return []
 
-    async def get_recent_trades(self, symbol: str, *, limit: int = 500) -> list[TradeFill]:
+    async def get_recent_trades(
+        self, symbol: str, *, limit: int = 500
+    ) -> list[TradeFill]:
         return []
 
     async def close(self) -> None:
@@ -277,8 +299,7 @@ class LiveExecutionClient:
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         raise ExecutionConfigError(
-            "Live execution is not implemented yet. "
-            "Switch to testnet or dry_run."
+            "Live execution is not implemented yet. Switch to testnet or dry_run."
         )
 
     async def place_order(self, *args: Any, **kwargs: Any) -> OrderResult:

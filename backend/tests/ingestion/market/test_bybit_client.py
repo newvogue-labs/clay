@@ -29,6 +29,7 @@ _BYBIT_OK = {"retCode": 0, "retMsg": "OK", "result": {"list": [_BAR_RAW]}}
 @pytest.mark.anyio
 async def test_fetch_klines_returns_normalized_bars() -> None:
     """Happy path: raw Bybit kline → ``NormalizedMarketBar``."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v5/market/kline"
         return httpx.Response(200, json=_BYBIT_OK)
@@ -65,7 +66,9 @@ async def test_reverses_newest_first_to_ascending() -> None:
     ]
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"retCode": 0, "retMsg": "OK", "result": {"list": bars}})
+        return httpx.Response(
+            200, json={"retCode": 0, "retMsg": "OK", "result": {"list": bars}}
+        )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as mock_client:
         client = BybitClient(base_url="https://test.invalid", client=mock_client)
@@ -79,6 +82,7 @@ async def test_reverses_newest_first_to_ascending() -> None:
 @pytest.mark.anyio
 async def test_close_time_pin_five_minute() -> None:
     """5m bar open=T → close == T+300_000−1 ms — matches Binance convention."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_BYBIT_OK)
 
@@ -112,6 +116,7 @@ async def test_close_time_pin_one_hour() -> None:
 @pytest.mark.anyio
 async def test_one_month_interval_raises_on_fetch() -> None:
     """1M has variable duration — fetch must raise ValueError, not silently miscompute."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_BYBIT_OK)
 
@@ -202,18 +207,22 @@ async def test_set_http_client_replaces_injected_client() -> None:
 @pytest.mark.anyio
 async def test_per_call_fallback_produces_identical_result() -> None:
     """No injected client → per-call AsyncClient path; result matches injected path."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v5/market/kline"
         assert request.url.params["category"] == "spot"
         return httpx.Response(200, json=_BYBIT_OK)
 
     import clay.ingestion.market.bybit_client as bybit_module
+
     original_async_client = bybit_module.httpx.AsyncClient
 
     class _PatchedAsyncClient:
         def __init__(self, *args, **kwargs) -> None:
             self._client = original_async_client(
-                transport=httpx.MockTransport(handler), *args, **kwargs,
+                transport=httpx.MockTransport(handler),
+                *args,
+                **kwargs,
             )
 
         async def __aenter__(self):

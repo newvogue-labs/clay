@@ -39,6 +39,7 @@ def _svc(
 
 def _make_state(status, actor, override_id, expires_at=None):
     from clay.execution.service import _OverrideState
+
     return _OverrideState(
         status=status,
         actor=actor,
@@ -62,10 +63,15 @@ def audit_writer(tmp_path):
 @pytest.mark.asyncio
 async def test_rehydrate_clears_armed_state(sqlite_session_factory):
     svc = _svc(session_factory=sqlite_session_factory)
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        datetime.now(UTC) + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            datetime.now(UTC) + timedelta(hours=1),
+        ),
+    )
     svc.rehydrate()
     assert svc.armed_override_id is None
     assert svc.status is None
@@ -76,7 +82,9 @@ async def test_rehydrate_clears_armed_state(sqlite_session_factory):
 
 @pytest.mark.asyncio
 async def test_request_rejects_dry_run_mode():
-    svc = _svc(execution_config=ExecutionConfig(mode="dry_run", allow_live_override=True))
+    svc = _svc(
+        execution_config=ExecutionConfig(mode="dry_run", allow_live_override=True)
+    )
     with pytest.raises(ExecutionConfigError, match="mode != live"):
         await svc.request_override(actor="op", reason="test")
 
@@ -91,10 +99,15 @@ async def test_request_rejects_allow_live_override_false():
 @pytest.mark.asyncio
 async def test_request_rejects_existing_active_override():
     svc = _svc()
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        datetime.now(UTC) + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            datetime.now(UTC) + timedelta(hours=1),
+        ),
+    )
     with pytest.raises(ExecutionConfigError, match="existing active state"):
         await svc.request_override(actor="op", reason="test")
 
@@ -140,10 +153,15 @@ async def test_request_writes_audit_jsonl(audit_writer):
 @pytest.mark.asyncio
 async def test_confirm_rejects_when_not_pending():
     svc = _svc()
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        datetime.now(UTC) + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            datetime.now(UTC) + timedelta(hours=1),
+        ),
+    )
     with pytest.raises(ExecutionConfigError, match="not pending"):
         await svc.confirm_override(actor="op2")
 
@@ -246,10 +264,15 @@ async def test_pending_not_expired():
 async def test_confirmed_not_expired_before_ttl():
     clock = VirtualClock(start=datetime(2026, 6, 27, tzinfo=UTC))
     svc = _svc(clock=clock)
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        clock.now() + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            clock.now() + timedelta(hours=1),
+        ),
+    )
     result = await svc.maybe_expire()
     assert result is None
     assert svc.status == "confirmed"
@@ -259,10 +282,15 @@ async def test_confirmed_not_expired_before_ttl():
 async def test_confirmed_expires_after_ttl(audit_writer):
     clock = VirtualClock(start=datetime(2026, 6, 27, tzinfo=UTC))
     svc = _svc(clock=clock, audit_writer=audit_writer)
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        clock.now() + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            clock.now() + timedelta(hours=1),
+        ),
+    )
     clock.tick(timedelta(hours=1, seconds=1))
     result = await svc.maybe_expire()
     assert result == "ovr_x"
@@ -274,10 +302,15 @@ async def test_confirmed_expires_after_ttl(audit_writer):
 async def test_expired_not_live_eligible():
     clock = VirtualClock(start=datetime(2026, 6, 27, tzinfo=UTC))
     svc = _svc(clock=clock)
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        clock.now() + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            clock.now() + timedelta(hours=1),
+        ),
+    )
     clock.tick(timedelta(hours=1, seconds=1))
     await svc.maybe_expire()
     assert svc.is_live_eligible() is False
@@ -290,10 +323,15 @@ async def test_expired_not_live_eligible():
 async def test_live_eligible_confirmed_not_expired():
     clock = SystemClock()
     svc = _svc(clock=clock)
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        clock.now() + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            clock.now() + timedelta(hours=1),
+        ),
+    )
     assert svc.is_live_eligible() is True
 
 
@@ -305,11 +343,18 @@ async def test_not_live_eligible_no_active_override():
 
 @pytest.mark.asyncio
 async def test_not_live_eligible_dry_run():
-    svc = _svc(execution_config=ExecutionConfig(mode="dry_run", allow_live_override=True))
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        datetime.now(UTC) + timedelta(hours=1),
-    ))
+    svc = _svc(
+        execution_config=ExecutionConfig(mode="dry_run", allow_live_override=True)
+    )
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            datetime.now(UTC) + timedelta(hours=1),
+        ),
+    )
     assert svc.is_live_eligible() is False
 
 
@@ -317,10 +362,15 @@ async def test_not_live_eligible_dry_run():
 async def test_not_live_eligible_expired():
     clock = VirtualClock(start=datetime(2026, 6, 27, tzinfo=UTC))
     svc = _svc(clock=clock)
-    _hydrate(svc, _make_state(
-        "confirmed", "op", "ovr_x",
-        clock.now() + timedelta(hours=1),
-    ))
+    _hydrate(
+        svc,
+        _make_state(
+            "confirmed",
+            "op",
+            "ovr_x",
+            clock.now() + timedelta(hours=1),
+        ),
+    )
     clock.tick(timedelta(hours=1, seconds=1))
     assert svc.is_live_eligible() is False
 

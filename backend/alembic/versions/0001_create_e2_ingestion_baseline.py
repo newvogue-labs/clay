@@ -27,11 +27,18 @@ def upgrade() -> None:
         sa.Column("close", sa.Float(), nullable=False),
         sa.Column("volume", sa.Float(), nullable=False),
         sa.Column("quote_volume", sa.Float(), nullable=True),
-        sa.Column("source", sa.String(length=32), nullable=False, server_default="binance_spot"),
+        sa.Column(
+            "source",
+            sa.String(length=32),
+            nullable=False,
+            server_default="binance_spot",
+        ),
         sa.Column("bar_open_time", sa.DateTime(timezone=True), nullable=False),
         sa.Column("bar_close_time", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", "bar_open_time"),
-        sa.UniqueConstraint("symbol", "timeframe", "bar_open_time", name="uq_market_bar"),
+        sa.UniqueConstraint(
+            "symbol", "timeframe", "bar_open_time", name="uq_market_bar"
+        ),
         schema="market",
     )
 
@@ -44,7 +51,12 @@ def upgrade() -> None:
         sa.Column("bid_depth_top", sa.Float(), nullable=True),
         sa.Column("ask_depth_top", sa.Float(), nullable=True),
         sa.Column("captured_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("source", sa.String(length=32), nullable=False, server_default="binance_spot"),
+        sa.Column(
+            "source",
+            sa.String(length=32),
+            nullable=False,
+            server_default="binance_spot",
+        ),
         sa.PrimaryKeyConstraint("id", "captured_at"),
         schema="market",
     )

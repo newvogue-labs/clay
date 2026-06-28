@@ -114,7 +114,9 @@ class SessionReviewService:
                 "outcome_status": record.outcome_status,
                 "feedback_label": command.feedback_label,
                 "notes": command.notes,
-                "created_at": datetime.now(UTC),  # not on replay exec path; wall-clock intentional
+                "created_at": datetime.now(
+                    UTC
+                ),  # not on replay exec path; wall-clock intentional
                 "score": score_map[command.feedback_label],
             }
         )

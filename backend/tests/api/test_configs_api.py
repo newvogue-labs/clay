@@ -30,10 +30,14 @@ async def test_configs_endpoint_returns_snapshot(
 ) -> None:
     loader = build_test_loader(tmp_path)
     monkeypatch.setattr(configs_route, "config_loader", loader)
-    monkeypatch.setattr(configs_route, "audit_writer", AuditWriter(loader.paths.state_dir))
+    monkeypatch.setattr(
+        configs_route, "audit_writer", AuditWriter(loader.paths.state_dir)
+    )
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.get("/configs")
 
     assert response.status_code == 200
@@ -49,10 +53,14 @@ async def test_configs_endpoint_applies_valid_runtime_config(
 ) -> None:
     loader = build_test_loader(tmp_path)
     monkeypatch.setattr(configs_route, "config_loader", loader)
-    monkeypatch.setattr(configs_route, "audit_writer", AuditWriter(loader.paths.state_dir))
+    monkeypatch.setattr(
+        configs_route, "audit_writer", AuditWriter(loader.paths.state_dir)
+    )
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.post(
             "/configs/runtime",
             json={
@@ -66,7 +74,9 @@ async def test_configs_endpoint_applies_valid_runtime_config(
 
     assert response.status_code == 200
     assert response.json()["config"]["work_window_start"] == "08:00"
-    runtime_config = (loader.paths.config_dir / "runtime.toml").read_text(encoding="utf-8")
+    runtime_config = (loader.paths.config_dir / "runtime.toml").read_text(
+        encoding="utf-8"
+    )
     assert 'work_window_start = "08:00"' in runtime_config
 
 
@@ -77,10 +87,14 @@ async def test_configs_endpoint_rejects_invalid_config_and_keeps_last_valid(
 ) -> None:
     loader = build_test_loader(tmp_path)
     monkeypatch.setattr(configs_route, "config_loader", loader)
-    monkeypatch.setattr(configs_route, "audit_writer", AuditWriter(loader.paths.state_dir))
+    monkeypatch.setattr(
+        configs_route, "audit_writer", AuditWriter(loader.paths.state_dir)
+    )
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.post(
             "/configs/runtime",
             json={
@@ -93,5 +107,7 @@ async def test_configs_endpoint_rejects_invalid_config_and_keeps_last_valid(
         )
 
     assert response.status_code == 400
-    runtime_config = (loader.paths.config_dir / "runtime.toml").read_text(encoding="utf-8")
+    runtime_config = (loader.paths.config_dir / "runtime.toml").read_text(
+        encoding="utf-8"
+    )
     assert 'default_state = "background_monitoring"' in runtime_config

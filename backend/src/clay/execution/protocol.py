@@ -1,7 +1,13 @@
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from clay.execution.models import Balance, CancelResult, OrderResult, OrderStatus, TradeFill
+    from clay.execution.models import (
+        Balance,
+        CancelResult,
+        OrderResult,
+        OrderStatus,
+        TradeFill,
+    )
 
 
 @runtime_checkable

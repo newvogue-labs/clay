@@ -17,26 +17,42 @@ def test_source_unique_constraint_allows_different_sources(db_session) -> None:
     observed_at = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
 
     # Bar from Binance
-    written_1 = repository.upsert_market_bars([
-        {
-            "symbol": "BTCUSDT", "timeframe": "15m",
-            "open": 70200.0, "high": 70400.0, "low": 70100.0,
-            "close": 70350.0, "volume": 120.0, "quote_volume": 8440000.0,
-            "source": "binance_spot",
-            "bar_open_time": observed_at, "bar_close_time": observed_at,
-        },
-    ])
+    written_1 = repository.upsert_market_bars(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "open": 70200.0,
+                "high": 70400.0,
+                "low": 70100.0,
+                "close": 70350.0,
+                "volume": 120.0,
+                "quote_volume": 8440000.0,
+                "source": "binance_spot",
+                "bar_open_time": observed_at,
+                "bar_close_time": observed_at,
+            },
+        ]
+    )
 
     # Bar with same key but different source (e.g. Bybit)
-    written_2 = repository.upsert_market_bars([
-        {
-            "symbol": "BTCUSDT", "timeframe": "15m",
-            "open": 70210.0, "high": 70410.0, "low": 70120.0,
-            "close": 70360.0, "volume": 130.0, "quote_volume": 8550000.0,
-            "source": "bybit_spot",
-            "bar_open_time": observed_at, "bar_close_time": observed_at,
-        },
-    ])
+    written_2 = repository.upsert_market_bars(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "open": 70210.0,
+                "high": 70410.0,
+                "low": 70120.0,
+                "close": 70360.0,
+                "volume": 130.0,
+                "quote_volume": 8550000.0,
+                "source": "bybit_spot",
+                "bar_open_time": observed_at,
+                "bar_close_time": observed_at,
+            },
+        ]
+    )
     db_session.commit()
 
     assert written_1 == (1, 0)
@@ -52,16 +68,22 @@ def test_freshness_status_stores_source(db_session) -> None:
     observed_at = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
 
     repository.upsert_freshness_status(
-        symbol="BTCUSDT", timeframe="15m",
+        symbol="BTCUSDT",
+        timeframe="15m",
         source="binance_spot",
-        freshness_state="fresh", evaluated_at=observed_at,
-        latest_bar_open_time=observed_at, is_stale=False,
+        freshness_state="fresh",
+        evaluated_at=observed_at,
+        latest_bar_open_time=observed_at,
+        is_stale=False,
     )
     repository.upsert_freshness_status(
-        symbol="BTCUSDT", timeframe="15m",
+        symbol="BTCUSDT",
+        timeframe="15m",
         source="bybit_spot",
-        freshness_state="unknown", evaluated_at=observed_at,
-        latest_bar_open_time=None, is_stale=True,
+        freshness_state="unknown",
+        evaluated_at=observed_at,
+        latest_bar_open_time=None,
+        is_stale=True,
     )
     db_session.commit()
 
@@ -195,14 +217,22 @@ def test_ops_repository_resolves_active_incidents(db_session) -> None:
     assert resolved_count == 1
     assert ops_repository.latest_incidents() == []
     assert recent[0].lifecycle_status == "resolved"
-    assert recent[0].resolution_message == "Market ingest recovered after successful refresh."
+    assert (
+        recent[0].resolution_message
+        == "Market ingest recovered after successful refresh."
+    )
 
 
 def _create_bar(symbol: str, timeframe: str, close_time: datetime, source: str) -> dict:
     return {
-        "symbol": symbol, "timeframe": timeframe,
-        "open": 70000.0, "high": 70100.0, "low": 69900.0, "close": 70050.0,
-        "volume": 100.0, "quote_volume": 7005000.0,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "open": 70000.0,
+        "high": 70100.0,
+        "low": 69900.0,
+        "close": 70050.0,
+        "volume": 100.0,
+        "quote_volume": 7005000.0,
         "source": source,
         "bar_open_time": datetime(2026, 4, 16, 10, 0, tzinfo=UTC),
         "bar_close_time": close_time,
@@ -223,10 +253,12 @@ def test_list_latest_bars_preferred_source_wins(db_session) -> None:
     t1 = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
     t2 = datetime(2026, 4, 16, 10, 5, tzinfo=UTC)
 
-    repository.upsert_market_bars([
-        _create_bar("BTCUSDT", "5m", close_time=t1, source="binance_spot"),
-        _create_bar("BTCUSDT", "5m", close_time=t2, source="bybit_spot"),
-    ])
+    repository.upsert_market_bars(
+        [
+            _create_bar("BTCUSDT", "5m", close_time=t1, source="binance_spot"),
+            _create_bar("BTCUSDT", "5m", close_time=t2, source="bybit_spot"),
+        ]
+    )
     db_session.commit()
 
     result = repository.list_latest_bars(limit=5)
@@ -240,9 +272,11 @@ def test_list_latest_bars_fallback_when_preferred_absent(db_session) -> None:
     repository = MarketRepository(db_session)
 
     t = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
-    repository.upsert_market_bars([
-        _create_bar("BTCUSDT", "5m", close_time=t, source="bybit_spot"),
-    ])
+    repository.upsert_market_bars(
+        [
+            _create_bar("BTCUSDT", "5m", close_time=t, source="bybit_spot"),
+        ]
+    )
     db_session.commit()
 
     result = repository.list_latest_bars(limit=5)
@@ -258,10 +292,12 @@ def test_list_latest_bars_priority_swap(db_session) -> None:
     t1 = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
     t2 = datetime(2026, 4, 16, 10, 5, tzinfo=UTC)
 
-    repository.upsert_market_bars([
-        _create_bar("BTCUSDT", "5m", close_time=t2, source="bybit_spot"),
-        _create_bar("BTCUSDT", "5m", close_time=t1, source="binance_spot"),
-    ])
+    repository.upsert_market_bars(
+        [
+            _create_bar("BTCUSDT", "5m", close_time=t2, source="bybit_spot"),
+            _create_bar("BTCUSDT", "5m", close_time=t1, source="binance_spot"),
+        ]
+    )
     db_session.commit()
 
     result = repository.list_latest_bars(limit=5)
@@ -275,11 +311,13 @@ def test_list_latest_bars_one_row_per_symbol_timeframe(db_session) -> None:
     repository = MarketRepository(db_session)
 
     t = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
-    repository.upsert_market_bars([
-        _create_bar("BTCUSDT", "5m", close_time=t, source="binance_spot"),
-        _create_bar("BTCUSDT", "5m", close_time=t, source="bybit_spot"),
-        _create_bar("ETHUSDT", "15m", close_time=t, source="binance_spot"),
-    ])
+    repository.upsert_market_bars(
+        [
+            _create_bar("BTCUSDT", "5m", close_time=t, source="binance_spot"),
+            _create_bar("BTCUSDT", "5m", close_time=t, source="bybit_spot"),
+            _create_bar("ETHUSDT", "15m", close_time=t, source="binance_spot"),
+        ]
+    )
     db_session.commit()
 
     result = repository.list_latest_bars(limit=5)
@@ -293,10 +331,12 @@ def test_list_latest_bars_unknown_source_lowest_priority(db_session) -> None:
     repository = MarketRepository(db_session)
 
     t = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
-    repository.upsert_market_bars([
-        _create_bar("BTCUSDT", "5m", close_time=t, source="unknown_source"),
-        _create_bar("BTCUSDT", "5m", close_time=t, source="binance_spot"),
-    ])
+    repository.upsert_market_bars(
+        [
+            _create_bar("BTCUSDT", "5m", close_time=t, source="unknown_source"),
+            _create_bar("BTCUSDT", "5m", close_time=t, source="binance_spot"),
+        ]
+    )
     db_session.commit()
 
     result = repository.list_latest_bars(limit=5)
@@ -311,16 +351,22 @@ def test_list_freshness_preferred_wins_even_if_stale(db_session) -> None:
     t = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
 
     repository.upsert_freshness_status(
-        symbol="BTCUSDT", timeframe="5m",
+        symbol="BTCUSDT",
+        timeframe="5m",
         source="bybit_spot",
-        freshness_state="fresh", evaluated_at=t,
-        latest_bar_open_time=t, is_stale=False,
+        freshness_state="fresh",
+        evaluated_at=t,
+        latest_bar_open_time=t,
+        is_stale=False,
     )
     repository.upsert_freshness_status(
-        symbol="BTCUSDT", timeframe="5m",
+        symbol="BTCUSDT",
+        timeframe="5m",
         source="binance_spot",
-        freshness_state="stale", evaluated_at=t,
-        latest_bar_open_time=t, is_stale=True,
+        freshness_state="stale",
+        evaluated_at=t,
+        latest_bar_open_time=t,
+        is_stale=True,
     )
     db_session.commit()
 
@@ -337,10 +383,13 @@ def test_list_freshness_fallback_when_preferred_missing(db_session) -> None:
     t = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
 
     repository.upsert_freshness_status(
-        symbol="BTCUSDT", timeframe="5m",
+        symbol="BTCUSDT",
+        timeframe="5m",
         source="bybit_spot",
-        freshness_state="fresh", evaluated_at=t,
-        latest_bar_open_time=t, is_stale=False,
+        freshness_state="fresh",
+        evaluated_at=t,
+        latest_bar_open_time=t,
+        is_stale=False,
     )
     db_session.commit()
 
@@ -354,14 +403,19 @@ def test_list_latest_bars_binance_only_byte_identical(db_session) -> None:
     repository = MarketRepository(db_session)
     observed_at = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
 
-    repository.upsert_market_bars([
-        _create_bar("BTCUSDT", "5m", close_time=observed_at, source="binance_spot"),
-    ])
+    repository.upsert_market_bars(
+        [
+            _create_bar("BTCUSDT", "5m", close_time=observed_at, source="binance_spot"),
+        ]
+    )
     repository.upsert_freshness_status(
-        symbol="BTCUSDT", timeframe="5m",
+        symbol="BTCUSDT",
+        timeframe="5m",
         source="binance_spot",
-        freshness_state="fresh", evaluated_at=observed_at,
-        latest_bar_open_time=observed_at, is_stale=False,
+        freshness_state="fresh",
+        evaluated_at=observed_at,
+        latest_bar_open_time=observed_at,
+        is_stale=False,
     )
     db_session.commit()
 
@@ -374,7 +428,9 @@ def test_list_latest_bars_binance_only_byte_identical(db_session) -> None:
     assert freshness[0].source == "binance_spot"
 
 
-def test_source_priority_extracted_from_exchange_config_source_field(db_session) -> None:
+def test_source_priority_extracted_from_exchange_config_source_field(
+    db_session,
+) -> None:
     """Pin: bootstrap extracts priority from ``cfg.source``, not ``exchange_id`` or dict key.
 
     If ``exchange_id != source`` (future E5), priority must still work.
@@ -405,12 +461,16 @@ def test_source_priority_extracted_from_exchange_config_source_field(db_session)
     t1 = datetime(2026, 4, 16, 10, 0, tzinfo=UTC)
     t2 = datetime(2026, 4, 16, 10, 5, tzinfo=UTC)
 
-    repository.upsert_market_bars([
-        _create_bar("BTCUSDT", "5m", close_time=t2, source="binance_spot"),
-        _create_bar("BTCUSDT", "5m", close_time=t1, source="bybit_spot"),
-    ])
+    repository.upsert_market_bars(
+        [
+            _create_bar("BTCUSDT", "5m", close_time=t2, source="binance_spot"),
+            _create_bar("BTCUSDT", "5m", close_time=t1, source="bybit_spot"),
+        ]
+    )
     db_session.commit()
 
     result = repository.list_latest_bars(limit=5)
     assert len(result) == 1
-    assert result[0].source == "bybit_spot"  # bybit preferred, older bybit wins over newer binance
+    assert (
+        result[0].source == "bybit_spot"
+    )  # bybit preferred, older bybit wins over newer binance

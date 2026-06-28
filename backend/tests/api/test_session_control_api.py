@@ -19,7 +19,10 @@ from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
-from clay.session_control.models import PairReplacementApplyCommand, PairReplacementReviewCommand
+from clay.session_control.models import (
+    PairReplacementApplyCommand,
+    PairReplacementReviewCommand,
+)
 from clay.session_control.service import SessionControlService
 from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
@@ -79,7 +82,10 @@ def seed_session_data(session) -> None:
     market_repository = MarketRepository(session)
     context_repository = ContextRepository(session)
     ops_repository = OpsRepository(session)
-    for symbol, close, volume in [("BTCUSDT", 70540.0, 240.0), ("SOLUSDT", 181.5, 320.0)]:
+    for symbol, close, volume in [
+        ("BTCUSDT", 70540.0, 240.0),
+        ("SOLUSDT", 181.5, 320.0),
+    ]:
         market_repository.upsert_market_bars(
             [
                 {
@@ -167,7 +173,11 @@ def test_session_route_flow_handles_lifecycle_and_pair_replacement(db_session) -
 
     started = asyncio.run(start_session(db_session, service))
     assert started["lifecycle"]["lifecycle_state"] == "active_session"
-    proposed_symbol = "SOLUSDT" if started["lifecycle"]["current_pair_symbol"] != "SOLUSDT" else "BTCUSDT"
+    proposed_symbol = (
+        "SOLUSDT"
+        if started["lifecycle"]["current_pair_symbol"] != "SOLUSDT"
+        else "BTCUSDT"
+    )
 
     review = asyncio.run(
         review_pair_replacement(

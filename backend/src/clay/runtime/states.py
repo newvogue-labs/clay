@@ -11,6 +11,7 @@ class RuntimeState(StrEnum):
     REVIEW = "review"
     DEGRADED = "degraded"
 
+
 class RuntimeSnapshot(BaseModel):
     state: RuntimeState
     allowed_transitions: list[RuntimeState]

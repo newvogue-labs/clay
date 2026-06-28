@@ -99,7 +99,9 @@ class ValidationLabService:
             max_drawdown_pct = 1.5 if top_signal else 2.8
             decision_quality_score = 0.8 if top_signal else 0.48
 
-        model_version = self.ai_control_service.assignments.get("chief-agent", "unknown")
+        model_version = self.ai_control_service.assignments.get(
+            "chief-agent", "unknown"
+        )
         summary = self._build_run_summary(
             run_type=command.run_type,
             top_signal_symbol=top_signal.symbol if top_signal else None,
@@ -158,8 +160,14 @@ class ValidationLabService:
         if latest_run is None:
             raise ValueError("validation run is required before activation review")
 
-        current_value = self._resolve_current_value(target_type=target_type, target_id=target_id)
-        status, severity = self._resolve_review_posture(latest_run.net_pnl_pct, latest_run.max_drawdown_pct, latest_run.decision_quality_score)
+        current_value = self._resolve_current_value(
+            target_type=target_type, target_id=target_id
+        )
+        status, severity = self._resolve_review_posture(
+            latest_run.net_pnl_pct,
+            latest_run.max_drawdown_pct,
+            latest_run.decision_quality_score,
+        )
         evidence = {
             "latest_run_id": latest_run.id,
             "latest_run_type": latest_run.run_type,
@@ -216,7 +224,9 @@ class ValidationLabService:
         )
         return self._serialize_review(row)
 
-    def apply_activation(self, session: Session, review_id: str) -> ValidationLabSnapshot:
+    def apply_activation(
+        self, session: Session, review_id: str
+    ) -> ValidationLabSnapshot:
         repository = ValidationRepository(session)
         row = repository.get_activation_review(review_id)
         if row is None:
@@ -279,7 +289,11 @@ class ValidationLabService:
         replay_ready = bool(runs)
         staged_review_count = sum(1 for row in reviews if row.status == "staged")
         blocked_count = sum(1 for row in reviews if row.status == "blocked")
-        latest_status = reviews[0].status if reviews else ("ready" if replay_ready else "collecting")
+        latest_status = (
+            reviews[0].status
+            if reviews
+            else ("ready" if replay_ready else "collecting")
+        )
         if not runs:
             operator_message = "Validation Lab is waiting for the first replay run before any activation review."
         elif blocked_count:
@@ -314,7 +328,11 @@ class ValidationLabService:
     ) -> tuple[str, str]:
         if net_pnl_pct < 0 or max_drawdown_pct >= 3.5 or decision_quality_score < 0.55:
             return "blocked", "critical"
-        if net_pnl_pct < 2.0 or max_drawdown_pct >= 2.0 or decision_quality_score < 0.75:
+        if (
+            net_pnl_pct < 2.0
+            or max_drawdown_pct >= 2.0
+            or decision_quality_score < 0.75
+        ):
             return "staged", "warning"
         return "ready", "info"
 

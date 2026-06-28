@@ -4,7 +4,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from clay.api.dependencies import get_db_session, get_ingestion_cycle_service, get_ingestion_settings
+from clay.api.dependencies import (
+    get_db_session,
+    get_ingestion_cycle_service,
+    get_ingestion_settings,
+)
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
@@ -81,10 +85,7 @@ async def get_ingestion_health(
     if (
         news.status != "fresh"
         or sentiment.status != "fresh"
-        or any(
-            row.status in {"degraded", "error"}
-            for row in connector_statuses
-        )
+        or any(row.status in {"degraded", "error"} for row in connector_statuses)
     ):
         context_status = "degraded"
 
@@ -117,7 +118,9 @@ async def get_ingestion_health(
                 "lifecycle_status": row.lifecycle_status,
                 "message": row.message,
                 "recorded_at": row.recorded_at.isoformat(),
-                "resolved_at": row.resolved_at.isoformat() if row.resolved_at is not None else None,
+                "resolved_at": row.resolved_at.isoformat()
+                if row.resolved_at is not None
+                else None,
                 "resolution_message": row.resolution_message,
             }
             for row in ops_repo.latest_incidents()

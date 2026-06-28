@@ -16,10 +16,6 @@ future one-line activation):
 * ``sentiment_snapshots`` — 180d (context data; still synthetic)
 """
 
-
-
-
-
 RETENTION_WINDOWS_DAYS = {
     "ingest_runs": 30,
     "connector_status_history": 180,

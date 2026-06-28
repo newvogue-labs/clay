@@ -8,6 +8,7 @@ test gets a fresh DB. The two tests prove the seam from G5b:
 * ``seed`` is idempotent (re-running does not drift the score) and
   ``clean`` removes the seeded rows so the signal disappears.
 """
+
 from __future__ import annotations
 
 from typing import cast

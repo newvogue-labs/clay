@@ -42,7 +42,9 @@ def make_xdg_paths(tmp_path: Path) -> XdgPaths:
     )
 
 
-def make_file_sqlite_settings(tmp_path: Path, db_filename: str = "clay-restart.db") -> IngestionSettings:
+def make_file_sqlite_settings(
+    tmp_path: Path, db_filename: str = "clay-restart.db"
+) -> IngestionSettings:
     """Build an ``IngestionSettings`` pointing at a file-based SQLite
     under ``tmp_path`` (NOT ``:memory:`` — A1-decisions: integration
     tests must exercise the real driver path)."""

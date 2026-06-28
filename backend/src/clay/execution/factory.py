@@ -22,9 +22,13 @@ def build_execution_client(*, mode: str, **overrides: object) -> "ExecutionClien
     if mode == "dry_run":
         return DryRunExecutionClient()
     if mode == "testnet":
-        api_key = str(overrides.get("api_key") or os.environ.get("CLAY_BINANCE_TESTNET_API_KEY", ""))
+        api_key = str(
+            overrides.get("api_key")
+            or os.environ.get("CLAY_BINANCE_TESTNET_API_KEY", "")
+        )
         api_secret = str(
-            overrides.get("api_secret") or os.environ.get("CLAY_BINANCE_TESTNET_API_SECRET", "")
+            overrides.get("api_secret")
+            or os.environ.get("CLAY_BINANCE_TESTNET_API_SECRET", "")
         )
         return BinanceTestnetExecutionClient(
             api_key=api_key,

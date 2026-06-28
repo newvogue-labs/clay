@@ -69,7 +69,10 @@ def seed_session_data(session) -> None:
     context_repository = ContextRepository(session)
     ops_repository = OpsRepository(session)
 
-    for symbol, close, volume in [("BTCUSDT", 70540.0, 260.0), ("SOLUSDT", 181.5, 320.0)]:
+    for symbol, close, volume in [
+        ("BTCUSDT", 70540.0, 260.0),
+        ("SOLUSDT", 181.5, 320.0),
+    ]:
         market_repository.upsert_market_bars(
             [
                 {
@@ -171,7 +174,9 @@ def test_session_service_reviews_and_applies_pair_replacement(db_session) -> Non
     current_symbol = started.lifecycle.current_pair_symbol
     proposed_symbol = "SOLUSDT" if current_symbol != "SOLUSDT" else "BTCUSDT"
 
-    review = service.review_pair_replacement(db_session, proposed_symbol=proposed_symbol)
+    review = service.review_pair_replacement(
+        db_session, proposed_symbol=proposed_symbol
+    )
     assert review.current_symbol == current_symbol
     assert review.proposed_symbol == proposed_symbol
 

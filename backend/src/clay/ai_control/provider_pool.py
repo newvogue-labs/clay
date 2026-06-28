@@ -81,17 +81,13 @@ class DeploymentRow:
 
 
 class ProviderPoolRepository(Protocol):
-    def get_available_for_model(self, model_name: str) -> Sequence[Deployment]:
-        ...
+    def get_available_for_model(self, model_name: str) -> Sequence[Deployment]: ...
 
-    def get_deployment(self, deployment_id: int) -> Deployment | None:
-        ...
+    def get_deployment(self, deployment_id: int) -> Deployment | None: ...
 
-    def get_key(self, key_id: int | None) -> ProviderKey | None:
-        ...
+    def get_key(self, key_id: int | None) -> ProviderKey | None: ...
 
-    def update_key(self, key_id: int, **updates: object) -> None:
-        ...
+    def update_key(self, key_id: int, **updates: object) -> None: ...
 
     def insert_health(
         self,
@@ -104,17 +100,13 @@ class ProviderPoolRepository(Protocol):
         tokens: int | None,
         error_excerpt: str | None,
         time: datetime,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def expire_cooling(self, now: datetime) -> int:
-        ...
+    def expire_cooling(self, now: datetime) -> int: ...
 
-    def expire_exhausted(self, now: datetime) -> int:
-        ...
+    def expire_exhausted(self, now: datetime) -> int: ...
 
-    def list_enabled_deployments(self) -> Sequence[DeploymentRow]:
-        ...
+    def list_enabled_deployments(self) -> Sequence[DeploymentRow]: ...
 
 
 class ProviderPool:
@@ -247,11 +239,16 @@ class ProviderPool:
     def _is_quota_exhausted(self, key: ProviderKey) -> bool:
         if key.rpd_limit is not None and key.rpd_used >= key.rpd_limit:
             return True
-        if key.daily_token_limit is not None and key.daily_token_used >= key.daily_token_limit:
+        if (
+            key.daily_token_limit is not None
+            and key.daily_token_used >= key.daily_token_limit
+        ):
             return True
         return False
 
-    def _resolve_deployment_and_key(self, deployment_id: int) -> tuple[Deployment, ProviderKey | None]:
+    def _resolve_deployment_and_key(
+        self, deployment_id: int
+    ) -> tuple[Deployment, ProviderKey | None]:
         dep = self._repo.get_deployment(deployment_id)
         if dep is None:
             msg = f"Deployment {deployment_id} not found"

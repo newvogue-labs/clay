@@ -24,10 +24,22 @@ depends_on: Union[str, Sequence[str], None] = None
 
 # (schema, old_name, new_name)
 _RENAMES = [
-    ("ops", "ix_ops_connector_status_history_observed_at", "ix_connector_status_history_observed_at"),
+    (
+        "ops",
+        "ix_ops_connector_status_history_observed_at",
+        "ix_connector_status_history_observed_at",
+    ),
     ("ops", "ix_ops_ingest_runs_started_at", "ix_ingest_runs_started_at"),
-    ("ops", "ix_ops_source_health_events_lifecycle_status", "ix_source_health_events_lifecycle_status"),
-    ("ops", "ix_ops_source_health_events_recorded_at", "ix_source_health_events_recorded_at"),
+    (
+        "ops",
+        "ix_ops_source_health_events_lifecycle_status",
+        "ix_source_health_events_lifecycle_status",
+    ),
+    (
+        "ops",
+        "ix_ops_source_health_events_recorded_at",
+        "ix_source_health_events_recorded_at",
+    ),
 ]
 
 

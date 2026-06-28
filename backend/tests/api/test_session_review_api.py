@@ -3,7 +3,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from clay.ai_control.service import AIControlService
-from clay.api.routes.session_review import capture_session_feedback, get_session_review_overview
+from clay.api.routes.session_review import (
+    capture_session_feedback,
+    get_session_review_overview,
+)
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
 from clay.config.paths import XdgPaths
@@ -77,7 +80,9 @@ def seed_review_records(session) -> None:
     session.commit()
 
 
-def test_session_review_overview_route_returns_snapshot(db_session, tmp_path: Path) -> None:
+def test_session_review_overview_route_returns_snapshot(
+    db_session, tmp_path: Path
+) -> None:
     service = build_review_service(tmp_path)
     seed_review_records(db_session)
 
@@ -87,13 +92,19 @@ def test_session_review_overview_route_returns_snapshot(db_session, tmp_path: Pa
     assert payload["records"][0]["outcome_status"] == "late_matched"
 
 
-def test_session_review_feedback_route_captures_feedback(db_session, tmp_path: Path) -> None:
+def test_session_review_feedback_route_captures_feedback(
+    db_session, tmp_path: Path
+) -> None:
     service = build_review_service(tmp_path)
     seed_review_records(db_session)
 
     payload = asyncio.run(
         capture_session_feedback(
-            FeedbackCreateCommand(record_id=1, feedback_label="needs_follow_up", notes="Check late-entry timing."),
+            FeedbackCreateCommand(
+                record_id=1,
+                feedback_label="needs_follow_up",
+                notes="Check late-entry timing.",
+            ),
             db_session,
             service,
         )

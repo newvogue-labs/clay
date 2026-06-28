@@ -66,11 +66,11 @@ def advisory_fraction(f_star: float, lambda_: float, cap: float) -> float:
 
 
 SizingStats = tuple[
-    float,   # p (Wilson lower bound)
-    float,   # b (empirical payoff)
-    float,   # EV
-    float,   # f* (full Kelly)
-    float,   # f (advisory fraction)
+    float,  # p (Wilson lower bound)
+    float,  # b (empirical payoff)
+    float,  # EV
+    float,  # f* (full Kelly)
+    float,  # f (advisory fraction)
 ]
 
 

@@ -1,4 +1,5 @@
 """Tests for clay.core.clock — Clock protocol, SystemClock, VirtualClock."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

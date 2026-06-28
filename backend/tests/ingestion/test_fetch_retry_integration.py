@@ -34,7 +34,9 @@ class _ThrowingBinanceClient:
         self.error = error
         self.call_count = 0
 
-    async def fetch_klines(self, symbol: str, interval: str, limit: int = 200) -> list[Any]:
+    async def fetch_klines(
+        self, symbol: str, interval: str, limit: int = 200
+    ) -> list[Any]:
         self.call_count += 1
         if self.error is not None:
             raise self.error
@@ -49,7 +51,9 @@ class _SequentialThrowingBinanceClient:
         self._fail_count = fail_count
         self.call_count = 0
 
-    async def fetch_klines(self, symbol: str, interval: str, limit: int = 200) -> list[Any]:
+    async def fetch_klines(
+        self, symbol: str, interval: str, limit: int = 200
+    ) -> list[Any]:
         self.call_count += 1
         if self.call_count <= self._fail_count:
             raise self._error
@@ -90,11 +94,19 @@ async def test_429_with_retry_after_uses_capped_delay() -> None:
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),  # type: ignore[arg-type]
         session_factory=AsyncMock(),  # type: ignore[arg-type]
@@ -102,9 +114,13 @@ async def test_429_with_retry_after_uses_capped_delay() -> None:
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(
+                client=client, symbol="BTCUSDT", timeframe="5m"
+            )
 
-    assert any(2.0 <= d <= 2.1 for d in SLEEP_TIMES), f"expected ~2.0, got {SLEEP_TIMES}"
+    assert any(2.0 <= d <= 2.1 for d in SLEEP_TIMES), (
+        f"expected ~2.0, got {SLEEP_TIMES}"
+    )
 
 
 @pytest.mark.anyio
@@ -115,11 +131,19 @@ async def test_429_without_retry_after_falls_back_to_default() -> None:
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
@@ -127,9 +151,13 @@ async def test_429_without_retry_after_falls_back_to_default() -> None:
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(
+                client=client, symbol="BTCUSDT", timeframe="5m"
+            )
 
-    assert any(0.4 <= d <= 0.6 for d in SLEEP_TIMES), f"expected ~0.5, got {SLEEP_TIMES}"
+    assert any(0.4 <= d <= 0.6 for d in SLEEP_TIMES), (
+        f"expected ~0.5, got {SLEEP_TIMES}"
+    )
 
 
 @pytest.mark.anyio
@@ -140,11 +168,19 @@ async def test_429_with_retry_above_cap_is_capped() -> None:
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
@@ -152,9 +188,13 @@ async def test_429_with_retry_above_cap_is_capped() -> None:
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(
+                client=client, symbol="BTCUSDT", timeframe="5m"
+            )
 
-    assert any(59.0 <= d <= 61.0 for d in SLEEP_TIMES), f"expected ~60.0, got {SLEEP_TIMES}"
+    assert any(59.0 <= d <= 61.0 for d in SLEEP_TIMES), (
+        f"expected ~60.0, got {SLEEP_TIMES}"
+    )
 
 
 @pytest.mark.anyio
@@ -165,11 +205,19 @@ async def test_generic_500_uses_default_delay() -> None:
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
@@ -177,9 +225,13 @@ async def test_generic_500_uses_default_delay() -> None:
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(Exception):
-            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(
+                client=client, symbol="BTCUSDT", timeframe="5m"
+            )
 
-    assert any(0.4 <= d <= 0.6 for d in SLEEP_TIMES), f"expected ~0.5, got {SLEEP_TIMES}"
+    assert any(0.4 <= d <= 0.6 for d in SLEEP_TIMES), (
+        f"expected ~0.5, got {SLEEP_TIMES}"
+    )
 
 
 @pytest.mark.anyio
@@ -187,22 +239,34 @@ async def test_retry_succeeds_on_second_attempt_after_429() -> None:
     """429 on 1st attempt → retry → succeeds on 2nd → returns data."""
     error = _make_rate_limit_error(retry_after="1")
     client = _SequentialThrowingBinanceClient(error=error, fail_count=1)
-    settings = IngestionSettings(market_fetch_max_attempts=2, binance_retry_after_cap_seconds=60.0)
+    settings = IngestionSettings(
+        market_fetch_max_attempts=2, binance_retry_after_cap_seconds=60.0
+    )
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
     )
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
-        result = await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
+        result = await service._fetch_market_bars(
+            client=client, symbol="BTCUSDT", timeframe="5m"
+        )
 
     assert result == []
     assert client.call_count == 2
@@ -217,11 +281,19 @@ async def test_retry_exhausted_raises_and_per_symbol_isolation() -> None:
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
@@ -229,7 +301,9 @@ async def test_retry_exhausted_raises_and_per_symbol_isolation() -> None:
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr(asyncio, "sleep", _tracking_sleep)
         with pytest.raises(httpx.HTTPStatusError):
-            await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
+            await service._fetch_market_bars(
+                client=client, symbol="BTCUSDT", timeframe="5m"
+            )
 
     assert client.call_count == 2
 
@@ -246,11 +320,19 @@ async def test_retry_exhausted_logs_per_attempt_warning_and_final_error() -> Non
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
@@ -266,11 +348,17 @@ async def test_retry_exhausted_logs_per_attempt_warning_and_final_error() -> Non
         with MonkeyPatch().context() as mp:
             mp.setattr(asyncio, "sleep", _tracking_sleep)
             with pytest.raises(httpx.HTTPStatusError):
-                await service._fetch_market_bars(client=client, symbol="BTCUSDT", timeframe="5m")
+                await service._fetch_market_bars(
+                    client=client, symbol="BTCUSDT", timeframe="5m"
+                )
         output = stream.getvalue()
         assert "attempt 1/3 failed" in output, f"missing per-attempt log, got: {output}"
-        assert "attempt 3/3 failed" in output, f"missing final-attempt log, got: {output}"
-        assert "all 3 attempts failed" in output, f"missing final error log, got: {output}"
+        assert "attempt 3/3 failed" in output, (
+            f"missing final-attempt log, got: {output}"
+        )
+        assert "all 3 attempts failed" in output, (
+            f"missing final error log, got: {output}"
+        )
     finally:
         logger.removeHandler(handler)
         logger.setLevel(old_level)
@@ -285,11 +373,19 @@ async def test_collect_market_bars_logs_warning_on_fetch_failure() -> None:
     service = IngestionCycleService(
         settings=settings,
         market_service=MarketIngestionService(
-            {"test": (client, ExchangeConfig(
-                exchange_id="test", source="test",
-                enabled=True, base_url="http://fake",
-                symbols=settings.market_symbols, timeframes=settings.market_timeframes,
-            ))},
+            {
+                "test": (
+                    client,
+                    ExchangeConfig(
+                        exchange_id="test",
+                        source="test",
+                        enabled=True,
+                        base_url="http://fake",
+                        symbols=settings.market_symbols,
+                        timeframes=settings.market_timeframes,
+                    ),
+                )
+            },
         ),
         context_manager=AsyncMock(),
         session_factory=AsyncMock(),
@@ -305,7 +401,9 @@ async def test_collect_market_bars_logs_warning_on_fetch_failure() -> None:
         batches = await service._collect_market_bars()
         output = stream.getvalue()
         assert "fetch failed" in output, f"missing site-1 warning, got: {output}"
-        assert any(b.error is not None for b in batches), "expected at least one error batch"
+        assert any(b.error is not None for b in batches), (
+            "expected at least one error batch"
+        )
     finally:
         logger.removeHandler(handler)
         logger.setLevel(old_level)

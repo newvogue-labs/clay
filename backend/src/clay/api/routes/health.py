@@ -90,9 +90,10 @@ async def _check_ingest_freshness(
     result = await asyncio.to_thread(_query)
 
     if result == "__null__":
-        if started_at is not None and (
-            datetime.now(UTC) - started_at
-        ).total_seconds() < threshold:
+        if (
+            started_at is not None
+            and (datetime.now(UTC) - started_at).total_seconds() < threshold
+        ):
             return "warming_up"
         return "stale"
 

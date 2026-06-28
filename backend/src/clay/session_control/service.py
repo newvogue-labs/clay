@@ -221,10 +221,24 @@ class SessionControlService:
         else:
             self.runtime_manager.reconcile_to(RuntimeState.ACTIVE_SESSION)
 
-    def build_snapshot(self, session: Session, *, for_start: bool = False, source_scope: Collection[str] | None = None) -> SessionControlSnapshot:
-        signal_snapshot = self.signal_engine_service.build_snapshot(session, source_scope=source_scope)
+    def build_snapshot(
+        self,
+        session: Session,
+        *,
+        for_start: bool = False,
+        source_scope: Collection[str] | None = None,
+    ) -> SessionControlSnapshot:
+        signal_snapshot = self.signal_engine_service.build_snapshot(
+            session, source_scope=source_scope
+        )
         ai_snapshot = self.ai_control_service.build_snapshot(session)
-        preflight = self._build_preflight(session, signal_snapshot, ai_snapshot, for_start=for_start, source_scope=source_scope)
+        preflight = self._build_preflight(
+            session,
+            signal_snapshot,
+            ai_snapshot,
+            for_start=for_start,
+            source_scope=source_scope,
+        )
         briefing = self._build_briefing(signal_snapshot, ai_snapshot)
         lifecycle = self._build_lifecycle(preflight)
         pending_replacement = self._build_pending_replacement(signal_snapshot)
@@ -235,8 +249,12 @@ class SessionControlService:
             pending_pair_replacement=pending_replacement,
         )
 
-    def start_session(self, session: Session, source_scope: Collection[str] | None = None) -> SessionControlSnapshot:
-        snapshot = self.build_snapshot(session, for_start=True, source_scope=source_scope)
+    def start_session(
+        self, session: Session, source_scope: Collection[str] | None = None
+    ) -> SessionControlSnapshot:
+        snapshot = self.build_snapshot(
+            session, for_start=True, source_scope=source_scope
+        )
         if snapshot.preflight.status != "pass":
             raise ValueError(snapshot.preflight.blocking_reason or "preflight blocked")
 
@@ -384,10 +402,16 @@ class SessionControlService:
 
         signal_snapshot = self.signal_engine_service.build_snapshot(session)
         current_signal = next(
-            (signal for signal in signal_snapshot.signals if signal.symbol == self._active_session.current_pair_symbol),
+            (
+                signal
+                for signal in signal_snapshot.signals
+                if signal.symbol == self._active_session.current_pair_symbol
+            ),
             None,
         )
-        candidate = self._pick_replacement_candidate(signal_snapshot, proposed_symbol=proposed_symbol)
+        candidate = self._pick_replacement_candidate(
+            signal_snapshot, proposed_symbol=proposed_symbol
+        )
         if candidate is None:
             raise ValueError("no replacement candidate available")
         if candidate.symbol == self._active_session.current_pair_symbol:
@@ -399,7 +423,9 @@ class SessionControlService:
             proposed_symbol=candidate.symbol,
             created_at=self._clock.now(),
         )
-        review = self._build_replacement_review(current_signal=current_signal, candidate=candidate)
+        review = self._build_replacement_review(
+            current_signal=current_signal, candidate=candidate
+        )
         # write-through: persist the new pending review before publishing.
         self._persist_session_state(session)
         self._write_and_publish(
@@ -412,15 +438,24 @@ class SessionControlService:
         )
         return review
 
-    def apply_pair_replacement(self, session: Session, review_id: str) -> SessionControlSnapshot:
+    def apply_pair_replacement(
+        self, session: Session, review_id: str
+    ) -> SessionControlSnapshot:
         if self._active_session is None:
             raise ValueError("no active session")
-        if self._pending_replacement is None or self._pending_replacement.review_id != review_id:
+        if (
+            self._pending_replacement is None
+            or self._pending_replacement.review_id != review_id
+        ):
             raise ValueError("pair replacement review is missing or stale")
 
         signal_snapshot = self.signal_engine_service.build_snapshot(session)
         candidate = next(
-            (signal for signal in signal_snapshot.signals if signal.symbol == self._pending_replacement.proposed_symbol),
+            (
+                signal
+                for signal in signal_snapshot.signals
+                if signal.symbol == self._pending_replacement.proposed_symbol
+            ),
             None,
         )
         if candidate is None:
@@ -472,7 +507,9 @@ class SessionControlService:
             SessionPreflightCheck(
                 check_id="data-freshness",
                 label="Data freshness",
-                status="ok" if signal_snapshot.market_status == "fresh" else "hard_fail",
+                status="ok"
+                if signal_snapshot.market_status == "fresh"
+                else "hard_fail",
                 reason=(
                     "Market data is fresh enough for session start."
                     if signal_snapshot.market_status == "fresh"
@@ -494,7 +531,9 @@ class SessionControlService:
             SessionPreflightCheck(
                 check_id="active-model-loaded",
                 label="Active models loaded",
-                status="ok" if ai_snapshot.summary.degraded_role_count == 0 else "hard_fail",
+                status="ok"
+                if ai_snapshot.summary.degraded_role_count == 0
+                else "hard_fail",
                 reason=(
                     "All active AI roles are healthy."
                     if ai_snapshot.summary.degraded_role_count == 0
@@ -507,15 +546,24 @@ class SessionControlService:
                 label="Shortlist confirmed",
                 status=(
                     "ok"
-                    if any(signal.state in {"active", "weakening"} for signal in signal_snapshot.signals)
+                    if any(
+                        signal.state in {"active", "weakening"}
+                        for signal in signal_snapshot.signals
+                    )
                     else "hard_fail"
                 ),
                 reason=(
                     "At least one ranked signal is available."
-                    if any(signal.state in {"active", "weakening"} for signal in signal_snapshot.signals)
+                    if any(
+                        signal.state in {"active", "weakening"}
+                        for signal in signal_snapshot.signals
+                    )
                     else "No ranked signal is ready for session start."
                 ),
-                blocks_start=not any(signal.state in {"active", "weakening"} for signal in signal_snapshot.signals),
+                blocks_start=not any(
+                    signal.state in {"active", "weakening"}
+                    for signal in signal_snapshot.signals
+                ),
             ),
             SessionPreflightCheck(
                 check_id="strategy-confirmed",
@@ -533,7 +581,9 @@ class SessionControlService:
         from clay.config.models import SessionLimitsConfig
 
         risk_config = self.config_loader.load_scope("risk")
-        limits_cfg: SessionLimitsConfig = getattr(risk_config, "session_limits", SessionLimitsConfig())
+        limits_cfg: SessionLimitsConfig = getattr(
+            risk_config, "session_limits", SessionLimitsConfig()
+        )
 
         from clay.db.repositories_demo import DEFAULT_READ_SCOPE, DemoRepository
 
@@ -541,32 +591,43 @@ class SessionControlService:
         demo_repo = DemoRepository(session)
 
         try:
-            window_records = demo_repo.list_resolved_window(hours=limits_cfg.drawdown_window_hours, source_scope=scope)
+            window_records = demo_repo.list_resolved_window(
+                hours=limits_cfg.drawdown_window_hours, source_scope=scope
+            )
             cum_pnl = round(sum(r.pnl_pct or 0.0 for r in window_records), 2)
             loss_pct = abs(cum_pnl) if cum_pnl < 0 else 0.0
 
             if loss_pct >= limits_cfg.max_drawdown_pct:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-drawdown",
-                    label="Drawdown stop",
-                    status="hard_fail",
-                    reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = -{loss_pct}% exceeds max drawdown of {limits_cfg.max_drawdown_pct}%.",
-                    blocks_start=True,
-                ))
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-drawdown",
+                        label="Drawdown stop",
+                        status="hard_fail",
+                        reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = -{loss_pct}% exceeds max drawdown of {limits_cfg.max_drawdown_pct}%.",
+                        blocks_start=True,
+                    )
+                )
             else:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-drawdown",
-                    label="Drawdown stop",
-                    status="ok",
-                    reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = {cum_pnl:+.2f}% within threshold.",
-                    blocks_start=False,
-                ))
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-drawdown",
+                        label="Drawdown stop",
+                        status="ok",
+                        reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = {cum_pnl:+.2f}% within threshold.",
+                        blocks_start=False,
+                    )
+                )
 
             ordered = demo_repo.list_ordered_recent(limit=50, source_scope=scope)
             streak = 0
             streak_ts: datetime | None = None
             for r in ordered:
-                if (r.pnl_pct or 0.0) < 0 and r.outcome_status in {"matched", "missed", "late_matched", "mismatched"}:
+                if (r.pnl_pct or 0.0) < 0 and r.outcome_status in {
+                    "matched",
+                    "missed",
+                    "late_matched",
+                    "mismatched",
+                }:
                     streak += 1
                     if streak_ts is None:
                         streak_ts = r.recorded_at
@@ -586,102 +647,133 @@ class SessionControlService:
                 elapsed_min = (now - streak_ts).total_seconds() / 60
                 if elapsed_min < limits_cfg.cooldown_minutes:
                     remaining = int(limits_cfg.cooldown_minutes - elapsed_min)
-                    checks.append(SessionPreflightCheck(
-                        check_id="risk-limit-cooldown",
-                        label="Consecutive loss cooldown",
-                        status="hard_fail",
-                        reason=f"{streak} consecutive losses — cooldown active, {remaining} min remaining.",
-                        blocks_start=True,
-                    ))
+                    checks.append(
+                        SessionPreflightCheck(
+                            check_id="risk-limit-cooldown",
+                            label="Consecutive loss cooldown",
+                            status="hard_fail",
+                            reason=f"{streak} consecutive losses — cooldown active, {remaining} min remaining.",
+                            blocks_start=True,
+                        )
+                    )
                 else:
-                    checks.append(SessionPreflightCheck(
+                    checks.append(
+                        SessionPreflightCheck(
+                            check_id="risk-limit-cooldown",
+                            label="Consecutive loss cooldown",
+                            status="ok",
+                            reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak, cooldown expired).",
+                            blocks_start=False,
+                        )
+                    )
+            else:
+                checks.append(
+                    SessionPreflightCheck(
                         check_id="risk-limit-cooldown",
                         label="Consecutive loss cooldown",
                         status="ok",
-                        reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak, cooldown expired).",
+                        reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak).",
                         blocks_start=False,
-                    ))
-            else:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-cooldown",
-                    label="Consecutive loss cooldown",
-                    status="ok",
-                    reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak).",
-                    blocks_start=False,
-                ))
+                    )
+                )
 
             if self._active_session is not None and for_start:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-concurrent",
-                    label="Max concurrent sessions",
-                    status="hard_fail",
-                    reason="Cannot start: active session already in progress.",
-                    blocks_start=True,
-                ))
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-concurrent",
+                        label="Max concurrent sessions",
+                        status="hard_fail",
+                        reason="Cannot start: active session already in progress.",
+                        blocks_start=True,
+                    )
+                )
             elif self._active_session is not None:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-concurrent",
-                    label="Max concurrent sessions",
-                    status="ok",
-                    reason="Active session in progress — concurrent limit respected.",
-                    blocks_start=False,
-                ))
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-concurrent",
+                        label="Max concurrent sessions",
+                        status="ok",
+                        reason="Active session in progress — concurrent limit respected.",
+                        blocks_start=False,
+                    )
+                )
             else:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-concurrent",
-                    label="Max concurrent sessions",
-                    status="ok",
-                    reason="No active session — concurrent limit clear.",
-                    blocks_start=False,
-                ))
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-concurrent",
+                        label="Max concurrent sessions",
+                        status="ok",
+                        reason="No active session — concurrent limit clear.",
+                        blocks_start=False,
+                    )
+                )
 
             open_positions = demo_repo.list_open_positions(source_scope=scope)
-            total_exposure = round(sum(r.advisory_size_pct or 0.0 for r in open_positions), 4)
+            total_exposure = round(
+                sum(r.advisory_size_pct or 0.0 for r in open_positions), 4
+            )
             if total_exposure > limits_cfg.max_total_exposure_pct:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-exposure",
-                    label="Aggregate advisory exposure",
-                    status="warn",
-                    reason=f"Total open exposure = {total_exposure}% exceeds {limits_cfg.max_total_exposure_pct}% threshold.",
-                    blocks_start=False,
-                ))
-            else:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-exposure",
-                    label="Aggregate advisory exposure",
-                    status="ok",
-                    reason=f"Total open exposure = {total_exposure}% within threshold.",
-                    blocks_start=False,
-                ))
-
-            active_id = self._active_session.session_id if self._active_session else None
-            if active_id:
-                session_trades = demo_repo.list_session_trades(session_id=active_id, source_scope=scope)
-                session_pnl = round(sum(r.pnl_pct or 0.0 for r in session_trades), 2)
-                if session_pnl < 0 and abs(session_pnl) >= limits_cfg.per_session_loss_warn_pct:
-                    checks.append(SessionPreflightCheck(
-                        check_id="risk-limit-session-loss",
-                        label="Per-session loss alert",
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-exposure",
+                        label="Aggregate advisory exposure",
                         status="warn",
-                        reason=f"Current session P&L = {session_pnl}% exceeds caution threshold of {limits_cfg.per_session_loss_warn_pct}%.",
+                        reason=f"Total open exposure = {total_exposure}% exceeds {limits_cfg.max_total_exposure_pct}% threshold.",
                         blocks_start=False,
-                    ))
+                    )
+                )
+            else:
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-exposure",
+                        label="Aggregate advisory exposure",
+                        status="ok",
+                        reason=f"Total open exposure = {total_exposure}% within threshold.",
+                        blocks_start=False,
+                    )
+                )
+
+            active_id = (
+                self._active_session.session_id if self._active_session else None
+            )
+            if active_id:
+                session_trades = demo_repo.list_session_trades(
+                    session_id=active_id, source_scope=scope
+                )
+                session_pnl = round(sum(r.pnl_pct or 0.0 for r in session_trades), 2)
+                if (
+                    session_pnl < 0
+                    and abs(session_pnl) >= limits_cfg.per_session_loss_warn_pct
+                ):
+                    checks.append(
+                        SessionPreflightCheck(
+                            check_id="risk-limit-session-loss",
+                            label="Per-session loss alert",
+                            status="warn",
+                            reason=f"Current session P&L = {session_pnl}% exceeds caution threshold of {limits_cfg.per_session_loss_warn_pct}%.",
+                            blocks_start=False,
+                        )
+                    )
                 else:
-                    checks.append(SessionPreflightCheck(
+                    checks.append(
+                        SessionPreflightCheck(
+                            check_id="risk-limit-session-loss",
+                            label="Per-session loss alert",
+                            status="ok",
+                            reason=f"Current session P&L = {session_pnl:+.2f}% within caution threshold.",
+                            blocks_start=False,
+                        )
+                    )
+            else:
+                checks.append(
+                    SessionPreflightCheck(
                         check_id="risk-limit-session-loss",
                         label="Per-session loss alert",
                         status="ok",
-                        reason=f"Current session P&L = {session_pnl:+.2f}% within caution threshold.",
+                        reason="No active session — per-session loss check skipped.",
                         blocks_start=False,
-                    ))
-            else:
-                checks.append(SessionPreflightCheck(
-                    check_id="risk-limit-session-loss",
-                    label="Per-session loss alert",
-                    status="ok",
-                    reason="No active session — per-session loss check skipped.",
-                    blocks_start=False,
-                ))
+                    )
+                )
         except Exception as exc:
             if isinstance(exc, ValueError) and "clock desync" in str(exc):
                 raise
@@ -692,13 +784,15 @@ class SessionControlService:
                 ("risk-limit-exposure", "Aggregate advisory exposure"),
                 ("risk-limit-session-loss", "Per-session loss alert"),
             ]:
-                checks.append(SessionPreflightCheck(
-                    check_id=check_id,
-                    label=label,
-                    status="hard_fail",
-                    reason="Unable to verify risk limits due to a database error.",
-                    blocks_start=True,
-                ))
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id=check_id,
+                        label=label,
+                        status="hard_fail",
+                        reason="Unable to verify risk limits due to a database error.",
+                        blocks_start=True,
+                    )
+                )
 
         blockers = [check.reason for check in checks if check.blocks_start]
         return SessionPreflightSnapshot(
@@ -734,9 +828,7 @@ class SessionControlService:
             if signal_snapshot.context_status == "fresh"
             else "Context coverage is thin; confidence penalties remain active."
         )
-        market_context = (
-            f"Market status is {signal_snapshot.market_status}, workspace posture is {signal_snapshot.workspace_posture}."
-        )
+        market_context = f"Market status is {signal_snapshot.market_status}, workspace posture is {signal_snapshot.workspace_posture}."
         ai_summary = (
             f"Chief Agent uses {ai_snapshot.summary.chief_agent_model}. "
             f"Active AI conflicts: {ai_snapshot.summary.active_conflict_count}."
@@ -746,11 +838,14 @@ class SessionControlService:
             market_context=market_context,
             sentiment_summary=sentiment_summary,
             active_strategy=signal_snapshot.strategy_mode_proposal,
-            risk_alerts=risk_alerts or ["No elevated risk alerts in the current shortlist."],
+            risk_alerts=risk_alerts
+            or ["No elevated risk alerts in the current shortlist."],
             ai_summary=ai_summary,
         )
 
-    def _build_lifecycle(self, preflight: SessionPreflightSnapshot) -> SessionLifecycleSnapshot:
+    def _build_lifecycle(
+        self, preflight: SessionPreflightSnapshot
+    ) -> SessionLifecycleSnapshot:
         runtime_state = self.runtime_manager.snapshot().state
         if self._active_session is None and runtime_state == RuntimeState.REVIEW:
             lifecycle_state: str = "review"
@@ -768,39 +863,83 @@ class SessionControlService:
         return SessionLifecycleSnapshot(
             lifecycle_state=lifecycle_state,
             runtime_state=runtime_state.value,
-            session_id=self._active_session.session_id if self._active_session else None,
-            current_pair_symbol=self._active_session.current_pair_symbol if self._active_session else None,
-            current_signal_id=self._active_session.current_signal_id if self._active_session else None,
-            started_at=self._active_session.started_at.isoformat() if self._active_session else None,
-            paused_at=self._active_session.paused_at.isoformat() if self._active_session and self._active_session.paused_at else None,
-            resume_ready=runtime_state == RuntimeState.PAUSED and self._active_session is not None,
-            can_start=preflight.status == "pass" and self._active_session is None and runtime_state != RuntimeState.REVIEW,
-            can_pause=runtime_state == RuntimeState.ACTIVE_SESSION and self._active_session is not None,
-            can_resume=runtime_state == RuntimeState.PAUSED and self._active_session is not None,
-            can_complete=runtime_state in {RuntimeState.ACTIVE_SESSION, RuntimeState.PAUSED} and self._active_session is not None,
+            session_id=self._active_session.session_id
+            if self._active_session
+            else None,
+            current_pair_symbol=self._active_session.current_pair_symbol
+            if self._active_session
+            else None,
+            current_signal_id=self._active_session.current_signal_id
+            if self._active_session
+            else None,
+            started_at=self._active_session.started_at.isoformat()
+            if self._active_session
+            else None,
+            paused_at=self._active_session.paused_at.isoformat()
+            if self._active_session and self._active_session.paused_at
+            else None,
+            resume_ready=runtime_state == RuntimeState.PAUSED
+            and self._active_session is not None,
+            can_start=preflight.status == "pass"
+            and self._active_session is None
+            and runtime_state != RuntimeState.REVIEW,
+            can_pause=runtime_state == RuntimeState.ACTIVE_SESSION
+            and self._active_session is not None,
+            can_resume=runtime_state == RuntimeState.PAUSED
+            and self._active_session is not None,
+            can_complete=runtime_state
+            in {RuntimeState.ACTIVE_SESSION, RuntimeState.PAUSED}
+            and self._active_session is not None,
         )
 
-    def _build_pending_replacement(self, signal_snapshot) -> PairReplacementReviewSnapshot | None:
+    def _build_pending_replacement(
+        self, signal_snapshot
+    ) -> PairReplacementReviewSnapshot | None:
         if self._pending_replacement is None or self._active_session is None:
             return None
         current_signal = next(
-            (signal for signal in signal_snapshot.signals if signal.symbol == self._pending_replacement.current_symbol),
+            (
+                signal
+                for signal in signal_snapshot.signals
+                if signal.symbol == self._pending_replacement.current_symbol
+            ),
             None,
         )
         candidate = next(
-            (signal for signal in signal_snapshot.signals if signal.symbol == self._pending_replacement.proposed_symbol),
+            (
+                signal
+                for signal in signal_snapshot.signals
+                if signal.symbol == self._pending_replacement.proposed_symbol
+            ),
             None,
         )
         if candidate is None:
             return None
-        return self._build_replacement_review(current_signal=current_signal, candidate=candidate)
+        return self._build_replacement_review(
+            current_signal=current_signal, candidate=candidate
+        )
 
-    def _pick_replacement_candidate(self, signal_snapshot, *, proposed_symbol: str | None):
+    def _pick_replacement_candidate(
+        self, signal_snapshot, *, proposed_symbol: str | None
+    ):
         if proposed_symbol is not None:
-            return next((signal for signal in signal_snapshot.signals if signal.symbol == proposed_symbol), None)
-        current_symbol = self._active_session.current_pair_symbol if self._active_session else None
+            return next(
+                (
+                    signal
+                    for signal in signal_snapshot.signals
+                    if signal.symbol == proposed_symbol
+                ),
+                None,
+            )
+        current_symbol = (
+            self._active_session.current_pair_symbol if self._active_session else None
+        )
         current_signal = next(
-            (signal for signal in signal_snapshot.signals if signal.symbol == current_symbol),
+            (
+                signal
+                for signal in signal_snapshot.signals
+                if signal.symbol == current_symbol
+            ),
             None,
         )
         for signal in signal_snapshot.signals:
@@ -808,12 +947,21 @@ class SessionControlService:
                 continue
             if signal.state not in {"active", "weakening"}:
                 continue
-            if current_signal is None or signal.ranking_score > current_signal.ranking_score + 0.08:
+            if (
+                current_signal is None
+                or signal.ranking_score > current_signal.ranking_score + 0.08
+            ):
                 return signal
         return None
 
-    def _build_replacement_review(self, *, current_signal, candidate) -> PairReplacementReviewSnapshot:
-        current_symbol = current_signal.symbol if current_signal is not None else self._active_session.current_pair_symbol
+    def _build_replacement_review(
+        self, *, current_signal, candidate
+    ) -> PairReplacementReviewSnapshot:
+        current_symbol = (
+            current_signal.symbol
+            if current_signal is not None
+            else self._active_session.current_pair_symbol
+        )
         reasons = [
             f"{candidate.symbol} ranking score is {candidate.ranking_score:.2f}.",
             f"{candidate.symbol} response action is {candidate.response_action}.",
@@ -824,7 +972,9 @@ class SessionControlService:
         ]
         severity = "warning" if candidate.response_action != "warning_only" else "info"
         return PairReplacementReviewSnapshot(
-            review_id=self._pending_replacement.review_id if self._pending_replacement else str(uuid4()),
+            review_id=self._pending_replacement.review_id
+            if self._pending_replacement
+            else str(uuid4()),
             current_symbol=current_symbol,
             proposed_symbol=candidate.symbol,
             severity=severity,

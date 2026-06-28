@@ -40,7 +40,9 @@ def test_review_and_apply_assignment_changes_snapshot(
     assert review.blocks_apply is False
 
     snapshot = service.apply_assignment(review.review_id, session=db_session)
-    forecast_row = next(row for row in snapshot.assignments if row.role_id == "forecast-model")
+    forecast_row = next(
+        row for row in snapshot.assignments if row.role_id == "forecast-model"
+    )
     assert forecast_row.model_id == "forecast-lite-v1"
 
 

@@ -186,7 +186,8 @@ def test_control_center_tight_threshold_flips_fresh_to_stale(
 ) -> None:
     tight_settings = IngestionSettings(market_freshness_5m_minutes=1)
     service = build_control_center_service(
-        tmp_path, ingestion_settings=tight_settings,
+        tmp_path,
+        ingestion_settings=tight_settings,
     )
     now = datetime.now(UTC)
 

@@ -96,6 +96,7 @@ async def test_fetch_klines_creates_async_client_per_call_when_none_injected() -
     # Inject the MockTransport indirectly by patching the AsyncClient
     # class used inside the else-branch.
     import clay.ingestion.market.binance_client as binance_module
+
     original_async_client = binance_module.httpx.AsyncClient
 
     class _PatchedAsyncClient:
@@ -175,6 +176,7 @@ async def test_fetch_klines_uses_custom_base_url_from_setting() -> None:
 @pytest.mark.anyio
 async def test_base_url_strips_trailing_slash() -> None:
     """D2: trailing ``/`` on the base URL is stripped to avoid double-slash."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         assert "//api/v3" not in str(request.url)
         return httpx.Response(200, json=[])

@@ -40,7 +40,9 @@ def upgrade() -> None:
         sa.Column("pending_review_id", sa.String(length=64), nullable=True),
         sa.Column("pending_review_role_id", sa.String(length=64), nullable=True),
         sa.Column("pending_review_model_id", sa.String(length=64), nullable=True),
-        sa.Column("pending_review_created_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "pending_review_created_at", sa.DateTime(timezone=True), nullable=True
+        ),
         sa.CheckConstraint("id = 1", name="ck_ops_ai_control_state_singleton"),
         schema="ops",
     )

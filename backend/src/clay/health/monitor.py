@@ -7,7 +7,9 @@ from clay.services.registry import ServiceRegistry
 class HealthMonitor:
     """Marks services stale when heartbeats stop arriving on time."""
 
-    def __init__(self, registry: ServiceRegistry, stale_after_seconds: int = 60) -> None:
+    def __init__(
+        self, registry: ServiceRegistry, stale_after_seconds: int = 60
+    ) -> None:
         self.registry = registry
         self.stale_after = timedelta(seconds=stale_after_seconds)
 

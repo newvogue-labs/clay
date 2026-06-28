@@ -100,11 +100,14 @@ class AlphaReadinessService:
         preflight_passed = session_snapshot.preflight.status == "pass"
         focused_signal_ready = (
             workspace_snapshot.focus_pair.active_signal_id is not None
-            and workspace_snapshot.workspace_state.focused_signal_state in {"active", "weakening"}
+            and workspace_snapshot.workspace_state.focused_signal_state
+            in {"active", "weakening"}
             and workspace_snapshot.workspace_state.can_log_decision
         )
         session_lifecycle_status: AlphaGateStatus = "pass"
-        session_lifecycle_detail = "Session lifecycle has already reached an operator path state."
+        session_lifecycle_detail = (
+            "Session lifecycle has already reached an operator path state."
+        )
         if session_snapshot.lifecycle.lifecycle_state in {"idle", "pre_session"}:
             session_lifecycle_status = "warn"
             session_lifecycle_detail = (
@@ -128,7 +131,8 @@ class AlphaReadinessService:
                 detail=(
                     "Session preflight passes."
                     if preflight_passed
-                    else session_snapshot.preflight.blocking_reason or "Session preflight is blocked."
+                    else session_snapshot.preflight.blocking_reason
+                    or "Session preflight is blocked."
                 ),
             ),
             AlphaReadinessGateSnapshot(
@@ -153,7 +157,9 @@ class AlphaReadinessService:
             AlphaReadinessGateSnapshot(
                 gate_id="demo-evidence",
                 label="Demo evidence",
-                status="pass" if demo_snapshot.readiness.status == "ready_for_review" else "warn",
+                status="pass"
+                if demo_snapshot.readiness.status == "ready_for_review"
+                else "warn",
                 blocks_alpha=False,
                 detail=demo_snapshot.readiness.operator_message,
             ),
@@ -195,7 +201,11 @@ class AlphaReadinessService:
         validation_snapshot: ValidationLabSnapshot,
         reliability_snapshot: ReliabilitySnapshot,
     ) -> list[AlphaOperatorStepSnapshot]:
-        session_is_active = session_snapshot.lifecycle.lifecycle_state in {"active_session", "paused", "review"}
+        session_is_active = session_snapshot.lifecycle.lifecycle_state in {
+            "active_session",
+            "paused",
+            "review",
+        }
         start_step_status: AlphaGateStatus = "pass" if session_is_active else "warn"
         if not session_is_active and not session_snapshot.lifecycle.can_start:
             start_step_status = "fail"
@@ -205,7 +215,10 @@ class AlphaReadinessService:
             demo_log_status = "pass"
         elif demo_snapshot.active_session.can_log_decision:
             demo_log_status = "warn"
-        elif session_snapshot.lifecycle.lifecycle_state == "idle" and not session_snapshot.lifecycle.can_start:
+        elif (
+            session_snapshot.lifecycle.lifecycle_state == "idle"
+            and not session_snapshot.lifecycle.can_start
+        ):
             demo_log_status = "fail"
 
         reliability_step_status: AlphaGateStatus = "pass"
@@ -218,11 +231,14 @@ class AlphaReadinessService:
             AlphaOperatorStepSnapshot(
                 step_id="check_preflight",
                 label="Check preflight",
-                status="pass" if session_snapshot.preflight.status == "pass" else "fail",
+                status="pass"
+                if session_snapshot.preflight.status == "pass"
+                else "fail",
                 detail=(
                     "Preflight is clear."
                     if session_snapshot.preflight.status == "pass"
-                    else session_snapshot.preflight.blocking_reason or "Preflight is blocked."
+                    else session_snapshot.preflight.blocking_reason
+                    or "Preflight is blocked."
                 ),
                 target_screen="session-control",
                 action_label="Review preflight",
@@ -234,7 +250,8 @@ class AlphaReadinessService:
                 status=(
                     "pass"
                     if workspace_snapshot.focus_pair.active_signal_id is not None
-                    and workspace_snapshot.workspace_state.focused_signal_state in {"active", "weakening"}
+                    and workspace_snapshot.workspace_state.focused_signal_state
+                    in {"active", "weakening"}
                     else "fail"
                 ),
                 detail=(
@@ -255,7 +272,8 @@ class AlphaReadinessService:
                     if session_is_active
                     else "Session is ready to start."
                     if session_snapshot.lifecycle.can_start
-                    else session_snapshot.preflight.blocking_reason or "Session start is blocked."
+                    else session_snapshot.preflight.blocking_reason
+                    or "Session start is blocked."
                 ),
                 target_screen="session-control",
                 action_label="Start session",
@@ -270,7 +288,8 @@ class AlphaReadinessService:
                     if demo_log_status == "pass"
                     else "Demo decision logging is available; log the current operator decision."
                     if demo_snapshot.active_session.can_log_decision
-                    else demo_snapshot.active_session.blocking_reason or "Demo decision logging is waiting on an active session."
+                    else demo_snapshot.active_session.blocking_reason
+                    or "Demo decision logging is waiting on an active session."
                 ),
                 target_screen="demo-validation",
                 action_label="Log demo decision",
@@ -279,7 +298,9 @@ class AlphaReadinessService:
             AlphaOperatorStepSnapshot(
                 step_id="resolve_demo_result",
                 label="Resolve demo result",
-                status="pass" if demo_snapshot.readiness.resolved_record_count > 0 else "warn",
+                status="pass"
+                if demo_snapshot.readiness.resolved_record_count > 0
+                else "warn",
                 detail=f"{demo_snapshot.readiness.resolved_record_count} demo records are resolved.",
                 target_screen="demo-validation",
                 action_label="Resolve demo result",
@@ -332,7 +353,9 @@ class AlphaReadinessService:
         gates: list[AlphaReadinessGateSnapshot],
         operator_steps: list[AlphaOperatorStepSnapshot],
     ) -> AlphaReadinessSummary:
-        blocking_gates = [gate for gate in gates if gate.status == "fail" and gate.blocks_alpha]
+        blocking_gates = [
+            gate for gate in gates if gate.status == "fail" and gate.blocks_alpha
+        ]
         warning_gates = [gate for gate in gates if gate.status == "warn"]
         next_step = next((step for step in operator_steps if step.is_next), None)
         operator_path_ready = not blocking_gates
@@ -341,13 +364,17 @@ class AlphaReadinessService:
             next_action = blocking_gates[0].detail
         elif next_step is None:
             readiness_status = "operator_path_ready"
-            next_action = "Alpha operator path is ready for a disciplined end-to-end run."
+            next_action = (
+                "Alpha operator path is ready for a disciplined end-to-end run."
+            )
         elif warning_gates:
             readiness_status = "needs_attention"
             next_action = warning_gates[0].detail
         else:
             readiness_status = "operator_path_ready"
-            next_action = "Alpha operator path is ready for a disciplined end-to-end run."
+            next_action = (
+                "Alpha operator path is ready for a disciplined end-to-end run."
+            )
 
         return AlphaReadinessSummary(
             readiness_status=readiness_status,

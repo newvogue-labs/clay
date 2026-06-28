@@ -138,7 +138,9 @@ model_list:
 # ── Atomic write ─────────────────────────────────────────────────────
 
 
-def test_write_shadow_creates_file(writer: ConfigWriter, proposed: ProposedConfig, live_path: Path) -> None:
+def test_write_shadow_creates_file(
+    writer: ConfigWriter, proposed: ProposedConfig, live_path: Path
+) -> None:
     shadow = live_path.with_suffix(".shadow.yaml")
     result = writer.write_shadow(proposed)
 
@@ -147,28 +149,38 @@ def test_write_shadow_creates_file(writer: ConfigWriter, proposed: ProposedConfi
     assert shadow.stat().st_size > 0
 
 
-def test_write_shadow_content_matches(writer: ConfigWriter, proposed: ProposedConfig, live_path: Path) -> None:
+def test_write_shadow_content_matches(
+    writer: ConfigWriter, proposed: ProposedConfig, live_path: Path
+) -> None:
     writer.write_shadow(proposed)
     shadow = live_path.with_suffix(".shadow.yaml")
     content = shadow.read_text()
     assert content == proposed.yaml
 
 
-def test_write_shadow_mode_600(writer: ConfigWriter, proposed: ProposedConfig, live_path: Path) -> None:
+def test_write_shadow_mode_600(
+    writer: ConfigWriter, proposed: ProposedConfig, live_path: Path
+) -> None:
     writer.write_shadow(proposed)
     shadow = live_path.with_suffix(".shadow.yaml")
     mode = shadow.stat().st_mode & 0o777
     assert mode == (stat.S_IRUSR | stat.S_IWUSR)  # 0600 — tempfile default umask
 
 
-def test_write_shadow_no_temp_file_left(writer: ConfigWriter, proposed: ProposedConfig, live_path: Path) -> None:
+def test_write_shadow_no_temp_file_left(
+    writer: ConfigWriter, proposed: ProposedConfig, live_path: Path
+) -> None:
     writer.write_shadow(proposed)
     parent = live_path.parent
-    leftovers = [p for p in parent.iterdir() if p.suffix == ".tmp" and p.name.startswith("tmp")]
+    leftovers = [
+        p for p in parent.iterdir() if p.suffix == ".tmp" and p.name.startswith("tmp")
+    ]
     assert len(leftovers) == 0, f"Temp files left behind: {leftovers}"
 
 
-def test_write_shadow_custom_path(writer: ConfigWriter, proposed: ProposedConfig, tmp_path: Path) -> None:
+def test_write_shadow_custom_path(
+    writer: ConfigWriter, proposed: ProposedConfig, tmp_path: Path
+) -> None:
     custom = tmp_path / "custom_shadow.yaml"
     result = writer.write_shadow(proposed, shadow_path=custom)
     assert result == custom
@@ -186,7 +198,9 @@ def test_write_fails_on_empty_model_list(writer: ConfigWriter, live_path: Path) 
     assert not shadow.exists()
 
 
-def test_write_fails_missing_router_settings(writer: ConfigWriter, live_path: Path) -> None:
+def test_write_fails_missing_router_settings(
+    writer: ConfigWriter, live_path: Path
+) -> None:
     bad = _make_proposed(
         "model_list:\n  - model_name: x\n    litellm_params:\n      model: x/m\n"
     )
@@ -217,7 +231,9 @@ def test_backup_none_when_no_file(writer: ConfigWriter, tmp_path: Path) -> None:
 # ── No-op skip ───────────────────────────────────────────────────────
 
 
-def test_noop_skip_when_shadow_matches(writer: ConfigWriter, proposed: ProposedConfig, live_path: Path) -> None:
+def test_noop_skip_when_shadow_matches(
+    writer: ConfigWriter, proposed: ProposedConfig, live_path: Path
+) -> None:
     writer.write_shadow(proposed)
     assert writer.noop_skip(proposed) is True
 
@@ -232,7 +248,9 @@ def test_noop_skip_when_shadow_differs(writer: ConfigWriter, live_path: Path) ->
     assert writer.noop_skip(renderered) is False
 
 
-def test_noop_skip_no_shadow_yet(writer: ConfigWriter, proposed: ProposedConfig, live_path: Path) -> None:
+def test_noop_skip_no_shadow_yet(
+    writer: ConfigWriter, proposed: ProposedConfig, live_path: Path
+) -> None:
     assert writer.noop_skip(proposed) is True  # proposed == live → no need to write
 
 

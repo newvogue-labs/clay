@@ -97,7 +97,9 @@ class ReliabilityService:
                 overall_status=(
                     "degraded"
                     if control_snapshot.summary.overall_status == "degraded"
-                    or any(trigger.severity == "critical" for trigger in degraded_triggers)
+                    or any(
+                        trigger.severity == "critical" for trigger in degraded_triggers
+                    )
                     else "healthy"
                 ),
                 degraded_mode_active=control_snapshot.runtime.state == "degraded",
@@ -289,11 +291,15 @@ class ReliabilityService:
     ) -> list[ReliabilityCheckSnapshot]:
         runtime_status = (
             "fail"
-            if control_snapshot.runtime.preflight_status == "hard_fail" or control_snapshot.runtime.state == "degraded"
+            if control_snapshot.runtime.preflight_status == "hard_fail"
+            or control_snapshot.runtime.state == "degraded"
             else "pass"
         )
         data_status = "pass"
-        if control_snapshot.ingestion.blocks_active_trading or control_snapshot.ingestion.market_status != "fresh":
+        if (
+            control_snapshot.ingestion.blocks_active_trading
+            or control_snapshot.ingestion.market_status != "fresh"
+        ):
             data_status = "fail"
         elif control_snapshot.ingestion.context_status != "fresh":
             data_status = "warn"
@@ -301,7 +307,10 @@ class ReliabilityService:
         ai_status = "pass"
         if fallback_snapshot.degraded_roles:
             ai_status = "fail"
-        elif fallback_snapshot.fallback_active or not fallback_snapshot.local_fallback_ready:
+        elif (
+            fallback_snapshot.fallback_active
+            or not fallback_snapshot.local_fallback_ready
+        ):
             ai_status = "warn"
 
         demo_status_map = {
@@ -320,7 +329,10 @@ class ReliabilityService:
             validation_status = "warn"
         elif validation_snapshot.summary.activation_review_status == "blocked":
             validation_status = "fail"
-        elif validation_snapshot.summary.activation_review_status in {"staged", "collecting"}:
+        elif validation_snapshot.summary.activation_review_status in {
+            "staged",
+            "collecting",
+        }:
             validation_status = "warn"
 
         incident_status = "pass"
@@ -363,7 +375,9 @@ class ReliabilityService:
             ReliabilityCheckSnapshot(
                 check_id="review-evidence",
                 label="Session review evidence",
-                status=review_status_map.get(review_snapshot.summary.review_status, "warn"),
+                status=review_status_map.get(
+                    review_snapshot.summary.review_status, "warn"
+                ),
                 detail=review_snapshot.summary.operator_message,
             ),
             ReliabilityCheckSnapshot(

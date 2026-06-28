@@ -69,6 +69,7 @@ The first invocation seeds and writes a tracker JSON (default
 target on teardown. The second invocation reads the tracker and
 deletes only those rows (no TRUNCATE).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -176,7 +177,9 @@ class SeedTrackers:
         )
 
 
-def _build_bars(symbol: str, close: float, peak_volume: float, now: datetime) -> list[dict[str, object]]:
+def _build_bars(
+    symbol: str, close: float, peak_volume: float, now: datetime
+) -> list[dict[str, object]]:
     """Build 50 bars for ``symbol``; newest has the peak volume.
 
     The volume ramps linearly 30% -> 100% of ``peak_volume`` from the

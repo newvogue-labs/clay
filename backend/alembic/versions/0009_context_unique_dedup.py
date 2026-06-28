@@ -15,6 +15,7 @@ ADD CONSTRAINT succeeds even if duplicates already exist. It is idempotent
 (no-op on a clean DB) and PG-specific by design — migrations are not
 exercised on SQLite per the A1 test policy.
 """
+
 from collections.abc import Sequence
 
 from alembic import op

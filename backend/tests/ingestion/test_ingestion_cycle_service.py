@@ -153,7 +153,9 @@ async def test_run_once_default_emits_audit_and_bus(
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
     event_bus.subscribe()
-    service = _build_service(sqlite_session_factory, sqlite_settings, audit_writer, event_bus)
+    service = _build_service(
+        sqlite_session_factory, sqlite_settings, audit_writer, event_bus
+    )
 
     summary = await service.run_once(emit=True)
 
@@ -162,7 +164,8 @@ async def test_run_once_default_emits_audit_and_bus(
 
     # Audit: exactly 1 ``ingestion.run`` entry.
     audits = [
-        e for e in _read_audit_events(audit_writer)
+        e
+        for e in _read_audit_events(audit_writer)
         if e["event_type"] == "ingestion.run"
     ]
     assert len(audits) == 1
@@ -194,7 +197,9 @@ async def test_run_once_emit_false_skips_audit_and_bus(
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
     event_bus.subscribe()
-    service = _build_service(sqlite_session_factory, sqlite_settings, audit_writer, event_bus)
+    service = _build_service(
+        sqlite_session_factory, sqlite_settings, audit_writer, event_bus
+    )
 
     summary = await service.run_once(emit=False)
 
@@ -208,6 +213,7 @@ async def test_run_once_emit_false_skips_audit_and_bus(
         # not from a hardcoded literal.
         from clay.db.models_market import MarketFreshnessStatus
         from sqlalchemy import select
+
         freshness_rows = session.scalars(select(MarketFreshnessStatus)).all()
         for row in freshness_rows:
             assert row.source == "binance_spot"
@@ -235,7 +241,9 @@ async def test_run_once_raises_busy_when_lock_held(
     """
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
-    service = _build_service(sqlite_session_factory, sqlite_settings, audit_writer, event_bus)
+    service = _build_service(
+        sqlite_session_factory, sqlite_settings, audit_writer, event_bus
+    )
 
     # Manually acquire the lock to put the service in a "busy" state.
     await service._lock.acquire()  # noqa: SLF001 (intentional — test the lock)
@@ -279,13 +287,17 @@ async def test_freshness_state_transitions_increment_only_on_actual_change(
     """
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
-    service = _build_service(sqlite_session_factory, sqlite_settings, audit_writer, event_bus)
+    service = _build_service(
+        sqlite_session_factory, sqlite_settings, audit_writer, event_bus
+    )
 
     # Mutable state the fake evaluator closes over. Defaults to "fresh"
     # so the first run INSERTs all 4 records as "fresh".
     status_box = {"status": "fresh"}
 
-    def _fake_evaluate(timeframe: str, last_received_at: Any, now: Any, **kwargs: Any) -> FreshnessResult:
+    def _fake_evaluate(
+        timeframe: str, last_received_at: Any, now: Any, **kwargs: Any
+    ) -> FreshnessResult:
         return FreshnessResult(
             stream_name=f"market:{timeframe}",
             status=status_box["status"],
@@ -295,7 +307,8 @@ async def test_freshness_state_transitions_increment_only_on_actual_change(
         )
 
     monkeypatch.setattr(
-        "clay.ingestion.service.evaluate_market_freshness", _fake_evaluate,
+        "clay.ingestion.service.evaluate_market_freshness",
+        _fake_evaluate,
     )
 
     # --- Run 1: INSERT, status = "fresh" → 4 transitions ---
@@ -336,7 +349,9 @@ async def test_market_records_inserted_updated_split_correctly(
     """
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
-    service = _build_service(sqlite_session_factory, sqlite_settings, audit_writer, event_bus)
+    service = _build_service(
+        sqlite_session_factory, sqlite_settings, audit_writer, event_bus
+    )
 
     # First run — 4 new bars, all INSERTed.
     summary_1 = await service.run_once(emit=False)
@@ -372,7 +387,9 @@ async def test_persist_runs_in_worker_thread(
     """
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
-    service = _build_service(sqlite_session_factory, sqlite_settings, audit_writer, event_bus)
+    service = _build_service(
+        sqlite_session_factory, sqlite_settings, audit_writer, event_bus
+    )
     main_thread = threading.get_ident()
     persist_thread: list[object] = [None]
 
@@ -409,8 +426,12 @@ class _SecondFakeClient:
             NormalizedMarketBar(
                 symbol="ETHUSDT",
                 timeframe="5m",
-                open=3500.0, high=3510.0, low=3490.0, close=3505.0,
-                volume=50.0, quote_volume=175000.0,
+                open=3500.0,
+                high=3510.0,
+                low=3490.0,
+                close=3505.0,
+                volume=50.0,
+                quote_volume=175000.0,
                 source="bybit_spot",
                 bar_open_time=datetime(2024, 4, 1, 7, 0, tzinfo=UTC),
                 bar_close_time=datetime(2024, 4, 1, 7, 14, 59, 999000, tzinfo=UTC),
@@ -436,22 +457,29 @@ async def test_two_exchange_seam_dispatches_clients_correctly(
     # Exchange 1: binance (existing fake, source="test")
     binance_client = _FakeBinanceClient()
     binance_config = ExchangeConfig(
-        exchange_id="binance_spot", source="binance_spot",
-        enabled=True, base_url="http://fake",
+        exchange_id="binance_spot",
+        source="binance_spot",
+        enabled=True,
+        base_url="http://fake",
         symbols=list(sqlite_settings.market_symbols),
         timeframes=list(sqlite_settings.market_timeframes),
     )
     # Exchange 2: bybit (second fake, source="bybit_spot")
     bybit_client = _SecondFakeClient()
     bybit_config = ExchangeConfig(
-        exchange_id="bybit_spot", source="bybit_spot",
-        enabled=True, base_url="http://fake",
-        symbols=["ETHUSDT"], timeframes=["5m"],
+        exchange_id="bybit_spot",
+        source="bybit_spot",
+        enabled=True,
+        base_url="http://fake",
+        symbols=["ETHUSDT"],
+        timeframes=["5m"],
     )
-    market_service = MarketIngestionService({
-        "binance_spot": (binance_client, binance_config),
-        "bybit_spot": (bybit_client, bybit_config),
-    })
+    market_service = MarketIngestionService(
+        {
+            "binance_spot": (binance_client, binance_config),
+            "bybit_spot": (bybit_client, bybit_config),
+        }
+    )
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
     service = IngestionCycleService(
@@ -471,6 +499,7 @@ async def test_two_exchange_seam_dispatches_clients_correctly(
     with sqlite_session_factory() as session:
         from sqlalchemy import select
         from clay.db.models_market import MarketBar
+
         rows = session.scalars(select(MarketBar)).all()
         sources = {r.source for r in rows}
         # At least the second exchange's source appears
@@ -488,11 +517,15 @@ async def test_per_exchange_failure_isolation_continues_healthy_exchange(
     The failed exchange gets ``freshness_state="unknown"`` while the
     healthy exchange's data flows through normally.
     """
+
     class _FailingFakeClient:
         source: str = "failing_exchange"
 
         async def fetch_klines(
-            self, symbol: str, interval: str, limit: int = 200,
+            self,
+            symbol: str,
+            interval: str,
+            limit: int = 200,
         ) -> list[NormalizedMarketBar]:
             del symbol, interval, limit
             raise TimeoutError("simulated failure")
@@ -502,21 +535,28 @@ async def test_per_exchange_failure_isolation_continues_healthy_exchange(
 
     failing_client = _FailingFakeClient()
     failing_config = ExchangeConfig(
-        exchange_id="failing", source="failing_exchange",
-        enabled=True, base_url="http://fake",
-        symbols=["BTCUSDT"], timeframes=["5m"],
+        exchange_id="failing",
+        source="failing_exchange",
+        enabled=True,
+        base_url="http://fake",
+        symbols=["BTCUSDT"],
+        timeframes=["5m"],
     )
     healthy_client = _FakeBinanceClient()
     healthy_config = ExchangeConfig(
-        exchange_id="healthy", source="healthy",
-        enabled=True, base_url="http://fake",
+        exchange_id="healthy",
+        source="healthy",
+        enabled=True,
+        base_url="http://fake",
         symbols=list(sqlite_settings.market_symbols),
         timeframes=list(sqlite_settings.market_timeframes),
     )
-    market_service = MarketIngestionService({
-        "failing": (failing_client, failing_config),
-        "healthy": (healthy_client, healthy_config),
-    })
+    market_service = MarketIngestionService(
+        {
+            "failing": (failing_client, failing_config),
+            "healthy": (healthy_client, healthy_config),
+        }
+    )
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
     service = IngestionCycleService(
@@ -545,6 +585,8 @@ async def test_per_exchange_failure_isolation_continues_healthy_exchange(
 
         # Failing exchange has freshness="unknown"
         freshness_rows = session.scalars(select(MarketFreshnessStatus)).all()
-        failing_freshness = [r for r in freshness_rows if r.source == "failing_exchange"]
+        failing_freshness = [
+            r for r in freshness_rows if r.source == "failing_exchange"
+        ]
         assert len(failing_freshness) == 1
         assert failing_freshness[0].freshness_state == "unknown"

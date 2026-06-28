@@ -28,6 +28,7 @@ def app():
 @pytest.fixture(autouse=True)
 def mock_db_and_ingest():
     """Patch ``_check_db`` and ``_check_ingest_freshness`` to avoid real DB."""
+
     async def _db_ok() -> bool:
         return True
 
@@ -54,7 +55,9 @@ async def test_ready_200_when_healthy(app) -> None:
     app.state.started_at = datetime.now(UTC)
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.get("/health/ready")
 
     assert response.status_code == 200
@@ -79,7 +82,9 @@ async def test_ready_503_when_db_down(app) -> None:
         app.state.started_at = datetime.now(UTC)
 
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
             response = await client.get("/health/ready")
     finally:
         health_module._check_db = orig
@@ -96,7 +101,9 @@ async def test_ready_503_when_scheduler_stopped(app) -> None:
     app.state.started_at = datetime.now(UTC)
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.get("/health/ready")
 
     assert response.status_code == 503
@@ -114,7 +121,9 @@ async def test_ready_scheduler_disabled_not_503(app) -> None:
         app.state.started_at = datetime.now(UTC)
 
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
             response = await client.get("/health/ready")
     finally:
         os.environ.pop("CLAY_SCHEDULER_ENABLED", None)
@@ -136,7 +145,9 @@ async def test_ready_ingest_disabled_not_503(app) -> None:
     os.environ["CLAY_SCHEDULER_INGESTION_ENABLED"] = "false"
     try:
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
             response = await client.get("/health/ready")
     finally:
         os.environ.pop("CLAY_SCHEDULER_INGESTION_ENABLED", None)
@@ -163,7 +174,9 @@ async def test_ready_warming_up_within_grace(app) -> None:
         app.state.started_at = datetime.now(UTC)
 
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
             response = await client.get("/health/ready")
     finally:
         health_module._check_ingest_freshness = orig
@@ -190,7 +203,9 @@ async def test_ready_503_when_ingest_stale(app) -> None:
         app.state.started_at = datetime.now(UTC)
 
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
             response = await client.get("/health/ready")
     finally:
         health_module._check_ingest_freshness = orig
@@ -203,7 +218,9 @@ async def test_ready_503_when_ingest_stale(app) -> None:
 @pytest.mark.anyio
 async def test_health_liveness_unchanged(app) -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.get("/health")
 
     assert response.status_code == 200

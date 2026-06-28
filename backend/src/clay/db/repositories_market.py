@@ -28,7 +28,8 @@ class MarketRepository:
         self.session = session
 
     def upsert_market_bars(
-        self, bars: list[dict[str, object]],
+        self,
+        bars: list[dict[str, object]],
     ) -> tuple[int, int]:
         """Insert-or-update bars; return ``(inserted, updated)``.
 
@@ -66,9 +67,7 @@ class MarketRepository:
             existing.close = float(bar["close"])
             existing.volume = float(bar["volume"])
             existing.quote_volume = (
-                float(bar["quote_volume"])
-                if bar["quote_volume"] is not None
-                else None
+                float(bar["quote_volume"]) if bar["quote_volume"] is not None else None
             )
             existing.source = str(bar["source"])
             existing.bar_close_time = bar["bar_close_time"]  # type: ignore[assignment]

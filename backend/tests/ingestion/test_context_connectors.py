@@ -82,7 +82,9 @@ async def test_context_manager_logs_exception_on_connector_failure() -> None:
     try:
         results = await manager.run_once()
         output = stream.getvalue()
-        assert "simulated connector failure" in output, f"missing exception log, got: {output}"
+        assert "simulated connector failure" in output, (
+            f"missing exception log, got: {output}"
+        )
         assert len(results) == 1
         assert results[0].status == "error"
         assert "simulated connector failure" in results[0].details.get("error", "")

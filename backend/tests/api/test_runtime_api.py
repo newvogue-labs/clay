@@ -11,7 +11,9 @@ from clay.services.registry import ServiceRegistry
 @pytest.mark.anyio
 async def test_runtime_state_endpoint_returns_bootstrap_state() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.get("/runtime/state")
 
         assert response.status_code == 200
@@ -33,8 +35,12 @@ async def test_runtime_transition_endpoint_updates_state(
     monkeypatch.setattr(runtime_route, "runtime_manager", manager)
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        response = await client.post("/runtime/transition", json={"target": "pre_session"})
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        response = await client.post(
+            "/runtime/transition", json={"target": "pre_session"}
+        )
 
     assert response.status_code == 200
     assert response.json()["state"] == "pre_session"

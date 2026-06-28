@@ -21,15 +21,19 @@ from clay.ingestion.service import IngestionCycleService
 
 def _market_service(client: Any, settings: Any) -> MarketIngestionService:
     cfg = ExchangeConfig(
-        exchange_id="test", source=getattr(client, "source", "test"),
-        enabled=True, base_url="http://fake",
-        symbols=settings.market_symbols, timeframes=settings.market_timeframes,
+        exchange_id="test",
+        source=getattr(client, "source", "test"),
+        enabled=True,
+        base_url="http://fake",
+        symbols=settings.market_symbols,
+        timeframes=settings.market_timeframes,
     )
     return MarketIngestionService({"test": (client, cfg)})
 
 
 def test_ingestion_health_route_returns_market_and_context_sections(
-    db_session, sqlite_settings,
+    db_session,
+    sqlite_settings,
 ) -> None:
     now = datetime.now(UTC)
     market_repository = MarketRepository(db_session)
@@ -183,7 +187,8 @@ def test_storage_backed_read_routes_return_seeded_data(
 
 
 def test_ingestion_health_recomputes_market_staleness_from_latest_bar_time(
-    db_session, sqlite_settings,
+    db_session,
+    sqlite_settings,
 ) -> None:
     now = datetime.now(UTC)
     market_repository = MarketRepository(db_session)
@@ -246,25 +251,29 @@ def test_ingestion_health_context_threshold_flips_fresh_to_degraded(
     )
     now = datetime.now(UTC)
     context_repo = ContextRepository(db_session)
-    context_repo.store_news_items([
-        {
-            "source_name": "demo_news_feed",
-            "headline": "old news",
-            "summary": "Published 1 hour ago",
-            "published_at": now - timedelta(hours=1),
-            "symbol": "BTCUSDT",
-            "source_url": "https://example.invalid/news/old",
-        },
-    ])
-    context_repo.store_sentiment_snapshots([
-        {
-            "source_name": "demo_sentiment_feed",
-            "symbol": "BTCUSDT",
-            "sentiment_label": "bullish",
-            "sentiment_score": 0.68,
-            "captured_at": now - timedelta(hours=1),
-        },
-    ])
+    context_repo.store_news_items(
+        [
+            {
+                "source_name": "demo_news_feed",
+                "headline": "old news",
+                "summary": "Published 1 hour ago",
+                "published_at": now - timedelta(hours=1),
+                "symbol": "BTCUSDT",
+                "source_url": "https://example.invalid/news/old",
+            },
+        ]
+    )
+    context_repo.store_sentiment_snapshots(
+        [
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "BTCUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.68,
+                "captured_at": now - timedelta(hours=1),
+            },
+        ]
+    )
     db_session.commit()
 
     payload = asyncio.run(get_ingestion_health(db_session, tight_settings))

@@ -6,6 +6,7 @@ Mirrors the ``AuditSettings`` / ``IngestionSettings`` pattern
 Read at the composition boundary (``LLMAdapter`` construction) — the
 settings module should not be imported deep in the call graph.
 """
+
 from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict

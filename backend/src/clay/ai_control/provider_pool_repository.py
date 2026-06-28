@@ -77,7 +77,9 @@ def _row_to_dep(row) -> Deployment:
         model_name=row.model_name,
         provider_key_id=row.provider_key_id,
         upstream_model=row.upstream_model,
-        params=row.params if isinstance(row.params, dict) else json.loads(row.params or "{}"),
+        params=row.params
+        if isinstance(row.params, dict)
+        else json.loads(row.params or "{}"),
         weight=row.weight,
         enabled=row.enabled,
     )
@@ -202,7 +204,9 @@ class SqlProviderPoolRepository(ProviderPoolRepository):
                 base_url=r.base_url,
                 key_ref=r.key_ref,
                 key_state=r.key_state,
-                params=r.params if isinstance(r.params, dict) else json.loads(r.params or "{}"),
+                params=r.params
+                if isinstance(r.params, dict)
+                else json.loads(r.params or "{}"),
             )
             for r in rows
         ]

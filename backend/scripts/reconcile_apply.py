@@ -51,8 +51,12 @@ def _check_preflight(session_factory) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Apply rendered config to live LiteLLM")
-    parser.add_argument("--force", action="store_true", help="Bypass no-op skip (rehearsal mode)")
+    parser = argparse.ArgumentParser(
+        description="Apply rendered config to live LiteLLM"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Bypass no-op skip (rehearsal mode)"
+    )
     args = parser.parse_args()
 
     _check_flag()

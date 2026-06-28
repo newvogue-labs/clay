@@ -17,6 +17,7 @@ down_revision = "0014_hypertable_indexes"
 branch_labels = None
 depends_on = None
 
+
 def upgrade() -> None:
     op.create_table(
         "ai_agent_runs",
@@ -29,6 +30,7 @@ def upgrade() -> None:
         sa.Column("error", sa.Text(), nullable=True),
         schema="ops",
     )
+
 
 def downgrade() -> None:
     op.drop_table("ai_agent_runs", schema="ops")

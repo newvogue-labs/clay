@@ -40,13 +40,16 @@ class ContextRepository:
         return written
 
     def _news_exists(self, item: dict[str, object]) -> bool:
-        return self.session.scalar(
-            select(NewsItem).where(
-                NewsItem.source_name == item["source_name"],
-                NewsItem.headline == item["headline"],
-                NewsItem.published_at == item["published_at"],
-            ),
-        ) is not None
+        return (
+            self.session.scalar(
+                select(NewsItem).where(
+                    NewsItem.source_name == item["source_name"],
+                    NewsItem.headline == item["headline"],
+                    NewsItem.published_at == item["published_at"],
+                ),
+            )
+            is not None
+        )
 
     def store_sentiment_snapshots(self, items: list[dict[str, object]]) -> int:
         written = 0
@@ -71,20 +74,27 @@ class ContextRepository:
         return written
 
     def _sentiment_exists(self, item: dict[str, object]) -> bool:
-        return self.session.scalar(
-            select(SentimentSnapshot).where(
-                SentimentSnapshot.source_name == item["source_name"],
-                SentimentSnapshot.symbol == item["symbol"],
-                SentimentSnapshot.captured_at == item["captured_at"],
-            ),
-        ) is not None
+        return (
+            self.session.scalar(
+                select(SentimentSnapshot).where(
+                    SentimentSnapshot.source_name == item["source_name"],
+                    SentimentSnapshot.symbol == item["symbol"],
+                    SentimentSnapshot.captured_at == item["captured_at"],
+                ),
+            )
+            is not None
+        )
 
     def latest_news(self, *, limit: int = 5) -> list[NewsItem]:
         query = select(NewsItem).order_by(NewsItem.published_at.desc()).limit(limit)
         return list(self.session.scalars(query).all())
 
     def latest_sentiment(self, *, limit: int = 5) -> list[SentimentSnapshot]:
-        query = select(SentimentSnapshot).order_by(
-            SentimentSnapshot.captured_at.desc(),
-        ).limit(limit)
+        query = (
+            select(SentimentSnapshot)
+            .order_by(
+                SentimentSnapshot.captured_at.desc(),
+            )
+            .limit(limit)
+        )
         return list(self.session.scalars(query).all())

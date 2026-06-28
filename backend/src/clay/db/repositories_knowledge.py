@@ -14,15 +14,21 @@ class KnowledgeRepository:
         self.session.flush()
         return item
 
-    def replace_chunks(self, *, item_id: int, chunks: list[dict[str, object]]) -> list[KnowledgeChunk]:
-        self.session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.item_id == item_id))
+    def replace_chunks(
+        self, *, item_id: int, chunks: list[dict[str, object]]
+    ) -> list[KnowledgeChunk]:
+        self.session.execute(
+            delete(KnowledgeChunk).where(KnowledgeChunk.item_id == item_id)
+        )
         rows = [KnowledgeChunk(item_id=item_id, **chunk) for chunk in chunks]
         self.session.add_all(rows)
         self.session.flush()
         return rows
 
     def list_recent_items(self, *, limit: int = 20) -> list[KnowledgeItem]:
-        query = select(KnowledgeItem).order_by(KnowledgeItem.updated_at.desc()).limit(limit)
+        query = (
+            select(KnowledgeItem).order_by(KnowledgeItem.updated_at.desc()).limit(limit)
+        )
         return list(self.session.scalars(query).all())
 
     def list_chunks_for_item(self, item_id: int) -> list[KnowledgeChunk]:

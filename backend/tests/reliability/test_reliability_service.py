@@ -237,21 +237,33 @@ def seed_release_ready_evidence(session) -> None:
     session.commit()
 
 
-def test_reliability_snapshot_blocks_release_when_runtime_is_degraded(db_session, tmp_path: Path) -> None:
+def test_reliability_snapshot_blocks_release_when_runtime_is_degraded(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_reliability_bundle(tmp_path)
     seed_reliability_inputs(db_session)
     bundle["runtime_manager"].enter_degraded()
-    bundle["registry"].update_status("control-api", ServiceStatus.STOPPED, error="operator stop")
+    bundle["registry"].update_status(
+        "control-api", ServiceStatus.STOPPED, error="operator stop"
+    )
 
     snapshot = bundle["service"].build_snapshot(db_session)
 
     assert snapshot.summary.release_readiness_status == "blocked"
     assert snapshot.summary.blocking_gate_count >= 1
-    assert any(trigger.trigger_id == "runtime-degraded" for trigger in snapshot.degraded_triggers)
-    assert any(gate.gate_id == "runtime-stability" and gate.blocks_release for gate in snapshot.release_gates)
+    assert any(
+        trigger.trigger_id == "runtime-degraded"
+        for trigger in snapshot.degraded_triggers
+    )
+    assert any(
+        gate.gate_id == "runtime-stability" and gate.blocks_release
+        for gate in snapshot.release_gates
+    )
 
 
-def test_reliability_snapshot_reports_needs_attention_with_good_demo_evidence(db_session, tmp_path: Path) -> None:
+def test_reliability_snapshot_reports_needs_attention_with_good_demo_evidence(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_reliability_bundle(tmp_path)
     seed_reliability_inputs(db_session)
     seed_release_ready_evidence(db_session)
@@ -264,8 +276,14 @@ def test_reliability_snapshot_reports_needs_attention_with_good_demo_evidence(db
 
     assert snapshot.summary.release_readiness_status == "ready_for_demo"
     assert snapshot.summary.blocking_gate_count == 0
-    assert any(gate.gate_id == "demo-discipline" and gate.status == "pass" for gate in snapshot.release_gates)
-    assert any(gate.gate_id == "local-fallback" and gate.status == "pass" for gate in snapshot.release_gates)
+    assert any(
+        gate.gate_id == "demo-discipline" and gate.status == "pass"
+        for gate in snapshot.release_gates
+    )
+    assert any(
+        gate.gate_id == "local-fallback" and gate.status == "pass"
+        for gate in snapshot.release_gates
+    )
 
 
 # === B4 — ReliabilityService.recheck() emit-flag refactor ===
@@ -366,7 +384,8 @@ def test_recheck_default_emits_audit_and_bus(tmp_path: Path) -> None:
 
 
 def test_recheck_emit_false_skips_audit_and_bus_but_persists_last_rechecked_at(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """``emit=False`` → no audit, no bus, but ``last_rechecked_at`` updated (in-memory + DB).
 

@@ -72,10 +72,13 @@ def test_run_once_delegates_to_writer(live_path: Path) -> None:
 def test_run_once_noop_when_equivalent(live_path: Path) -> None:
     """Job reports noop when rendered config equals live config (idempotency)."""
     row = DeploymentRow(
-        deployment_id=1, model_name="gemini-2.5-flash",
+        deployment_id=1,
+        model_name="gemini-2.5-flash",
         upstream_model="gemini/gemini-2.5-flash",
-        base_url=None, key_ref="GEMINI_API_KEY",
-        key_state="available", params={},
+        base_url=None,
+        key_ref="GEMINI_API_KEY",
+        key_state="available",
+        params={},
     )
     mock_repo = MagicMock()
     mock_repo.list_enabled_deployments.return_value = [row]
@@ -127,8 +130,10 @@ def test_run_once_degraded_logged_loud(live_path: Path, caplog) -> None:
     """Degraded pool health produces a WARNING log line."""
     mock_writer = MagicMock(spec=ConfigWriter)
     mock_writer.reconcile.return_value = ApplyReport(
-        status="degraded", applied=False,
-        available_total=0, by_model_name={},
+        status="degraded",
+        applied=False,
+        available_total=0,
+        by_model_name={},
         error="DegradedModeError: 0 available deployments < floor 1",
     )
 
@@ -143,17 +148,22 @@ def test_run_once_degraded_logged_loud(live_path: Path, caplog) -> None:
     _logger = logging.getLogger("clay.scheduler.provider_pool_reconcile_job")
     _logger.addHandler(caplog.handler)
     try:
-        with caplog.at_level(logging.WARNING, logger="clay.scheduler.provider_pool_reconcile_job"):
+        with caplog.at_level(
+            logging.WARNING, logger="clay.scheduler.provider_pool_reconcile_job"
+        ):
             job.run_once()
 
         warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno >= logging.WARNING
             and r.name == "clay.scheduler.provider_pool_reconcile_job"
         ]
         assert len(warnings) >= 1
         warning_text = " ".join(r.getMessage() for r in warnings)
         assert "degraded" in warning_text.lower()
-        assert "not written" in warning_text.lower() or "last-good" in warning_text.lower()
+        assert (
+            "not written" in warning_text.lower() or "last-good" in warning_text.lower()
+        )
     finally:
         _logger.removeHandler(caplog.handler)

@@ -60,9 +60,7 @@ def _render_context(
     lines.append("=== roles ===")
     if snapshot.roles:
         for r in snapshot.roles:
-            lines.append(
-                f"  {r.role_id}: {r.role_name} — {r.responsibility}"
-            )
+            lines.append(f"  {r.role_id}: {r.role_name} — {r.responsibility}")
     else:
         lines.append("  none")
 
@@ -70,9 +68,7 @@ def _render_context(
     lines.append("=== models ===")
     if snapshot.models:
         for m in snapshot.models:
-            lines.append(
-                f"  {m.model_id}: {m.display_name} ({m.provider}/{m.source})"
-            )
+            lines.append(f"  {m.model_id}: {m.display_name} ({m.provider}/{m.source})")
     else:
         lines.append("  none")
 
@@ -91,9 +87,7 @@ def _render_context(
     lines.append("=== conflicts ===")
     if snapshot.conflicts:
         for c in snapshot.conflicts:
-            lines.append(
-                f"  [{c.severity}] {c.title}: {c.description}"
-            )
+            lines.append(f"  [{c.severity}] {c.title}: {c.description}")
     else:
         lines.append("  none")
 
@@ -186,9 +180,7 @@ class AIAgentCycleJob:
         ``_arun_safely``.
         """
         if self._lock.locked():
-            logger.warning(
-                "clay.scheduler: ai-agent-cycle already running, skip tick"
-            )
+            logger.warning("clay.scheduler: ai-agent-cycle already running, skip tick")
             return
 
         async with self._lock:

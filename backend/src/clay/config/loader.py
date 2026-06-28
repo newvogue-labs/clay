@@ -78,11 +78,11 @@ class ConfigLoader:
         target = self._scope_path(scope)
         if scope == "runtime":
             target.write_text(
-            'work_window_start = "09:00"\n'
-            'work_window_end = "22:00"\n'
-            'default_state = "background_monitoring"\n',
-            encoding="utf-8",
-        )
+                'work_window_start = "09:00"\n'
+                'work_window_end = "22:00"\n'
+                'default_state = "background_monitoring"\n',
+                encoding="utf-8",
+            )
             return
         if scope == "risk":
             target.write_text(
@@ -118,10 +118,7 @@ class ConfigLoader:
 
     def load_all(self) -> dict[str, RuntimeConfig | RiskConfig]:
         self.ensure_default_configs()
-        configs = {
-            scope: self._load_scope(scope)
-            for scope in self.list_scopes()
-        }
+        configs = {scope: self._load_scope(scope) for scope in self.list_scopes()}
         for scope in configs:
             shutil.copy2(self._scope_path(scope), self._backup_path(scope))
         return configs

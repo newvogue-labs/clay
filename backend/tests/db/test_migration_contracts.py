@@ -23,10 +23,7 @@ def _down_revision(path: Path) -> str | None:
 
 
 def test_alembic_revision_ids_fit_default_version_table_limit() -> None:
-    revisions = [
-        _revision_id(path)
-        for path in sorted(VERSIONS_DIR.glob("*.py"))
-    ]
+    revisions = [_revision_id(path) for path in sorted(VERSIONS_DIR.glob("*.py"))]
 
     assert revisions
     assert all(len(revision) <= 32 for revision in revisions)

@@ -20,7 +20,12 @@ depends_on: Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "source_health_events",
-        sa.Column("lifecycle_status", sa.String(length=32), nullable=False, server_default="active"),
+        sa.Column(
+            "lifecycle_status",
+            sa.String(length=32),
+            nullable=False,
+            server_default="active",
+        ),
         schema="ops",
     )
     op.add_column(
@@ -43,7 +48,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_ops_source_health_events_lifecycle_status", table_name="source_health_events", schema="ops")
+    op.drop_index(
+        "ix_ops_source_health_events_lifecycle_status",
+        table_name="source_health_events",
+        schema="ops",
+    )
     op.drop_column("source_health_events", "resolution_message", schema="ops")
     op.drop_column("source_health_events", "resolved_at", schema="ops")
     op.drop_column("source_health_events", "lifecycle_status", schema="ops")

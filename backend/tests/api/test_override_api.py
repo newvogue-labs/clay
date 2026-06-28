@@ -35,6 +35,7 @@ def app():
         execution_config=ExecutionConfig(mode="live", allow_live_override=True),
     )
     from clay.api.dependencies import get_override_service
+
     application.dependency_overrides[get_override_service] = lambda: test_service
     yield application
     application.dependency_overrides.clear()

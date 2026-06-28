@@ -52,19 +52,73 @@ PROVIDERS = [
 ]
 
 KEYS = [
-    {"provider_name": "google-aistudio", "account_label": "google-aistudio-1", "key_ref": "GEMINI_API_KEY"},
-    {"provider_name": "nvidia-nim", "account_label": "nvidia-1", "key_ref": "NVIDIA_API_KEY"},
-    {"provider_name": "kimchi", "account_label": "kimchi-1", "key_ref": "KIMCHI_API_KEY"},
+    {
+        "provider_name": "google-aistudio",
+        "account_label": "google-aistudio-1",
+        "key_ref": "GEMINI_API_KEY",
+    },
+    {
+        "provider_name": "nvidia-nim",
+        "account_label": "nvidia-1",
+        "key_ref": "NVIDIA_API_KEY",
+    },
+    {
+        "provider_name": "kimchi",
+        "account_label": "kimchi-1",
+        "key_ref": "KIMCHI_API_KEY",
+    },
 ]
 
 DEPLOYMENTS = [
-    {"model_name": "gemma4-e2b", "provider_name": "ollama-local", "key_ref": None, "upstream_model": "ollama/gemma4:e2b-it-qat", "params": {}},
-    {"model_name": "local-ollama", "provider_name": "ollama-local", "key_ref": None, "upstream_model": "ollama/deepseek-v4-flash:cloud", "params": {}},
-    {"model_name": "gemini-2.5-flash", "provider_name": "google-aistudio", "key_ref": "GEMINI_API_KEY", "upstream_model": "gemini/gemini-2.5-flash", "params": {}},
-    {"model_name": "gemini-3.1-flash-lite", "provider_name": "google-aistudio", "key_ref": "GEMINI_API_KEY", "upstream_model": "gemini/gemini-3.1-flash-lite", "params": {}},
-    {"model_name": "gemma-4-31b", "provider_name": "google-aistudio", "key_ref": "GEMINI_API_KEY", "upstream_model": "gemini/gemma-4-31b-it", "params": {}},
-    {"model_name": "minimax-m3", "provider_name": "nvidia-nim", "key_ref": "NVIDIA_API_KEY", "upstream_model": "openai/minimaxai/minimax-m3", "params": {"rpm": 40}},
-    {"model_name": "minimax-m2.7", "provider_name": "kimchi", "key_ref": "KIMCHI_API_KEY", "upstream_model": "openai/minimax-m2.7", "params": {}},
+    {
+        "model_name": "gemma4-e2b",
+        "provider_name": "ollama-local",
+        "key_ref": None,
+        "upstream_model": "ollama/gemma4:e2b-it-qat",
+        "params": {},
+    },
+    {
+        "model_name": "local-ollama",
+        "provider_name": "ollama-local",
+        "key_ref": None,
+        "upstream_model": "ollama/deepseek-v4-flash:cloud",
+        "params": {},
+    },
+    {
+        "model_name": "gemini-2.5-flash",
+        "provider_name": "google-aistudio",
+        "key_ref": "GEMINI_API_KEY",
+        "upstream_model": "gemini/gemini-2.5-flash",
+        "params": {},
+    },
+    {
+        "model_name": "gemini-3.1-flash-lite",
+        "provider_name": "google-aistudio",
+        "key_ref": "GEMINI_API_KEY",
+        "upstream_model": "gemini/gemini-3.1-flash-lite",
+        "params": {},
+    },
+    {
+        "model_name": "gemma-4-31b",
+        "provider_name": "google-aistudio",
+        "key_ref": "GEMINI_API_KEY",
+        "upstream_model": "gemini/gemma-4-31b-it",
+        "params": {},
+    },
+    {
+        "model_name": "minimax-m3",
+        "provider_name": "nvidia-nim",
+        "key_ref": "NVIDIA_API_KEY",
+        "upstream_model": "openai/minimaxai/minimax-m3",
+        "params": {"rpm": 40},
+    },
+    {
+        "model_name": "minimax-m2.7",
+        "provider_name": "kimchi",
+        "key_ref": "KIMCHI_API_KEY",
+        "upstream_model": "openai/minimax-m2.7",
+        "params": {},
+    },
 ]
 
 _TOKEN_ROUTER_MODELS = {"minimax-m3-via-tokenrouter"}
@@ -103,14 +157,22 @@ def _upsert_providers(session: Session) -> dict[str, int]:
                     updated_at = EXCLUDED.updated_at
                 RETURNING id
             """),
-            {"name": p["name"], "route_class": p["route_class"], "base_url": p["base_url"],
-             "trust": p["trust"], "egress": p["egress"], "now": now},
+            {
+                "name": p["name"],
+                "route_class": p["route_class"],
+                "base_url": p["base_url"],
+                "trust": p["trust"],
+                "egress": p["egress"],
+                "now": now,
+            },
         ).one()
         ids[p["name"]] = int(row[0])
     return ids
 
 
-def _upsert_keys(session: Session, provider_ids: dict[str, int]) -> dict[tuple[str, str], int]:
+def _upsert_keys(
+    session: Session, provider_ids: dict[str, int]
+) -> dict[tuple[str, str], int]:
     now = datetime.now(UTC)
     ids: dict[tuple[str, str], int] = {}
     for k in KEYS:
@@ -123,10 +185,12 @@ def _upsert_keys(session: Session, provider_ids: dict[str, int]) -> dict[tuple[s
                     updated_at = EXCLUDED.updated_at
                 RETURNING id
             """),
-            {"provider_id": provider_ids[k["provider_name"]],
-             "account_label": k["account_label"],
-             "key_ref": k["key_ref"],
-             "now": now},
+            {
+                "provider_id": provider_ids[k["provider_name"]],
+                "account_label": k["account_label"],
+                "key_ref": k["key_ref"],
+                "now": now,
+            },
         ).one()
         ids[(k["provider_name"], k["key_ref"])] = int(row[0])
     return ids
@@ -142,7 +206,9 @@ def _key_id_for_deployment(
     return key_ids.get((dep["provider_name"], dep["key_ref"]))
 
 
-def _upsert_deployments(session: Session, provider_ids: dict[str, int], key_ids: dict[tuple[str, str], int]) -> None:
+def _upsert_deployments(
+    session: Session, provider_ids: dict[str, int], key_ids: dict[tuple[str, str], int]
+) -> None:
     now = datetime.now(UTC)
     for dep in DEPLOYMENTS:
         key_id = _key_id_for_deployment(dep, provider_ids, key_ids)
@@ -162,9 +228,14 @@ def _upsert_deployments(session: Session, provider_ids: dict[str, int], key_ids:
                         updated_at = :now
                     WHERE id = :id
                 """),
-                {"provider_key_id": key_id, "provider_id": provider_id,
-                 "upstream_model": dep["upstream_model"],
-                 "params": _json_param(dep["params"]), "now": now, "id": int(existing[0])},
+                {
+                    "provider_key_id": key_id,
+                    "provider_id": provider_id,
+                    "upstream_model": dep["upstream_model"],
+                    "params": _json_param(dep["params"]),
+                    "now": now,
+                    "id": int(existing[0]),
+                },
             )
         else:
             session.execute(
@@ -173,16 +244,21 @@ def _upsert_deployments(session: Session, provider_ids: dict[str, int], key_ids:
                         (model_name, provider_key_id, provider_id, upstream_model, params, created_at, updated_at)
                     VALUES (:model_name, :provider_key_id, :provider_id, :upstream_model, :params, :now, :now)
                 """),
-                {"model_name": dep["model_name"], "provider_key_id": key_id,
-                 "provider_id": provider_id,
-                 "upstream_model": dep["upstream_model"],
-                 "params": _json_param(dep["params"]), "now": now},
+                {
+                    "model_name": dep["model_name"],
+                    "provider_key_id": key_id,
+                    "provider_id": provider_id,
+                    "upstream_model": dep["upstream_model"],
+                    "params": _json_param(dep["params"]),
+                    "now": now,
+                },
             )
     session.flush()
 
 
 def _json_param(params: dict) -> str:
     import json
+
     return json.dumps(params, sort_keys=True, default=str)
 
 
@@ -201,7 +277,9 @@ def main() -> None:
     count_providers = len(PROVIDERS)
     count_keys = len(KEYS)
     count_deployments = len(DEPLOYMENTS)
-    print(f"Seeded {count_providers} providers, {count_keys} keys, {count_deployments} deployments.")
+    print(
+        f"Seeded {count_providers} providers, {count_keys} keys, {count_deployments} deployments."
+    )
     print("TokenRouter deployments intentionally excluded (commented out in config).")
 
 

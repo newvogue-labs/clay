@@ -117,7 +117,9 @@ class TestListLatestAgentRuns:
     def test_multiple_rows_per_role_returns_latest(self, db_session: Any) -> None:
         repo = OpsRepository(db_session)
         now = datetime.now(UTC)
-        _insert_run(db_session, "market-scanner", "old", created_at=now - timedelta(minutes=10))
+        _insert_run(
+            db_session, "market-scanner", "old", created_at=now - timedelta(minutes=10)
+        )
         _insert_run(db_session, "market-scanner", "latest", created_at=now)
         result = repo.list_latest_agent_runs(["market-scanner"])
         assert result["market-scanner"].content == "latest"
@@ -125,7 +127,9 @@ class TestListLatestAgentRuns:
     def test_error_rows_ignored(self, db_session: Any) -> None:
         repo = OpsRepository(db_session)
         now = datetime.now(UTC)
-        _insert_run(db_session, "market-scanner", "good", created_at=now - timedelta(minutes=5))
+        _insert_run(
+            db_session, "market-scanner", "good", created_at=now - timedelta(minutes=5)
+        )
         _insert_run(db_session, "market-scanner", "bad", created_at=now, error="boom")
         result = repo.list_latest_agent_runs(["market-scanner"])
         assert result["market-scanner"].content == "good"
@@ -134,7 +138,9 @@ class TestListLatestAgentRuns:
         repo = OpsRepository(db_session)
         now = datetime.now(UTC)
         _insert_run(db_session, "market-scanner", "", created_at=now)
-        _insert_run(db_session, "market-scanner", "real", created_at=now - timedelta(minutes=1))
+        _insert_run(
+            db_session, "market-scanner", "real", created_at=now - timedelta(minutes=1)
+        )
         result = repo.list_latest_agent_runs(["market-scanner"])
         assert result["market-scanner"].content == "real"
 
@@ -158,9 +164,24 @@ class TestListLatestAgentRuns:
 class TestRenderContextWithReports:
     def test_three_reports_all_present(self, db_session: Any) -> None:
         now = datetime.now(UTC)
-        _insert_run(db_session, "market-scanner", "scanner output", created_at=now - timedelta(minutes=5))
-        _insert_run(db_session, "news-sentiment-agent", "news output", created_at=now - timedelta(minutes=3))
-        _insert_run(db_session, "forecast-model", "forecast output", created_at=now - timedelta(minutes=1))
+        _insert_run(
+            db_session,
+            "market-scanner",
+            "scanner output",
+            created_at=now - timedelta(minutes=5),
+        )
+        _insert_run(
+            db_session,
+            "news-sentiment-agent",
+            "news output",
+            created_at=now - timedelta(minutes=3),
+        )
+        _insert_run(
+            db_session,
+            "forecast-model",
+            "forecast output",
+            created_at=now - timedelta(minutes=1),
+        )
         snap = _snapshot_with_roles()
         ctx = _render_context(snap, "chief-agent", session=db_session)
         assert "=== subagent_reports ===" in ctx
@@ -204,7 +225,9 @@ class TestRenderContextWithReports:
 
     def test_age_in_minutes(self, db_session: Any) -> None:
         now = datetime.now(UTC)
-        _insert_run(db_session, "forecast-model", "fresh", created_at=now - timedelta(minutes=7))
+        _insert_run(
+            db_session, "forecast-model", "fresh", created_at=now - timedelta(minutes=7)
+        )
         snap = _snapshot_with_roles()
         ctx = _render_context(snap, "chief-agent", session=db_session)
         assert "(7 min ago):" in ctx

@@ -59,8 +59,13 @@ def _make_scheduler(
     ingestion_cycle_service: Any = None,
     provider_pool_reconcile_job: ProviderPoolReconcileJob | None = None,
 ) -> tuple[
-    ClayScheduler, ServiceRegistry, AuditWriter, EventBus, HealthMonitor,
-    ReliabilityService | None, Any,
+    ClayScheduler,
+    ServiceRegistry,
+    AuditWriter,
+    EventBus,
+    HealthMonitor,
+    ReliabilityService | None,
+    Any,
 ]:
     """Build a ``ClayScheduler`` for B3a/B3b + B4 + B5 + S3d-2 tests.
 
@@ -80,7 +85,8 @@ def _make_scheduler(
     health_monitor = HealthMonitor(registry, stale_after_seconds=60)
     if settings is None:
         settings = SchedulerSettings(
-            enabled=True, ops_retention_enabled=False,
+            enabled=True,
+            ops_retention_enabled=False,
         )
     scheduler = ClayScheduler(
         settings=settings,
@@ -94,8 +100,13 @@ def _make_scheduler(
         provider_pool_reconcile_job=provider_pool_reconcile_job,
     )
     return (
-        scheduler, registry, audit_writer, event_bus, health_monitor,
-        reliability_service, session_factory,
+        scheduler,
+        registry,
+        audit_writer,
+        event_bus,
+        health_monitor,
+        reliability_service,
+        session_factory,
     )
 
 
@@ -179,7 +190,8 @@ async def test_health_tick_job_registered(tmp_path: Path) -> None:
     trigger interval matches ``health_tick_interval_seconds``.
     """
     scheduler, *_ = _make_scheduler(
-        tmp_path, settings=SchedulerSettings(health_tick_interval_seconds=15),
+        tmp_path,
+        settings=SchedulerSettings(health_tick_interval_seconds=15),
     )
     scheduler.start()
 
@@ -277,7 +289,8 @@ async def test_scheduler_started_jobs_reflects_actual_registration(
     ``reliability-recheck`` is registered when it is not.
     """
     settings = SchedulerSettings(
-        enabled=True, reliability_enabled=True,
+        enabled=True,
+        reliability_enabled=True,
         ops_retention_enabled=False,
     )
     scheduler, _, audit_writer, *_ = _make_scheduler(
@@ -290,11 +303,13 @@ async def test_scheduler_started_jobs_reflects_actual_registration(
 
     try:
         started = next(
-            e for e in _read_audit_events(audit_writer)
+            e
+            for e in _read_audit_events(audit_writer)
             if e["event_type"] == "scheduler.started"
         )
         assert started["payload"]["jobs"] == [
-            "health-tick", "reliability-recheck",
+            "health-tick",
+            "reliability-recheck",
         ]
     finally:
         scheduler.shutdown(wait=True)
@@ -311,7 +326,8 @@ async def test_scheduler_started_jobs_omits_reliability_when_disabled(
 
     try:
         started = next(
-            e for e in _read_audit_events(audit_writer)
+            e
+            for e in _read_audit_events(audit_writer)
             if e["event_type"] == "scheduler.started"
         )
         assert started["payload"]["jobs"] == ["health-tick"]
@@ -345,14 +361,16 @@ async def test_loud_warning_when_reliability_enabled_but_deps_missing(
         assert scheduler._apscheduler.get_job("reliability-recheck") is None
         # Loud warning present.
         warnings = [
-            r for r in caplog.records
-            if r.levelno == logging.WARNING
-            and r.name == "clay.scheduler.service"
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and r.name == "clay.scheduler.service"
         ]
         assert len(warnings) >= 1
         # Names at least one of the missing deps.
         warning_text = " ".join(r.getMessage() for r in warnings)
-        assert "session_factory" in warning_text or "reliability_service" in warning_text
+        assert (
+            "session_factory" in warning_text or "reliability_service" in warning_text
+        )
         # And signals it is a misconfiguration, not a normal skip.
         assert "NOT registered" in warning_text or "misconfiguration" in warning_text
     finally:
@@ -420,7 +438,8 @@ async def test_ingestion_cycle_not_registered_when_disabled(
 ) -> None:
     """``ingestion_enabled=False`` → no ``ingestion-cycle``; health-tick stays."""
     settings = SchedulerSettings(
-        enabled=True, ingestion_enabled=False,
+        enabled=True,
+        ingestion_enabled=False,
         ops_retention_enabled=False,
     )
     scheduler, *_ = _make_scheduler(
@@ -466,11 +485,14 @@ async def test_scheduler_started_jobs_3_ids_reflects_actual_registration(
 
     try:
         started = next(
-            e for e in _read_audit_events(audit_writer)
+            e
+            for e in _read_audit_events(audit_writer)
             if e["event_type"] == "scheduler.started"
         )
         assert started["payload"]["jobs"] == [
-            "health-tick", "reliability-recheck", "ingestion-cycle",
+            "health-tick",
+            "reliability-recheck",
+            "ingestion-cycle",
         ]
     finally:
         scheduler.shutdown(wait=True)
@@ -500,9 +522,9 @@ async def test_loud_warning_when_ingestion_enabled_but_deps_missing(
 
         assert scheduler._apscheduler.get_job("ingestion-cycle") is None
         warnings = [
-            r for r in caplog.records
-            if r.levelno == logging.WARNING
-            and r.name == "clay.scheduler.service"
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and r.name == "clay.scheduler.service"
         ]
         assert len(warnings) >= 1
         warning_text = " ".join(r.getMessage() for r in warnings)
@@ -555,7 +577,9 @@ async def test_T1_ingestion_cycle_has_async_executor(tmp_path: Path) -> None:
 
 
 @pytest.mark.anyio
-async def test_T2_ingestion_cycle_actually_executes_on_scheduler(tmp_path: Path) -> None:
+async def test_T2_ingestion_cycle_actually_executes_on_scheduler(
+    tmp_path: Path,
+) -> None:
     """T2: scheduler-driven ingestion cycle actually runs (no ``coroutine never awaited``).
 
     Previously the async ``_arun_safely`` was submitted to the sync
@@ -582,6 +606,7 @@ async def test_T2_ingestion_cycle_actually_executes_on_scheduler(tmp_path: Path)
         - ``run_once`` (async) returns a non-awaitable →
           raises TypeError inside the scheduler's ``await``.
         """
+
         is_running = False
         call_count = 0
 
@@ -658,7 +683,8 @@ async def test_provider_pool_reconcile_not_registered_when_disabled(
 ) -> None:
     """``provider_pool_reconcile_enabled=False`` → no job; health-tick still there."""
     settings = SchedulerSettings(
-        enabled=True, provider_pool_reconcile_enabled=False,
+        enabled=True,
+        provider_pool_reconcile_enabled=False,
     )
     scheduler, *_ = _make_scheduler(
         tmp_path,
@@ -681,7 +707,8 @@ async def test_provider_pool_reconcile_not_registered_when_dep_missing(
 ) -> None:
     """``provider_pool_reconcile_enabled=True`` + job is ``None`` → warning + skip."""
     settings = SchedulerSettings(
-        enabled=True, provider_pool_reconcile_enabled=True,
+        enabled=True,
+        provider_pool_reconcile_enabled=True,
     )
     # provider_pool_reconcile_job defaults to None — the misconfiguration path.
     scheduler, *_ = _make_scheduler(tmp_path, settings=settings)
@@ -693,9 +720,9 @@ async def test_provider_pool_reconcile_not_registered_when_dep_missing(
 
         assert scheduler._apscheduler.get_job("provider-pool-reconcile") is None
         warnings = [
-            r for r in caplog.records
-            if r.levelno == logging.WARNING
-            and r.name == "clay.scheduler.service"
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and r.name == "clay.scheduler.service"
         ]
         assert len(warnings) >= 1
         warning_text = " ".join(r.getMessage() for r in warnings)
@@ -724,7 +751,8 @@ async def test_scheduler_started_jobs_includes_provider_pool_reconcile(
 
     try:
         started = next(
-            e for e in _read_audit_events(audit_writer)
+            e
+            for e in _read_audit_events(audit_writer)
             if e["event_type"] == "scheduler.started"
         )
         assert "provider-pool-reconcile" in started["payload"]["jobs"]

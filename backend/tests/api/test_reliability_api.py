@@ -234,11 +234,15 @@ def seed_release_ready_evidence(session) -> None:
     session.commit()
 
 
-def test_reliability_overview_route_returns_snapshot(db_session, tmp_path: Path) -> None:
+def test_reliability_overview_route_returns_snapshot(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_reliability_bundle(tmp_path)
     seed_reliability_inputs(db_session)
     bundle["runtime_manager"].enter_degraded()
-    bundle["registry"].update_status("control-api", ServiceStatus.STOPPED, error="operator stop")
+    bundle["registry"].update_status(
+        "control-api", ServiceStatus.STOPPED, error="operator stop"
+    )
 
     payload = asyncio.run(get_reliability_overview(db_session, bundle["service"]))
 
@@ -246,7 +250,9 @@ def test_reliability_overview_route_returns_snapshot(db_session, tmp_path: Path)
     assert payload["degraded_triggers"]
 
 
-def test_reliability_recheck_route_returns_updated_snapshot(db_session, tmp_path: Path) -> None:
+def test_reliability_recheck_route_returns_updated_snapshot(
+    db_session, tmp_path: Path
+) -> None:
     bundle = build_reliability_bundle(tmp_path)
     seed_reliability_inputs(db_session)
     seed_release_ready_evidence(db_session)
@@ -287,7 +293,10 @@ def test_reliability_ignores_resolved_incidents_for_release_blockers(
     payload = asyncio.run(get_reliability_overview(db_session, bundle["service"]))
 
     assert payload["summary"]["blocking_gate_count"] == 0
-    assert all(trigger["trigger_id"] != "critical-incidents" for trigger in payload["degraded_triggers"])
+    assert all(
+        trigger["trigger_id"] != "critical-incidents"
+        for trigger in payload["degraded_triggers"]
+    )
     assert all(
         not (gate["gate_id"] == "incident-budget" and gate["blocks_release"])
         for gate in payload["release_gates"]

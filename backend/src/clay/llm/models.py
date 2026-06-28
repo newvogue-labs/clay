@@ -1,4 +1,5 @@
 """OpenAI-compatible chat-completion request/response models (pydantic v2)."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel

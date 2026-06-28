@@ -17,14 +17,18 @@ class ValidationRepository:
         return row
 
     def list_validation_runs(self, *, limit: int = 20) -> list[ValidationRun]:
-        query = select(ValidationRun).order_by(ValidationRun.created_at.desc()).limit(limit)
+        query = (
+            select(ValidationRun).order_by(ValidationRun.created_at.desc()).limit(limit)
+        )
         return list(self.session.scalars(query).all())
 
     def create_activation_review(self, payload: dict[str, object]) -> ActivationReview:
         row = ActivationReview(
             **{
                 **payload,
-                "evidence_json": json.dumps(payload["evidence_json"], sort_keys=True, default=str),
+                "evidence_json": json.dumps(
+                    payload["evidence_json"], sort_keys=True, default=str
+                ),
             }
         )
         self.session.add(row)
@@ -36,5 +40,9 @@ class ValidationRepository:
         return self.session.scalar(query)
 
     def list_activation_reviews(self, *, limit: int = 10) -> list[ActivationReview]:
-        query = select(ActivationReview).order_by(ActivationReview.created_at.desc()).limit(limit)
+        query = (
+            select(ActivationReview)
+            .order_by(ActivationReview.created_at.desc())
+            .limit(limit)
+        )
         return list(self.session.scalars(query).all())

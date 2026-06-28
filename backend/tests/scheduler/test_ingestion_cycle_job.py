@@ -95,7 +95,8 @@ def _make_summary(
         finished_at=started,
         market_records_inserted=market_records_inserted,
         market_records_updated=market_records_updated,
-        incidents=[{"source_name": "x", "severity": "error", "message": "y"}] * incidents,
+        incidents=[{"source_name": "x", "severity": "error", "message": "y"}]
+        * incidents,
         freshness_state_transitions=freshness_state_transitions,
     )
 
@@ -204,7 +205,8 @@ def _make_job(
     event_bus = EventBus()
     event_bus.subscribe()
     service = FakeIngestionService(
-        audit_writer=audit_writer, event_bus=event_bus,
+        audit_writer=audit_writer,
+        event_bus=event_bus,
     )
     job = IngestionCycleJob(
         ingestion_service=service,  # type: ignore[arg-type]
@@ -307,7 +309,8 @@ async def test_on_error_audits_once(tmp_path: Path) -> None:
     job.on_error(boom)
 
     failed_audits = [
-        e for e in _read_audit_events(audit_writer)
+        e
+        for e in _read_audit_events(audit_writer)
         if e["event_type"] == "ingestion.cycle_failed"
     ]
     assert len(failed_audits) == 1
@@ -328,7 +331,8 @@ async def test_on_error_does_not_mutate_session_scheduler(tmp_path: Path) -> Non
     audit_writer = AuditWriter(tmp_path / "state")
     event_bus = EventBus()
     service = FakeIngestionService(
-        audit_writer=audit_writer, event_bus=event_bus,
+        audit_writer=audit_writer,
+        event_bus=event_bus,
     )
     job = IngestionCycleJob(
         ingestion_service=service,  # type: ignore[arg-type]
@@ -388,12 +392,12 @@ async def test_failure_success_failure_audits_twice(tmp_path: Path) -> None:
     job.on_error(boom)
 
     failed_audits = [
-        e for e in _read_audit_events(audit_writer)
+        e
+        for e in _read_audit_events(audit_writer)
         if e["event_type"] == "ingestion.cycle_failed"
     ]
     assert len(failed_audits) == 2, (
-        f"expected 2 audit entries (one per failing episode), "
-        f"got {len(failed_audits)}"
+        f"expected 2 audit entries (one per failing episode), got {len(failed_audits)}"
     )
 
 

@@ -6,6 +6,7 @@ Verifies:
 3.  Bidirectional isolation: replay ↔ baseline/live
 4.  Default-scope preserves current behavior
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -109,17 +110,19 @@ def test_list_ordered_recent_respects_scope(db_session) -> None:
 def test_list_open_positions_respects_scope(db_session) -> None:
     for src in ("baseline", "live", "replay"):
         now = datetime.now(UTC)
-        db_session.add(DemoTradeRecord(
-            session_id=f"s-{src}",
-            signal_id=f"sig-{src}",
-            symbol="BTCUSDT",
-            executed_symbol="BTCUSDT",
-            operator_action="entered",
-            recorded_at=now,
-            broker_status="awaiting_result",
-            outcome_status="unresolved",
-            source=src,
-        ))
+        db_session.add(
+            DemoTradeRecord(
+                session_id=f"s-{src}",
+                signal_id=f"sig-{src}",
+                symbol="BTCUSDT",
+                executed_symbol="BTCUSDT",
+                operator_action="entered",
+                recorded_at=now,
+                broker_status="awaiting_result",
+                outcome_status="unresolved",
+                source=src,
+            )
+        )
     db_session.commit()
 
     repo = DemoRepository(db_session)
@@ -143,7 +146,9 @@ def test_list_session_trades_respects_scope(db_session) -> None:
     assert len(baseline) == 1
     assert baseline[0].source == "baseline"
 
-    replay = repo.list_session_trades(session_id="session-replay", source_scope={"replay"})
+    replay = repo.list_session_trades(
+        session_id="session-replay", source_scope={"replay"}
+    )
     assert len(replay) == 1
     assert replay[0].source == "replay"
 
@@ -156,7 +161,9 @@ def test_bidirectional_isolation(db_session) -> None:
 
     repo = DemoRepository(db_session)
 
-    baseline_live = {r.id for r in repo.list_all_trade_records(source_scope={"baseline", "live"})}
+    baseline_live = {
+        r.id for r in repo.list_all_trade_records(source_scope={"baseline", "live"})
+    }
     replay = {r.id for r in repo.list_all_trade_records(source_scope={"replay"})}
 
     assert len(baseline_live) == 2

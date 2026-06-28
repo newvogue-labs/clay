@@ -22,7 +22,11 @@ from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.session_review.service import SessionReviewService
 from clay.signal_engine.service import SignalEngineService
-from clay.validation_lab.models import ActivationApplyCommand, ActivationReviewCommand, ValidationRunCommand
+from clay.validation_lab.models import (
+    ActivationApplyCommand,
+    ActivationReviewCommand,
+    ValidationRunCommand,
+)
 from clay.validation_lab.service import ValidationLabService
 
 
@@ -148,7 +152,9 @@ def test_validation_lab_overview_and_run_route(db_session, tmp_path: Path) -> No
 
     payload = asyncio.run(
         run_validation_lab(
-            ValidationRunCommand(run_type="signal_quality", label="Signal quality replay"),
+            ValidationRunCommand(
+                run_type="signal_quality", label="Signal quality replay"
+            ),
             db_session,
             service,
         )
