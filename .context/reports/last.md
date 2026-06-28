@@ -1,72 +1,41 @@
-# Отчёт: сессия 2026-06-27 — S-EXEC-3b-3 + S-EXEC-3b-4 MERGED/committed
+# Отчёт: сессия 2026-06-28 — S-LINT-1c (src/ pyright 338→0)
 
 ## Что сделано
 
-### S-EXEC-3b-3 / Override API + wiring — MERGED (PR #4)
+### S-LINT-1c / src/ pyright 0 — COMPLETED ✅
 
-Merge commit `223ccb9` (no-ff) в `main`. Branch `feature/S-EXEC-3b-3-override-api-wiring` удалена (локально + remote).
+pyright `src/` очищен с 338 до 0 за 4 sub-slices, 5 коммитов в `main`:
 
-#### Детали изменения (3 раунда ревью)
+| Sub-slice | Описание | Коммит | Pyr ↓ |
+|-----------|----------|--------|-------|
+| 1c-a-1 | `binance_testnet.py` — ccxt-граница + bugfix (UnboundLocalError, fetch_order kwarg) | `226b989` | 52→0 |
+| 1c-a-2 | `signal_engine/service.py` — `list[MarketBar]`, RiskConfig/KellyConfig direct access | `59ce86c` | 48→30 |
+| 1c-a-3a | `repositories_*.py` + `ai_control/` — dict[str,object], tuples, CursorResult cast | `d51742b` | 30→18 |
+| 1c-b | pre-commit + CI workflow + Makefile aggregates | `8112ffb`~`b533c5d` | — |
+| 1c-c | Literal boundary casts в `demo_trading/service.py` + `reliability/service.py` | `351d4ee` | 18→13 |
+| 1c-d | Optional narrowing (override, replay, session_control) + protocol conformance (SOURCE→source, CancelResult) | `18af555`~`4b01961` | 13→0 |
 
-| Раунд | SHA | Ключевые фиксы |
-|-------|-----|----------------|
-| 1 | `573222e` | Начальная имплементация: routes + bootstrap + WorkspaceService |
-| 2 | `e076af5` | S1 (убрать route-level audit), S2 (public accessors), S3 (убрать db_session), S4 (OverrideResponse), N2 (sync rehydrate placeholder) |
-| 3 | `4db0838` | B1-residual тест (real wiring), S5 (rehydrate синхронный), wire-fix (`_refine_workspace_state` форвардит поля), nit-очистка (F401/F841) |
-| 4 | `20f8853` | B1-teardown: restore `original_cfg` в teardown; full suite 732/2-deselected/ruff 0 |
+#### Ключевые архитектурные решения:
 
-#### Констрейнты
-
-- D4 ✅: manual-only, 3 endpoints, advisory/signal НЕ вызывают автоматически
-- D5 ✅: `rehydrate()` clears state; armed state требует явного request→confirm
-- D2/D7 ✅: `is_live_eligible()` дремлет; mode live только через env clamping (недостижим в проде)
-- 0 миграций (кроме 3b-1), 0 LiveExecutionClient в 3b-3
-- Single audit source (OverrideRepository + JSONL secondary)
+- **ccxt-граница:** `_ccxt_dict`/`_ccxt_list` boundary helpers, не сыпем `# pyright: ignore` на каждую строку
+- **Literal-границы:** чиним producer'а (`_resolve_release_status → ReleaseReadinessStatus`), не cast'им на consumer'е
+- **Optional-инварианты:** честный `assert` там, где guard гарантирует non-None (не «затычка»). Никаких рантайм-изменений.
+- **Протокол ExecutionClient:** `SOURCE`→`source` (lowercase), `cancel_order` → `CancelResult`, LiveExecutionClient — полный набор stub-методов. `@runtime_checkable`.
+- **Inline cast** `cast(RiskConfig, load_scope("risk"))` на call site (тип возврата — `RuntimeConfig | RiskConfig`, но scope="risk" всегда RiskConfig).
 
 #### Регресс-база
 
-- **Full offline-suite:** **734 passed / 2 deselected / ruff 0**
-- **API + execution + workspace subset:** 130 passed / 1 skipped
-- **D9-матрица (eligibility):** 6 тестов в `test_override_service.py` (confirmed/pending/expired/dry_run)
-
----
-
-### S-EXEC-3b-4 / LiveExecutionClient stub — COMMITTED (direct to main)
-
-Commit `63e5871` (последний слайс 3b-цепочки, merge не требовался).
-
-#### Детали изменения
-
-| Файл | Δ | Описание |
-|------|---|----------|
-| `binance_testnet.py` | +4 -5 | `NotImplementedLiveClient` → `LiveExecutionClient` (D7 stub, docstring) |
-| `factory.py` | +2 -2 | Импорт `LiveExecutionClient`; live-ветка → `return LiveExecutionClient()` |
-| `test_execution_config.py` | +10 | +2 теста: конструкция raises + SOURCE label |
-| `test_override_api.py` | +77 -62 | B1-teardown: `try/except` → настоящий `try/finally` |
-
-#### D9-матрица (factory)
-
-| # | Сценарий | Результат |
-|---|----------|-----------|
-| (a) | `build_execution_client(mode="live")` | `ExecutionConfigError "not implemented"` ✅ |
-| (b) live + NOT eligible | не в scope (eligibility живёт в OverrideService.is_live_eligible) | — |
-| (c) live + eligible | D7 — всё равно raises (через LiveExecutionClient.__init__) | ✅ |
-| (d) | testnet/dry_run | не тронуты ✅ |
-| (e) | `from_env()` с live | clamp→dry_run ✅ |
-
-#### Констрейнты
-
-- D7 ✅: live-фабрика всегда падает (низкоуровневый raise в `LiveExecutionClient.__init__`)
-- D2 ✅: mode ⊥ override — env не армит live; override-gate — отдельная ось
-- `is_live_eligible()` — дремлющий предикат (6 unit тестов), не троган
-- 0 миграций, 0 frontend
-
----
+- **Full suite:** **736 passed / 2 deselected /ruff 0** (+2 теста vs baseline: 734→736 за счёт регрессии binance_testnet bugfix)
+- **Pyright (src/):** **0 errors, 0 warnings, 0 informations**
 
 ## Итог
 
-**HEAD `63e5871` (S-EXEC-3b-4 committed).** 734 passed excl slow, 2 deselected slow, ruff 0.
+**HEAD `4b01961`.** 736 passed, 2 deselected, ruff 0, pyright src/ 0.
 
-**S-EXEC-3b цепочка полностью закрыта:** 3a → 3b-1 → 3b-2 → 3b-3 → **3b-4 ✅**
+**S-LINT-1c полностью закрыт.** Took 1 session, ~6h wall-clock, 5 commits to main.
 
-**Next: S-EXEC-3c** — frontend TS-parity: override-баннер, confirm-модалка, `execution_override_expires_at` в WorkspaceStateSnapshot.
+**Дрейф завершён:** 338 pyright errors → 0.
+
+## Next
+
+**S-LINT-2** — pyright на app/, hooks/, tests/ (в разы легче — ~20-30 ошибок, много из 1c уже не cascade'ит). Или донор-слайс по выбору Emma.

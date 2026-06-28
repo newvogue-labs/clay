@@ -22,14 +22,17 @@
 - **S-EXEC-3b-2 / OverrideService state machine:** ✅ MERGED — `OverrideService` с state machine, `rehydrate()`, 29 unit tests. PR #3. Head: `738fe1f`.
 - **S-EXEC-3b-3 / API + wiring:** ✅ MERGED — override request/confirm/revoke endpoints, WorkspaceService integration, B1 wiring test, sync rehydrate, wire-fix. PR #4. Head: `223ccb9` (merge commit).
 - **S-EXEC-3b-4 / LiveExecutionClient stub:** ✅ COMMITTED — `NotImplementedLiveClient` → `LiveExecutionClient` (D7 stub), factory wiring, B1-teardown `try/finally`. Commit `63e5871` (direct to main, 3b-4 = last slice).
+- **S-EXEC-3c / Frontend TS-parity:** ✅ COMMITTED — 4 sub-slices (override-banner, confirm-modal, expire_in snapshot, localStorage mock fix). Commit `f51cb43`.
+- **S-LINT-1c / src/ pyright 0:** ✅ COMMITTED — 1c-a (binance_testnet + signals + repos), 1c-b (pre-commit/CI/Makefile), 1c-c (Literal boundary casts), 1c-d (Optional narrowing + protocol conformance). Commits `226b989`..`4b01961`. **338→0 errors.**
 
 ## Baseline
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD** | `63e5871` (S-EXEC-3b-4: LiveExecutionClient stub + factory wiring) |
-| **Tests** | **734 passed excl slow / 2 deselected / 0 skipped** |
+| **HEAD** | `4b01961` (S-LINT-1c: src/ pyright 0) |
+| **Tests** | **736 passed excl slow / 2 deselected / 0 skipped** |
 | **Ruff** | **0** |
+| **Pyright (src/)** | **0 errors, 0 warnings** |
 | **Alembic** | 0021 (execution_overrides, 5433) |
 | **ADR** | 001–025 (025 Accepted) |
 | **Demo (live)** | 20 sessions, 13W/7L, +4.95% |
@@ -61,4 +64,5 @@
 - **B)** Idea-bank: S-LLM-PARSE-1 и другие донор-слайсы
 - **C)** Накопить ≥30 реальных live-исходов (S-EXEC-4 smoke доказал адаптер; S-EXEC-3b override chain закрыт)
 - **D)** ~~Execution layer ADR~~ → ADR-025 Accepted, S-EXEC-2 + S-EXEC-3a + S-EXEC-4 + S-EXEC-3b merged
-- **→ Следующий слайс:** S-EXEC-3c (frontend TS-parity: override-баннер, confirm-модалка, `execution_override_expires_at` в snapshot)
+- **E)** **S-LINT-2** — pyright app/ + hooks/ + tests/ (в разы легче, чем 1c)
+- **→** Выбор Emma: S-LINT-2 или донор-слайс?
