@@ -57,10 +57,7 @@ line-length = 88
 
 [tool.ruff.format]
 
-[tool.pyright]
-venvPath = "."
-venv = ".venv"
-pythonVersion = "3.14"
-typeCheckingMode = "basic"
-include = ["src"]
-exclude = ["**/__pycache__", ".venv"]
+# Pyright config lives in backend/pyrightconfig.json (standalone config FULLY
+# overrides [tool.pyright] — pyright does NOT merge them). Single source of
+# truth: include = ["src","tests"]. Do NOT re-add a [tool.pyright] table here
+# (it would be silently ignored — this trap cost us a red-main scare).

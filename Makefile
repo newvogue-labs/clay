@@ -1,4 +1,4 @@
-.PHONY: backend-install backend-test backend-run backend-lint backend-format backend-format-check backend-typecheck frontend-install frontend-test frontend-build frontend-run lint format format-check typecheck check frontend-typecheck
+.PHONY: backend-install backend-test backend-run backend-lint backend-format backend-format-check backend-typecheck backend-typecheck-src frontend-install frontend-test frontend-build frontend-run lint format format-check typecheck check frontend-typecheck
 
 backend-install:
 	cd backend && uv sync
@@ -17,6 +17,9 @@ backend-format-check:
 
 backend-typecheck:
 	cd backend && uv run pyright
+
+backend-typecheck-src:
+	cd backend && uv run pyright src
 
 lint: backend-lint
 
