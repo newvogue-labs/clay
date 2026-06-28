@@ -606,6 +606,19 @@
 - `execution_override_expires_at | null` — ISO 8601 UTC, момент истечения override; `null` означает отсутствие активного override (см. ADR-025, ADR-001 addendum 2026-06-28).
 - `server_time` — ISO 8601 UTC, серверное время на момент сборки snapshot; клиент использует для компенсации часового дрейфа при расчёте countdown.
 
+### 16.7 Operator action: execution override (header badge + modal)
+
+- Override-badge-кнопка в command-strip header trading-workspace видна при
+  `execution_override_state ∈ {pending, confirmed}` (НЕ в workspace-state-banner —
+  тот компонент orphan и не монтируется).
+- `confirmed`: бейдж показывает countdown `mm:ss` от `execution_override_expires_at`
+  с поправкой на `server_time` offset; тик 1 с; на нуле — refetch (без локального снятия).
+- Клик открывает модалку: `pending` → Confirm/Revoke; `confirmed` → countdown + Revoke.
+- Действия → `POST /workspace/trading/override/{confirm,revoke}`, затем refetch.
+  Confirm активирует override на TTL = 1 час (backend, ADR-025 Override expiry).
+- Явный, операторски подтверждаемый override (не silent override; п. 69–72 out of scope).
+- A11y: role="dialog", aria-modal, focus trap, ESC + backdrop на закрытие, возврат фокуса.
+
 ## 17. Data flow через экран
 
 ### 17.1 Upstream dependencies

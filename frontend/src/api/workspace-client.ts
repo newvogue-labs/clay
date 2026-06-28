@@ -1,3 +1,4 @@
+import { getOperatorActor } from '../config/operator'
 import type { WorkspaceSnapshot } from '../types/workspace'
 
 const API_BASE_URL =
@@ -45,4 +46,23 @@ export function setTradingWorkspaceFocus(
 
 export function getTradingWorkspaceStreamUrl(): string {
   return `${API_BASE_URL}/workspace/trading/stream`
+}
+
+export async function requestOverride(reason: string): Promise<void> {
+  await postJson('/workspace/trading/override/request', {
+    actor: getOperatorActor(),
+    reason,
+  })
+}
+
+export async function confirmOverride(): Promise<void> {
+  await postJson('/workspace/trading/override/confirm', {
+    actor: getOperatorActor(),
+  })
+}
+
+export async function revokeOverride(): Promise<void> {
+  await postJson('/workspace/trading/override/revoke', {
+    actor: getOperatorActor(),
+  })
 }

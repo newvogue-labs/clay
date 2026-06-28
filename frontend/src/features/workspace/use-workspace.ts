@@ -1,8 +1,10 @@
 import { startTransition, useCallback, useEffect, useEffectEvent, useState } from 'react'
 
 import {
+  confirmOverride as clientConfirmOverride,
   getTradingWorkspace,
   getTradingWorkspaceStreamUrl,
+  revokeOverride as clientRevokeOverride,
   setTradingWorkspaceFocus,
 } from '../../api/workspace-client'
 import type { WorkspaceSnapshot } from '../../types/workspace'
@@ -18,6 +20,8 @@ type WorkspaceController = WorkspaceState & {
   focusSignal: (signalId: string, symbol: string) => Promise<void>
   focusMonitoringPair: (symbol: string) => Promise<void>
   refetch: () => void
+  confirmOverride: () => Promise<void>
+  revokeOverride: () => Promise<void>
 }
 
 function getErrorMessage(error: unknown): string {
@@ -119,10 +123,24 @@ export function useWorkspace(): WorkspaceController {
     })
   }
 
+  async function confirmOverride(): Promise<void> {
+    await runAction(async () => {
+      await clientConfirmOverride()
+    })
+  }
+
+  async function revokeOverride(): Promise<void> {
+    await runAction(async () => {
+      await clientRevokeOverride()
+    })
+  }
+
   return {
     ...state,
     focusSignal,
     focusMonitoringPair,
+    confirmOverride,
+    revokeOverride,
     refetch,
   }
 }

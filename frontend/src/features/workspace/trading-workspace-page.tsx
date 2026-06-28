@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -29,6 +29,7 @@ import type {
 } from '../../types/workspace'
 import { useWorkspace } from './use-workspace'
 import { formatMMSS, useOverrideCountdown } from './use-override-countdown'
+import { OverrideModal } from './override-modal'
 
 function buildBinanceUrl(symbol: string): string {
   if (!symbol.endsWith('USDT')) {
@@ -77,7 +78,7 @@ function pickSelectedSignal(snapshot: WorkspaceSnapshot | null): WorkspaceSignal
 }
 
 export function TradingWorkspacePage() {
-  const { snapshot, isLoading, error, refetch, isActing, focusSignal, focusMonitoringPair } = useWorkspace()
+  const { snapshot, isLoading, error, refetch, isActing, focusSignal, focusMonitoringPair, confirmOverride, revokeOverride } = useWorkspace()
   const selectedSignal = pickSelectedSignal(snapshot)
   const focusPair = snapshot?.focus_pair ?? null
   const workspaceState = snapshot?.workspace_state ?? null
@@ -91,12 +92,20 @@ export function TradingWorkspacePage() {
         : 0,
     [workspaceState?.server_time],
   )
-  const isOverrideActive = workspaceState?.execution_override_state === 'confirmed'
+  const overrideState = workspaceState?.execution_override_state ?? null
+  const isOverrideVisible = overrideState === 'pending' || overrideState === 'confirmed'
   const overrideRemaining = useOverrideCountdown(
-    isOverrideActive ? workspaceState?.execution_override_expires_at ?? null : null,
+    overrideState === 'confirmed' ? workspaceState?.execution_override_expires_at ?? null : null,
     serverOffsetMs,
     refetch,
   )
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (overrideModalOpen && !isOverrideVisible) {
+      setOverrideModalOpen(false)
+    }
+  }, [overrideModalOpen, isOverrideVisible])
 
   return (
     <div aria-label="trading-workspace-page" className="screen-page workspace-terminal-page" data-screen="workspace">
@@ -108,14 +117,13 @@ export function TradingWorkspacePage() {
         <div className="workspace-command-strip">
           <StatusBadge label={workspaceState?.runtime_state ?? (isLoading ? 'loading' : 'unknown')} />
           <StatusBadge label={workspaceState?.workspace_posture ?? 'monitoring'} />
-          {isOverrideActive && (
-            <StatusBadge
-              label={
-                overrideRemaining !== null && overrideRemaining > 0
-                  ? `OVERRIDE · ${formatMMSS(overrideRemaining)}`
-                  : 'OVERRIDE'
-              }
-            />
+          {isOverrideVisible && (
+            <button type="button" onClick={() => setOverrideModalOpen(true)}
+              className="rounded border px-2 py-0.5 text-[10px] font-black uppercase">
+              {overrideState === 'confirmed'
+                ? `OVERRIDE · ${overrideRemaining !== null && overrideRemaining > 0 ? formatMMSS(overrideRemaining) : '00:00'}`
+                : 'OVERRIDE PENDING'}
+            </button>
           )}
           <span>Update {formatTime(snapshot?.update_meta.focus_last_updated_at)}</span>
         </div>
@@ -175,6 +183,17 @@ export function TradingWorkspacePage() {
           <UpdateConsole snapshot={snapshot} />
         </aside>
       </div>
+
+      <OverrideModal
+        open={overrideModalOpen}
+        state={overrideState}
+        remaining={overrideRemaining}
+        isActing={isActing}
+        error={error}
+        onConfirm={confirmOverride}
+        onRevoke={revokeOverride}
+        onClose={() => setOverrideModalOpen(false)}
+      />
     </div>
   )
 }
