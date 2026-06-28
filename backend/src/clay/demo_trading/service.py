@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import cast
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from clay.demo_trading.models import (
     DemoTradeLogCommand,
     DemoTradeRecordSnapshot,
     DemoTradingSnapshot,
+    OperatorAction,
     OutcomeStatus,
 )
 from clay.events.bus import EventBus
@@ -291,7 +293,7 @@ class DemoTradingService:
             signal_id=record.signal_id,
             symbol=record.symbol,
             executed_symbol=record.executed_symbol,
-            operator_action=record.operator_action,
+            operator_action=cast(OperatorAction, record.operator_action),
             operator_notes=record.operator_notes,
             recorded_at=record.recorded_at.isoformat(),
             external_trade_id=record.external_trade_id,
@@ -302,7 +304,7 @@ class DemoTradingService:
             observed_at=record.observed_at.isoformat()
             if record.observed_at is not None
             else None,
-            outcome_status=record.outcome_status,
+            outcome_status=cast(OutcomeStatus, record.outcome_status),
             awaiting_result=record.outcome_status == "unresolved",
             advisory_size_pct=record.advisory_size_pct,
         )

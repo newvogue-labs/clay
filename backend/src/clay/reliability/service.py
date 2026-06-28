@@ -17,9 +17,11 @@ from clay.reliability.models import (
     DegradedTriggerSnapshot,
     LocalFallbackReadinessSnapshot,
     ReliabilityCheckSnapshot,
+    ReliabilityCheckStatus,
     ReliabilitySnapshot,
     ReliabilitySummary,
     ReleaseGateSnapshot,
+    ReleaseReadinessStatus,
 )
 from clay.session_review.models import SessionReviewSnapshot
 from clay.session_review.service import SessionReviewService
@@ -313,12 +315,12 @@ class ReliabilityService:
         ):
             ai_status = "warn"
 
-        demo_status_map = {
+        demo_status_map: dict[str, ReliabilityCheckStatus] = {
             "collecting": "warn",
             "at_risk": "fail",
             "ready_for_review": "pass",
         }
-        review_status_map = {
+        review_status_map: dict[str, ReliabilityCheckStatus] = {
             "collecting": "warn",
             "waiting_for_resolution": "warn",
             "needs_operator_attention": "fail",
@@ -426,7 +428,7 @@ class ReliabilityService:
         *,
         blocking_gate_count: int,
         warning_gate_count: int,
-    ) -> str:
+    ) -> ReleaseReadinessStatus:
         if blocking_gate_count > 0:
             return "blocked"
         if warning_gate_count > 0:
