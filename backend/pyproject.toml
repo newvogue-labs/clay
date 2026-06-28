@@ -21,6 +21,7 @@ dependencies = [
 dev = [
   "asgi-lifespan>=2.0,<3.0",
   "httpx>=0.27,<0.28",
+  "pyright>=1.1.411",
   "pytest>=8.3,<9.0",
   "pytest-asyncio>=0.24,<1.0",
   "ruff==0.15.16",
@@ -39,3 +40,20 @@ testpaths = ["tests"]
 markers = [
     "slow: slow tests not run in CI",
 ]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/env.py" = ["E402"]
+
+[tool.ruff.format]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.14"
+typeCheckingMode = "basic"
+include = ["src"]
+exclude = ["**/__pycache__", ".venv"]

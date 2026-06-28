@@ -1,10 +1,22 @@
-.PHONY: backend-install backend-test backend-run frontend-install frontend-test frontend-build frontend-run
+.PHONY: backend-install backend-test backend-run backend-lint backend-format backend-format-check backend-typecheck frontend-install frontend-test frontend-build frontend-run
 
 backend-install:
 	cd backend && uv sync
 
 backend-test:
 	cd backend && uv run pytest
+
+backend-lint:
+	cd backend && uv run ruff check .
+
+backend-format:
+	cd backend && uv run ruff format .
+
+backend-format-check:
+	cd backend && uv run ruff format --check .
+
+backend-typecheck:
+	cd backend && uv run pyright
 
 backend-run:
 	cd backend && uv run uvicorn clay.api.main:app --host 127.0.0.1 --port 8000 --reload
