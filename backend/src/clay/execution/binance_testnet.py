@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import ccxt.async_support as ccxt
 
@@ -11,6 +11,16 @@ from clay.execution.exceptions import (
     PartialFillError,
 )
 from clay.execution.models import Balance, OrderResult, OrderStatus, TradeFill
+
+
+def _ccxt_dict(response: object) -> dict[str, Any]:
+    """Coerce a ccxt response to a plain dict at the I/O boundary."""
+    return cast("dict[str, Any]", response)
+
+
+def _ccxt_list(items: object) -> list[dict[str, Any]]:
+    """Coerce a ccxt list response (orders/trades) to a list of plain dicts."""
+    return cast("list[dict[str, Any]]", items)
 
 
 class BinanceTestnetExecutionClient:
@@ -66,8 +76,8 @@ class BinanceTestnetExecutionClient:
         try:
             response = await self._client.create_order(
                 symbol=symbol,
-                type=order_type,
-                side=side,
+                type=cast(Any, order_type),
+                side=cast(Any, side),
                 amount=quantity,
                 price=price,
                 params={**params, "timeInForce": time_in_force, "stopPrice": stop_price}
@@ -85,6 +95,7 @@ class BinanceTestnetExecutionClient:
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
 
+        response = _ccxt_dict(response)
         client_order_id = response.get("clientOrderId") or client_order_id or ""
         fills = [
             TradeFill(
@@ -102,7 +113,7 @@ class BinanceTestnetExecutionClient:
         ]
 
         result = OrderResult(
-            client_order_id=client_order_id,
+            client_order_id=client_order_id or "",
             exchange_order_id=str(response.get("id", "")),
             symbol=symbol,
             side=side,
@@ -134,35 +145,28 @@ class BinanceTestnetExecutionClient:
 
     async def get_order_status(self, symbol: str, order_id: str) -> OrderStatus:
         try:
-            response = await self._client.fetch_order(order_id=order_id, symbol=symbol)
+            response = await self._client.fetch_order(id=order_id, symbol=symbol)
         except ccxt.OrderNotFound:
             return OrderStatus(
-                client_order_id=str(response.get("clientOrderId", "")),
+                client_order_id="",
                 exchange_order_id=order_id,
                 symbol=symbol,
-                side=str(response.get("side", "")),
-                order_type=str(response.get("type", "")),
+                side="",
+                order_type="",
                 status="not_found",
-                quantity=float(response.get("amount", 0.0)),
-                executed_qty=float(response.get("filled", 0.0)),
-                price=float(response.get("price", 0.0))
-                if response.get("price")
-                else None,
-                stop_price=float(response.get("stopPrice", 0.0))
-                if response.get("stopPrice")
-                else None,
-                transact_time=int(response.get("timestamp", 0)),
+                quantity=0.0,
+                executed_qty=0.0,
             )
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
-        return self._map_order_status(response)
+        return self._map_order_status(_ccxt_dict(response))
 
     async def get_open_orders(self, symbol: str | None = None) -> list[OrderStatus]:
         try:
             orders = await self._client.fetch_open_orders(symbol=symbol)
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
-        return [self._map_order_status(o) for o in orders]
+        return [self._map_order_status(o) for o in _ccxt_list(orders)]
 
     async def get_balances(self) -> list[Balance]:
         try:
@@ -174,6 +178,7 @@ class BinanceTestnetExecutionClient:
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
 
+        response = _ccxt_dict(response)
         balances: list[Balance] = []
         total: dict[str, Any] = response.get("total", {})
         free: dict[str, Any] = response.get("free", {})
@@ -201,6 +206,7 @@ class BinanceTestnetExecutionClient:
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
 
+        trades = _ccxt_list(trades)
         return [
             TradeFill(
                 trade_id=str(t.get("id", "")),

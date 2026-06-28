@@ -94,3 +94,52 @@ def test_partial_fill_raises(mock_ccxt, monkeypatch: pytest.MonkeyPatch) -> None
 def test_missing_keys_raises() -> None:
     with pytest.raises(ExecutionConfigError, match="required"):
         BinanceTestnetExecutionClient(api_key="", api_secret="")
+
+
+def test_get_order_status_not_found(mock_ccxt, monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    import ccxt.async_support as ccxt
+
+    mock_cls, mock_instance = mock_ccxt
+    monkeypatch.setattr("ccxt.async_support.binance", mock_cls, raising=False)
+    client = BinanceTestnetExecutionClient(api_key="k", api_secret="s")
+    mock_instance.fetch_order.side_effect = ccxt.OrderNotFound("missing")
+
+    async def run() -> None:
+        status = await client.get_order_status("BTCUSDT", "404")
+        assert status.status == "not_found"
+        assert status.exchange_order_id == "404"
+        assert status.symbol == "BTCUSDT"
+        assert status.executed_qty == 0.0
+
+    asyncio.run(run())
+
+
+def test_get_order_status_success(mock_ccxt, monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    mock_cls, mock_instance = mock_ccxt
+    monkeypatch.setattr("ccxt.async_support.binance", mock_cls, raising=False)
+    client = BinanceTestnetExecutionClient(api_key="k", api_secret="s")
+    mock_instance.fetch_order.return_value = {
+        "id": "123",
+        "clientOrderId": "cid-9",
+        "symbol": "BTCUSDT",
+        "side": "buy",
+        "type": "LIMIT",
+        "status": "FILLED",
+        "amount": 0.02,
+        "filled": 0.02,
+        "price": 30000.0,
+        "timestamp": 1_700_000_000_000,
+    }
+
+    async def run() -> None:
+        status = await client.get_order_status("BTCUSDT", "123")
+        assert status.exchange_order_id == "123"
+        assert status.client_order_id == "cid-9"
+        assert status.status == "FILLED"
+        assert status.executed_qty == 0.02
+
+    asyncio.run(run())
