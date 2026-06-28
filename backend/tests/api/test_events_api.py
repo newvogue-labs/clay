@@ -1,3 +1,6 @@
+from collections.abc import AsyncGenerator
+from typing import cast
+
 import pytest
 
 from clay.api.routes.events import get_event_stream
@@ -9,7 +12,8 @@ async def test_events_stream_returns_sse_response() -> None:
 
     assert response.headers["content-type"].startswith("text/event-stream")
 
-    first_chunk = await response.body_iterator.__anext__()
+    stream = cast(AsyncGenerator[str, None], response.body_iterator)
+    first_chunk = await anext(stream)
     assert first_chunk == 'event: control.ready\ndata: {"status": "connected"}\n\n'
 
-    await response.body_iterator.aclose()
+    await stream.aclose()

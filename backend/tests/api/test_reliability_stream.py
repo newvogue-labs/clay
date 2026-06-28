@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import AsyncGenerator
+from typing import cast
 
 from clay.api.routes.reliability_stream import reliability_event_lines
 from clay.events.bus import EventBus
@@ -7,7 +9,7 @@ from clay.events.bus import EventBus
 def test_reliability_stream_emits_refresh_for_runtime_updates() -> None:
     async def scenario() -> tuple[str, str]:
         event_bus = EventBus()
-        stream = reliability_event_lines(event_bus)
+        stream = cast(AsyncGenerator[str, None], reliability_event_lines(event_bus))
         ready_event = await anext(stream)
         event_bus.publish("runtime.updated", {"state": "degraded"})
         refresh_event = await anext(stream)

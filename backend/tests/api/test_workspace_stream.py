@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import AsyncGenerator
+from typing import cast
 
 from clay.api.routes.workspace_stream import workspace_event_lines
 from clay.events.bus import EventBus
@@ -7,7 +9,7 @@ from clay.events.bus import EventBus
 def test_workspace_stream_emits_refresh_for_focus_and_ingestion_events() -> None:
     async def scenario() -> tuple[str, str]:
         event_bus = EventBus()
-        stream = workspace_event_lines(event_bus)
+        stream = cast(AsyncGenerator[str, None], workspace_event_lines(event_bus))
         ready_event = await anext(stream)
         event_bus.publish("workspace.updated", {"symbol": "BTCUSDT"})
         refresh_event = await anext(stream)

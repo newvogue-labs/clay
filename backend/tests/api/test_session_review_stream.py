@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import AsyncGenerator
+from typing import cast
 
 from clay.api.routes.session_review_stream import session_review_event_lines
 from clay.events.bus import EventBus
@@ -7,7 +9,7 @@ from clay.events.bus import EventBus
 def test_session_review_stream_emits_refresh_for_review_events() -> None:
     async def scenario() -> tuple[str, str]:
         event_bus = EventBus()
-        stream = session_review_event_lines(event_bus)
+        stream = cast(AsyncGenerator[str, None], session_review_event_lines(event_bus))
         ready_event = await anext(stream)
         event_bus.publish("review.updated", {"event_type": "review.feedback.captured"})
         refresh_event = await anext(stream)
