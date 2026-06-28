@@ -236,6 +236,7 @@ def test_sizing_note_ev_below_zero() -> None:
         ev_gate_triggered=True,
     )
     note = SignalEngineService._build_sizing_note(result)
+    assert note is not None
     assert "EV ≤ 0" in note
     assert "negative edge" in note
 
@@ -251,6 +252,7 @@ def test_sizing_note_ev_below_min() -> None:
         ev_gate_triggered=True,
     )
     note = SignalEngineService._build_sizing_note(result)
+    assert note is not None
     assert "EV 0.03R below min" in note
     assert "signal still visible" in note
 
@@ -266,6 +268,7 @@ def test_sizing_note_gate_open() -> None:
         ev_gate_triggered=False,
     )
     note = SignalEngineService._build_sizing_note(result)
+    assert note is not None
     assert "Advisory size: 2.0%" in note
     assert "EV 0.79R" in note
 

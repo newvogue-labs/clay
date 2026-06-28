@@ -176,6 +176,7 @@ async def test_confirm_sets_expires_at_and_confirmed(sqlite_session_factory):
 
     assert result == svc._state.override_id
     assert svc.status == "confirmed"
+    assert svc.expires_at is not None
     assert before <= svc.expires_at <= after
 
 

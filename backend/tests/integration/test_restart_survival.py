@@ -183,6 +183,12 @@ def test_full_restart_survives_all_six_persisted_areas(tmp_path: Path) -> None:
         pre_strategy = StrategyStateRepository(session).read()
         pre_reliability = ReliabilityStateRepository(session).read()
 
+    assert pre_ai_state is not None
+    assert pre_session_state is not None
+    assert pre_workspace is not None
+    assert pre_strategy is not None
+    assert pre_reliability is not None
+
     # --- Teardown: drop all in-memory references to the services ---
     del services1
     del ai_control, workspace, session_control, validation_lab, reliability

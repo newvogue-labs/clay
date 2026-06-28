@@ -132,11 +132,13 @@ def test_ai_control_state_round_trip_pending_review(db_session) -> None:
     row = repo.read()
     assert row is not None
     assert row.last_reviewed_at == ts
+    assert row.last_reviewed_at is not None
     assert row.last_reviewed_at.tzinfo is not None
     assert row.pending_review_id == "rev-1"
     assert row.pending_review_role_id == "chief-agent"
     assert row.pending_review_model_id == "minimax-m3"
     assert row.pending_review_created_at == ts
+    assert row.pending_review_created_at is not None
     assert row.pending_review_created_at.tzinfo is not None
 
 
@@ -196,13 +198,16 @@ def test_session_state_round_trip_active_and_pending(db_session) -> None:
     assert row.current_signal_id == "sig-1"
     assert row.strategy_mode == "momentum"
     assert row.started_at == started
+    assert row.started_at is not None
     assert row.started_at.tzinfo is not None
     assert row.paused_at == paused
+    assert row.paused_at is not None
     assert row.paused_at.tzinfo is not None
     assert row.pending_replacement_id == "rep-1"
     assert row.pending_current_symbol == "BTCUSDT"
     assert row.pending_proposed_symbol == "ETHUSDT"
     assert row.pending_created_at == pending_created
+    assert row.pending_created_at is not None
     assert row.pending_created_at.tzinfo is not None
 
 
@@ -305,6 +310,7 @@ def test_reliability_state_round_trip_timestamp(db_session) -> None:
     row = repo.read()
     assert row is not None
     assert row.last_rechecked_at == ts
+    assert row.last_rechecked_at is not None
     assert row.last_rechecked_at.tzinfo is not None
 
 
@@ -341,6 +347,7 @@ def test_utc_datetime_naive_bind_param_is_treated_as_utc() -> None:
     naive = datetime(2026, 6, 1, 12, 0)
     bound = decorator.process_bind_param(naive, dialect=None)
     assert bound == datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    assert bound is not None
     assert bound.tzinfo is UTC
 
 
@@ -350,6 +357,7 @@ def test_utc_datetime_aware_non_utc_bind_param_is_converted_to_utc() -> None:
     aware_non_utc = datetime(2026, 6, 1, 15, 0, tzinfo=plus3)  # 12:00 UTC
     bound = decorator.process_bind_param(aware_non_utc, dialect=None)
     assert bound == datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    assert bound is not None
     assert bound.tzinfo is UTC
 
 
@@ -358,6 +366,7 @@ def test_utc_datetime_naive_result_is_tagged_as_utc() -> None:
     naive = datetime(2026, 6, 1, 12, 0)
     result = decorator.process_result_value(naive, dialect=None)
     assert result == datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    assert result is not None
     assert result.tzinfo is UTC
 
 
@@ -367,6 +376,7 @@ def test_utc_datetime_aware_result_is_converted_to_utc() -> None:
     aware_non_utc = datetime(2026, 6, 1, 15, 0, tzinfo=plus3)
     result = decorator.process_result_value(aware_non_utc, dialect=None)
     assert result == datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    assert result is not None
     assert result.tzinfo is UTC
 
 
