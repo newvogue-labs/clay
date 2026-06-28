@@ -19,6 +19,8 @@ export interface FocusPairSnapshot {
   focus_source: string
 }
 
+export type ExecutionOverrideState = 'pending' | 'confirmed'
+
 export interface WorkspaceStateSnapshot {
   runtime_state: WorkspaceRuntimeState
   workspace_posture: string
@@ -26,6 +28,10 @@ export interface WorkspaceStateSnapshot {
   can_open_binance: boolean
   can_log_decision: boolean
   blocking_reason: string | null
+  execution_mode: string | null
+  execution_override_state: ExecutionOverrideState | null
+  execution_override_expires_at: string | null
+  server_time: string
 }
 
 export interface WorkspaceSignalSummary {
