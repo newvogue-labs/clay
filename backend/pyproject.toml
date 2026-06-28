@@ -46,7 +46,13 @@ target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint.per-file-ignores]
-"alembic/env.py" = ["E402"]
+# alembic/env.py импортит clay-модули ПОСЛЕ load_dotenv(), чтобы IngestionSettings
+# видел .env. Не-инвазивно: глушим E402 и F401 (side-effect imports для metadata)
+# точечно, не переписывая env.py.
+"alembic/env.py" = ["E402", "F401"]
+# tests/conftest.py: side-effect imports (модели регистрируются в Base.metadata),
+# E402 по design (DB URL setup precedes clay imports).
+"tests/conftest.py" = ["E402", "F401"]
 
 [tool.ruff.format]
 
