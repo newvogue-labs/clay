@@ -18,6 +18,7 @@ from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
 from clay.config.paths import XdgPaths
 from clay.core.clock import VirtualClock
+from clay.db.models_market import MarketBar
 from clay.db.repositories_demo import DemoRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
@@ -201,27 +202,28 @@ def _seed_data(session: Any, clock: VirtualClock, *, n_bars: int = 120) -> None:
 # ── RetroResolver unit ─────────────────────────────────────────────────────
 
 
-class FakeBar:
-    def __init__(
-        self,
-        *,
-        close: float,
-        low: float,
-        high: float,
-        bar_close_time: datetime,
-        symbol: str = SYMBOL,
-    ) -> None:
-        self.close = close
-        self.low = low
-        self.high = high
-        self.bar_close_time = bar_close_time
-        self.symbol = symbol
-        self.bar_open_time = bar_close_time - timedelta(hours=1)
+def _make_bar(
+    *,
+    close: float,
+    low: float,
+    high: float,
+    bar_close_time: datetime,
+    symbol: str = SYMBOL,
+) -> MarketBar:
+    return MarketBar(
+        symbol=symbol,
+        timeframe=TF,
+        close=close,
+        low=low,
+        high=high,
+        bar_close_time=bar_close_time,
+        bar_open_time=bar_close_time - timedelta(hours=1),
+    )
 
 
 class TestRetroResolver:
     def test_insufficient_forward_bars_raises(self) -> None:
-        bars = [FakeBar(close=100, low=99, high=101, bar_close_time=START_AS_OF)]
+        bars = [_make_bar(close=100, low=99, high=101, bar_close_time=START_AS_OF)]
         with pytest.raises(ForwardBufferError, match="Need 48 forward bars"):
             RetroResolver.resolve(0, bars, stop_price=98.0, target_price=103.0)
 
@@ -232,7 +234,7 @@ class TestRetroResolver:
     def test_stop_hit_returns_loss(self) -> None:
         entry = START_AS_OF
         bars = [
-            FakeBar(
+            _make_bar(
                 close=100, low=99, high=101, bar_close_time=entry + timedelta(hours=i)
             )
             for i in range(FORWARD_BUFFER_BARS + 5)
@@ -247,7 +249,7 @@ class TestRetroResolver:
     def test_target_hit_returns_win(self) -> None:
         entry = START_AS_OF
         bars = [
-            FakeBar(
+            _make_bar(
                 close=100, low=99, high=101, bar_close_time=entry + timedelta(hours=i)
             )
             for i in range(FORWARD_BUFFER_BARS + 5)
@@ -262,7 +264,7 @@ class TestRetroResolver:
     def test_stop_hit_before_target(self) -> None:
         entry = START_AS_OF
         bars = [
-            FakeBar(
+            _make_bar(
                 close=100, low=99, high=101, bar_close_time=entry + timedelta(hours=i)
             )
             for i in range(FORWARD_BUFFER_BARS + 5)
@@ -276,7 +278,7 @@ class TestRetroResolver:
     def test_target_hit_before_stop(self) -> None:
         entry = START_AS_OF
         bars = [
-            FakeBar(
+            _make_bar(
                 close=100, low=99, high=101, bar_close_time=entry + timedelta(hours=i)
             )
             for i in range(FORWARD_BUFFER_BARS + 5)
@@ -290,7 +292,7 @@ class TestRetroResolver:
     def test_no_hit_within_buffer_raises(self) -> None:
         entry = START_AS_OF
         bars = [
-            FakeBar(
+            _make_bar(
                 close=100, low=99, high=101, bar_close_time=entry + timedelta(hours=i)
             )
             for i in range(FORWARD_BUFFER_BARS + 5)

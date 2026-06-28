@@ -31,8 +31,12 @@ class _ThrowingBinanceClient:
     """Fake client that raises on demand for controlled testing."""
 
     def __init__(self, error: Exception | None = None) -> None:
+        self.source = "test"
         self.error = error
         self.call_count = 0
+
+    def set_http_client(self, client: httpx.AsyncClient | None) -> None:
+        return
 
     async def fetch_klines(
         self, symbol: str, interval: str, limit: int = 200
@@ -47,9 +51,13 @@ class _SequentialThrowingBinanceClient:
     """Fake client that fails N times then succeeds."""
 
     def __init__(self, error: Exception, fail_count: int) -> None:
+        self.source = "test"
         self._error = error
         self._fail_count = fail_count
         self.call_count = 0
+
+    def set_http_client(self, client: httpx.AsyncClient | None) -> None:
+        return
 
     async def fetch_klines(
         self, symbol: str, interval: str, limit: int = 200

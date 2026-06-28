@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime, timedelta
 
+from clay.config.models import KellyConfig
 from clay.runtime.states import RuntimeState
 from clay.signal_engine.models import RiskTriggerSnapshot
 from clay.signal_engine.service import KellySizingResult, SignalEngineService
@@ -163,25 +164,12 @@ def _make_trigger(
     )
 
 
-class FakeKellyConfig:
-    def __init__(self, min_ev: float = 0.15) -> None:
-        self.min_ev = min_ev
-        self.lambda_ = 0.25
-        self.cap = 0.02
-
-
-class FakeRiskConfig:
-    def __init__(self) -> None:
-        self.kelly = FakeKellyConfig()
-        self.calibration = type("FakeCal", (), {"min_outcomes_for_recalibration": 30})()
-
-
 def test_kelly_sizing_degraded_returns_none() -> None:
     engine = object.__new__(SignalEngineService)
     result = engine._apply_kelly_sizing(
         runtime_state=RuntimeState.DEGRADED,
         sizing_stats=(0.65, 1.5, 0.625, 0.2, 0.02),
-        kelly_config=FakeKellyConfig(),
+        kelly_config=KellyConfig(),
     )
     assert result.f is None
     assert result.ev_gate_triggered is False
@@ -192,7 +180,7 @@ def test_kelly_sizing_ev_below_zero_zeroes() -> None:
     result = engine._apply_kelly_sizing(
         runtime_state=RuntimeState.BACKGROUND_MONITORING,
         sizing_stats=(0.3, 1.0, -0.4, 0.0, 0.0),
-        kelly_config=FakeKellyConfig(min_ev=0.15),
+        kelly_config=KellyConfig(min_ev=0.15),
     )
     assert result.f == 0.0
     assert result.ev_gate_triggered is True
@@ -203,7 +191,7 @@ def test_kelly_sizing_ev_below_min_zeroes() -> None:
     result = engine._apply_kelly_sizing(
         runtime_state=RuntimeState.BACKGROUND_MONITORING,
         sizing_stats=(0.5, 1.05, 0.025, 0.0, 0.0),
-        kelly_config=FakeKellyConfig(min_ev=0.15),
+        kelly_config=KellyConfig(min_ev=0.15),
     )
     assert result.f == 0.0
     assert result.ev_gate_triggered is True
@@ -214,7 +202,7 @@ def test_kelly_sizing_ev_above_min_passes() -> None:
     result = engine._apply_kelly_sizing(
         runtime_state=RuntimeState.BACKGROUND_MONITORING,
         sizing_stats=(0.65, 1.76, 0.79, 0.45, 0.02),
-        kelly_config=FakeKellyConfig(min_ev=0.15),
+        kelly_config=KellyConfig(min_ev=0.15),
     )
     assert result.f == 0.02
     assert result.ev_gate_triggered is False
@@ -314,7 +302,7 @@ class TestEvGateScenarios:
     def test_negative_edge_ev_below_zero(self) -> None:
         """EV ≤ 0: f=0, gate triggered, note says negative edge, signal visible."""
         engine = self._engine()
-        cfg = FakeKellyConfig(min_ev=0.15)
+        cfg = KellyConfig(min_ev=0.15)
         result = engine._apply_kelly_sizing(
             runtime_state=RuntimeState.BACKGROUND_MONITORING,
             sizing_stats=(0.3, 1.0, -0.4, 0.0, 0.0),
@@ -329,7 +317,7 @@ class TestEvGateScenarios:
     def test_below_min_gate_blocks(self) -> None:
         """0 < EV ≤ min_ev: f=0, gate triggered, note says below min, signal visible."""
         engine = self._engine()
-        cfg = FakeKellyConfig(min_ev=0.15)
+        cfg = KellyConfig(min_ev=0.15)
         result = engine._apply_kelly_sizing(
             runtime_state=RuntimeState.BACKGROUND_MONITORING,
             sizing_stats=(0.5, 1.05, 0.025, 0.0, 0.0),
@@ -344,7 +332,7 @@ class TestEvGateScenarios:
     def test_above_min_passes_gate(self) -> None:
         """EV > min_ev: f>0 (capped), gate open, note says advisory size."""
         engine = self._engine()
-        cfg = FakeKellyConfig(min_ev=0.15)
+        cfg = KellyConfig(min_ev=0.15)
         result = engine._apply_kelly_sizing(
             runtime_state=RuntimeState.BACKGROUND_MONITORING,
             sizing_stats=(0.65, 1.76, 0.79, 0.45, 0.02),
@@ -358,7 +346,7 @@ class TestEvGateScenarios:
     def test_degraded_skips_kelly(self) -> None:
         """Degraded: f=None, gate not triggered, note says degraded."""
         engine = self._engine()
-        cfg = FakeKellyConfig(min_ev=0.15)
+        cfg = KellyConfig(min_ev=0.15)
         result = engine._apply_kelly_sizing(
             runtime_state=RuntimeState.DEGRADED,
             sizing_stats=(0.65, 1.5, 0.625, 0.2, 0.02),

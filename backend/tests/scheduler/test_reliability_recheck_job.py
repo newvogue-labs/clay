@@ -26,9 +26,10 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from clay.audit.writer import AuditWriter
 from clay.events.bus import EventBus
@@ -204,7 +205,7 @@ def _make_job(
     factory = _FakeSessionFactory()
     job = ReliabilityRecheckJob(
         reliability_service=reliability_service,
-        session_factory=factory,
+        session_factory=cast(sessionmaker, factory),
         audit_writer=audit_writer,
         event_bus=event_bus,
     )
@@ -340,7 +341,7 @@ def test_on_error_does_not_mutate_session_scheduler(tmp_path: Path) -> None:
     factory = _FakeSessionFactory()
     job = ReliabilityRecheckJob(
         reliability_service=service,
-        session_factory=factory,
+        session_factory=cast(sessionmaker, factory),
         audit_writer=audit_writer,
         event_bus=event_bus,
     )
