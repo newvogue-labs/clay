@@ -4,6 +4,7 @@ import logging
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 from sqlalchemy.orm import Session
 
@@ -11,8 +12,10 @@ from clay.ai_control.service import AIControlService
 from clay.ai_control.models import AssignmentSnapshot
 from clay.core.clock import Clock, SystemClock
 from clay.config.loader import ConfigLoader
+from clay.config.models import KellyConfig, RiskConfig
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
+from clay.db.models_market import MarketBar
 from clay.db.repositories_ops import OpsRepository
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
@@ -118,7 +121,7 @@ class SignalEngineService:
         context_repo = ContextRepository(session)
         ops_repo = OpsRepository(session)
         ai_snapshot = self.ai_control_service.build_snapshot()
-        risk_config = self.config_loader.load_scope("risk")
+        risk_config = cast(RiskConfig, self.config_loader.load_scope("risk"))
         sizing_stats = self._compute_sizing_stats(
             session, risk_config, source_scope=source_scope
         )
@@ -316,8 +319,8 @@ class SignalEngineService:
             )
         return candidates
 
-    def _pick_preferred_bars(self, bars: list[object]) -> list[object]:
-        by_symbol: dict[str, object] = {}
+    def _pick_preferred_bars(self, bars: list[MarketBar]) -> list[MarketBar]:
+        by_symbol: dict[str, MarketBar] = {}
         for bar in bars:
             current = by_symbol.get(bar.symbol)
             if current is None:
@@ -494,7 +497,7 @@ class SignalEngineService:
     def _compute_sizing_stats(
         self,
         session: Session,
-        risk_config: object,
+        risk_config: RiskConfig,
         source_scope: Collection[str] | None = None,
     ) -> SizingStats:
         from clay.db.repositories_demo import DEFAULT_READ_SCOPE, DemoRepository
@@ -515,13 +518,11 @@ class SignalEngineService:
             elif r.pnl_pct < 0:
                 losses += 1
                 loss_pnl_sum += r.pnl_pct
-        kelly_cfg = getattr(risk_config, "kelly", None)
-        cal_cfg = getattr(risk_config, "calibration", None)
-        min_outcomes = (
-            cal_cfg.min_outcomes_for_recalibration if cal_cfg is not None else 30
-        )
-        lam = kelly_cfg.lambda_ if kelly_cfg is not None else 0.25
-        cap = kelly_cfg.cap if kelly_cfg is not None else 0.02
+        kelly_cfg = risk_config.kelly
+        cal_cfg = risk_config.calibration
+        min_outcomes = cal_cfg.min_outcomes_for_recalibration
+        lam = kelly_cfg.lambda_
+        cap = kelly_cfg.cap
 
         return compute_sizing_stats(
             wins=wins,
@@ -538,7 +539,7 @@ class SignalEngineService:
         *,
         runtime_state: RuntimeState,
         sizing_stats: SizingStats,
-        kelly_config: object,
+        kelly_config: KellyConfig,
     ) -> KellySizingResult:
         degraded = runtime_state in (RuntimeState.DEGRADED,)
         if degraded:
@@ -553,7 +554,7 @@ class SignalEngineService:
             )
 
         p, b, ev_val, f_star, f = sizing_stats
-        min_ev = getattr(kelly_config, "min_ev", 0.15)
+        min_ev = kelly_config.min_ev
 
         if ev_val <= 0:
             return KellySizingResult(
