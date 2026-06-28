@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
@@ -17,6 +18,7 @@ from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
 from tests.support.factories import make_ingestion_settings
+from tests.support.bundles import ReliabilityBundle
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
@@ -29,7 +31,7 @@ from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
 
 
-def build_reliability_bundle(tmp_path: Path) -> dict[str, object]:
+def build_reliability_bundle(tmp_path: Path) -> ReliabilityBundle:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",
@@ -244,7 +246,9 @@ def test_reliability_overview_route_returns_snapshot(
         "control-api", ServiceStatus.STOPPED, error="operator stop"
     )
 
-    payload = asyncio.run(get_reliability_overview(db_session, bundle["service"]))
+    payload: dict[str, Any] = asyncio.run(
+        get_reliability_overview(db_session, bundle["service"])
+    )
 
     assert payload["summary"]["release_readiness_status"] == "blocked"
     assert payload["degraded_triggers"]
@@ -261,7 +265,9 @@ def test_reliability_recheck_route_returns_updated_snapshot(
         ValidationRunCommand(run_type="strategy_replay", label="Release rehearsal"),
     )
 
-    payload = asyncio.run(recheck_reliability(db_session, bundle["service"]))
+    payload: dict[str, Any] = asyncio.run(
+        recheck_reliability(db_session, bundle["service"])
+    )
 
     assert payload["summary"]["release_readiness_status"] == "ready_for_demo"
     assert payload["summary"]["last_rechecked_at"] is not None
@@ -290,7 +296,9 @@ def test_reliability_ignores_resolved_incidents_for_release_blockers(
     )
     db_session.commit()
 
-    payload = asyncio.run(get_reliability_overview(db_session, bundle["service"]))
+    payload: dict[str, Any] = asyncio.run(
+        get_reliability_overview(db_session, bundle["service"])
+    )
 
     assert payload["summary"]["blocking_gate_count"] == 0
     assert all(

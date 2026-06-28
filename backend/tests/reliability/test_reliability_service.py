@@ -20,6 +20,7 @@ from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
 from tests.support.factories import make_ingestion_settings
+from tests.support.bundles import ReliabilityBundle
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
@@ -32,7 +33,7 @@ from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
 
 
-def build_reliability_bundle(tmp_path: Path) -> dict[str, object]:
+def build_reliability_bundle(tmp_path: Path) -> ReliabilityBundle:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",

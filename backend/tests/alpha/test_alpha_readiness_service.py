@@ -1,11 +1,13 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import httpx
 
 from clay.ai_control.service import AIControlService
 from tests.support.factories import make_ingestion_settings
+from tests.support.bundles import AlphaBundle
 from clay.alpha.service import AlphaReadinessService
 from clay.api.dependencies import (
     get_alpha_readiness_service,
@@ -49,7 +51,7 @@ from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
 
 
-def build_alpha_bundle(tmp_path: Path) -> dict[str, object]:
+def build_alpha_bundle(tmp_path: Path) -> AlphaBundle:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",
@@ -264,7 +266,7 @@ def seed_alpha_demo_evidence(session) -> None:
     session.commit()
 
 
-def next_operator_step(payload: dict[str, object]) -> dict[str, object] | None:
+def next_operator_step(payload: dict[str, Any]) -> dict[str, object] | None:
     return next(
         (
             step
@@ -275,9 +277,7 @@ def next_operator_step(payload: dict[str, object]) -> dict[str, object] | None:
     )
 
 
-def assert_next_step(
-    payload: dict[str, object], step_id: str, target_screen: str
-) -> None:
+def assert_next_step(payload: dict[str, Any], step_id: str, target_screen: str) -> None:
     next_step = next_operator_step(payload)
     assert next_step is not None
     assert next_step["step_id"] == step_id
@@ -359,17 +359,23 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(
     bundle = build_alpha_bundle(tmp_path)
     seed_alpha_inputs(db_session)
 
-    initial = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    initial: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
     assert initial["summary"]["operator_path_ready"] is True
     assert_next_step(initial, "start_or_resume_session", "session-control")
 
-    started = asyncio.run(start_session(db_session, bundle["session_control_service"]))
+    started: dict[str, Any] = asyncio.run(
+        start_session(db_session, bundle["session_control_service"])
+    )
     assert started["lifecycle"]["lifecycle_state"] == "active_session"
 
-    after_start = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    after_start: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
     assert_next_step(after_start, "log_demo_decision", "demo-validation")
 
-    logged = asyncio.run(
+    logged: dict[str, Any] = asyncio.run(
         log_current_demo_trade(
             DemoTradeLogCommand(
                 operator_action="entered",
@@ -381,10 +387,12 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(
     )
     record_id = logged["records"][0]["record_id"]
 
-    after_log = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    after_log: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
     assert_next_step(after_log, "resolve_demo_result", "demo-validation")
 
-    resolved = asyncio.run(
+    resolved: dict[str, Any] = asyncio.run(
         ingest_demo_result(
             DemoResultIngestCommand(
                 record_id=record_id,
@@ -400,16 +408,18 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(
     )
     assert resolved["records"][0]["outcome_status"] == "matched"
 
-    completed = asyncio.run(
+    completed: dict[str, Any] = asyncio.run(
         complete_session(db_session, bundle["session_control_service"])
     )
     assert completed["lifecycle"]["lifecycle_state"] == "review"
 
-    after_result = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    after_result: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
     assert after_result["evidence"]["session_lifecycle_state"] == "review"
     assert_next_step(after_result, "review_feedback", "session-review")
 
-    reviewed = asyncio.run(
+    reviewed: dict[str, Any] = asyncio.run(
         capture_session_feedback(
             FeedbackCreateCommand(
                 record_id=record_id,
@@ -422,10 +432,12 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(
     )
     assert reviewed["summary"]["feedback_count"] == 1
 
-    after_feedback = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    after_feedback: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
     assert_next_step(after_feedback, "run_validation_replay", "validation-lab")
 
-    validation = asyncio.run(
+    validation: dict[str, Any] = asyncio.run(
         run_validation_lab(
             ValidationRunCommand(
                 run_type="strategy_replay", label="Alpha happy path replay"
@@ -436,16 +448,20 @@ def test_alpha_happy_path_advances_runbook_across_operator_routes(
     )
     assert validation["summary"]["replay_ready"] is True
 
-    after_validation = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    after_validation: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
     assert_next_step(after_validation, "recheck_reliability", "reliability")
 
-    reliability = asyncio.run(
+    reliability: dict[str, Any] = asyncio.run(
         recheck_reliability(db_session, bundle["reliability_service"])
     )
     assert reliability["summary"]["last_rechecked_at"] is not None
     assert reliability["summary"]["release_readiness_status"] == "needs_attention"
 
-    final = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    final: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
     assert final["summary"]["operator_path_ready"] is True
     assert final["summary"]["readiness_status"] == "operator_path_ready"
     assert final["evidence"]["release_readiness_status"] == "needs_attention"
@@ -575,7 +591,9 @@ def test_alpha_overview_route_returns_snapshot_payload(
     bundle = build_alpha_bundle(tmp_path)
     seed_alpha_inputs(db_session)
 
-    payload = asyncio.run(get_alpha_overview(db_session, bundle["service"]))
+    payload: dict[str, Any] = asyncio.run(
+        get_alpha_overview(db_session, bundle["service"])
+    )
 
     assert payload["summary"]["operator_path_ready"] is True
     assert payload["evidence"]["focus_symbol"] == "BTCUSDT"
