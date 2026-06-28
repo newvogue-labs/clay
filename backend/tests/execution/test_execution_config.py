@@ -46,7 +46,7 @@ def test_execution_config_invalid_mode_safe_defaults(
 
 def test_build_execution_client_dry_run() -> None:
     client = build_execution_client(mode="dry_run")
-    assert client.SOURCE == "dry_run"
+    assert client.source == "dry_run"
 
 
 def test_build_execution_client_testnet_missing_keys_raises(
@@ -69,4 +69,4 @@ def test_live_execution_client_raises_on_construction() -> None:
 
 
 def test_live_execution_client_source_label() -> None:
-    assert LiveExecutionClient.SOURCE == "live"
+    assert LiveExecutionClient.source == "live"

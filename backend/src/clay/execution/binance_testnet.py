@@ -10,7 +10,13 @@ from clay.execution.exceptions import (
     OrderTimeoutError,
     PartialFillError,
 )
-from clay.execution.models import Balance, OrderResult, OrderStatus, TradeFill
+from clay.execution.models import (
+    Balance,
+    CancelResult,
+    OrderResult,
+    OrderStatus,
+    TradeFill,
+)
 
 
 def _ccxt_dict(response: object) -> dict[str, Any]:
@@ -32,7 +38,7 @@ class BinanceTestnetExecutionClient:
     - Credentials are loaded from env, never from TOML/repo.
     """
 
-    SOURCE = "testnet"
+    source: str = "testnet"
     BASE_URL = "https://testnet.binance.vision"
 
     def __init__(
@@ -134,14 +140,25 @@ class BinanceTestnetExecutionClient:
 
         return result
 
-    async def cancel_order(self, symbol: str, order_id: str) -> Any:
+    async def cancel_order(self, symbol: str, order_id: str) -> CancelResult:
         try:
             response = await self._client.cancel_order(id=order_id, symbol=symbol)
         except ccxt.OrderNotFound:
-            return {"status": "not_found", "order_id": order_id, "symbol": symbol}
+            return CancelResult(
+                client_order_id="",
+                exchange_order_id=order_id,
+                symbol=symbol,
+                status="not_found",
+            )
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc), raw={"msg": str(exc)}) from exc
-        return response
+        response = _ccxt_dict(response)
+        return CancelResult(
+            client_order_id=response.get("clientOrderId", ""),
+            exchange_order_id=str(response.get("id", order_id)),
+            symbol=symbol,
+            status=str(response.get("status", "canceled")),
+        )
 
     async def get_order_status(self, symbol: str, order_id: str) -> OrderStatus:
         try:
@@ -249,7 +266,7 @@ class DryRunExecutionClient:
     Returns successful empty results without contacting the exchange.
     """
 
-    SOURCE = "dry_run"
+    source: str = "dry_run"
 
     async def place_order(self, *args: Any, **kwargs: Any) -> OrderResult:
         client_order_id = kwargs.get("client_order_id") or ""
@@ -264,8 +281,13 @@ class DryRunExecutionClient:
             transact_time=0,
         )
 
-    async def cancel_order(self, symbol: str, order_id: str) -> dict[str, str]:
-        return {"status": "dry_run", "order_id": order_id, "symbol": symbol}
+    async def cancel_order(self, symbol: str, order_id: str) -> CancelResult:
+        return CancelResult(
+            client_order_id="",
+            exchange_order_id=order_id,
+            symbol=symbol,
+            status="dry_run",
+        )
 
     async def get_order_status(self, symbol: str, order_id: str) -> OrderStatus:
         return OrderStatus(
@@ -301,7 +323,7 @@ class LiveExecutionClient:
     ``__init__`` raises unconditionally — the exchange is never contacted.
     """
 
-    SOURCE = "live"
+    source: str = "live"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         raise ExecutionConfigError(
@@ -309,4 +331,21 @@ class LiveExecutionClient:
         )
 
     async def place_order(self, *args: Any, **kwargs: Any) -> OrderResult:
+        raise ExecutionConfigError("Live execution is disabled")
+
+    async def cancel_order(self, symbol: str, order_id: str) -> CancelResult:
+        raise ExecutionConfigError("Live execution is disabled")
+
+    async def get_order_status(self, symbol: str, order_id: str) -> OrderStatus:
+        raise ExecutionConfigError("Live execution is disabled")
+
+    async def get_open_orders(self, symbol: str | None = None) -> list[OrderStatus]:
+        raise ExecutionConfigError("Live execution is disabled")
+
+    async def get_balances(self) -> list[Balance]:
+        raise ExecutionConfigError("Live execution is disabled")
+
+    async def get_recent_trades(
+        self, symbol: str, *, limit: int = 500
+    ) -> list[TradeFill]:
         raise ExecutionConfigError("Live execution is disabled")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import cast
 
 from clay.execution.binance_testnet import (
     BinanceTestnetExecutionClient,
@@ -33,7 +34,7 @@ def build_execution_client(*, mode: str, **overrides: object) -> "ExecutionClien
         return BinanceTestnetExecutionClient(
             api_key=api_key,
             api_secret=api_secret,
-            recv_window=int(overrides.get("recv_window", 5000)),
+            recv_window=cast(int, overrides.get("recv_window", 5000)),
         )
     if mode == "live":
         return LiveExecutionClient()
