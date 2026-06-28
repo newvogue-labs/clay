@@ -6,6 +6,7 @@ from clay.execution.binance_testnet import LiveExecutionClient
 from clay.execution.config import ExecutionConfig
 from clay.execution.exceptions import ExecutionConfigError
 from clay.execution.factory import build_execution_client
+from clay.execution.protocol import ExecutionClient
 
 
 def test_default_execution_config_is_dry_run() -> None:
@@ -70,3 +71,14 @@ def test_live_execution_client_raises_on_construction() -> None:
 
 def test_live_execution_client_source_label() -> None:
     assert LiveExecutionClient.source == "live"
+
+
+def test_dry_run_client_satisfies_execution_protocol() -> None:
+    # runtime_checkable structural conformance (ADR-008 contract).
+    assert isinstance(build_execution_client(mode="dry_run"), ExecutionClient)
+
+
+def test_testnet_client_satisfies_execution_protocol() -> None:
+    # ccxt client is constructed offline (no network until a call is made).
+    client = build_execution_client(mode="testnet", api_key="k", api_secret="s")
+    assert isinstance(client, ExecutionClient)
