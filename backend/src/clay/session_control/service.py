@@ -957,6 +957,9 @@ class SessionControlService:
     def _build_replacement_review(
         self, *, current_signal, candidate
     ) -> PairReplacementReviewSnapshot:
+        # invariant: only called from _build_pending_replacement after a
+        # `self._active_session is None` guard.
+        assert self._active_session is not None
         current_symbol = (
             current_signal.symbol
             if current_signal is not None

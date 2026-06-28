@@ -150,6 +150,7 @@ class OverrideService:
             )
 
         override_id = self._state.override_id
+        assert override_id is not None  # invariant: set whenever status != None
         expires_at = self._clock.now() + ttl
         self._state = _OverrideState(
             status="confirmed",
@@ -185,6 +186,7 @@ class OverrideService:
             raise ExecutionConfigError("revoke rejected: no active override to revoke")
 
         override_id = self._state.override_id
+        assert override_id is not None  # invariant: set whenever status != None
         prev_status = self._state.status
         self._state = _OverrideState()
 
@@ -219,6 +221,7 @@ class OverrideService:
             return None
 
         override_id = self._state.override_id
+        assert override_id is not None  # invariant: set whenever status != None
         expired_at = self._state.expires_at
         self._state = _OverrideState()
 

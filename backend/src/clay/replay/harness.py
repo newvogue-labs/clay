@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from clay.db.models_market import MarketBar
 
 from clay.core.clock import VirtualClock
+from clay.db.models_demo import DemoTradeRecord
 from clay.db.repositories_demo import DemoRepository
 from clay.demo_trading.service import DemoTradingService
 from clay.replay.models import ReplayRunSummary, ReplayTradeResult
@@ -248,7 +249,7 @@ class ReplayHarness:
 
     # ── Internals ────────────────────────────────────────────────────────────
 
-    def _log_trade(self, signal) -> object:
+    def _log_trade(self, signal) -> DemoTradeRecord:
         active = self._demo_trading._require_active_session(self._session)
         repo = DemoRepository(self._session)
         now = self._clock.now()
@@ -286,6 +287,7 @@ class ReplayHarness:
         result.session_id = self._open.session_id
         result.signal_id = self._open.signal_id
 
+        assert result.pnl_pct is not None  # set on every resolve() return
         self._demo_trading.ingest_result(
             self._session,
             record_id=self._open.record_id,
