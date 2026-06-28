@@ -53,4 +53,4 @@ class KnowledgeRepository:
         )
         if category is not None:
             query = query.where(KnowledgeItem.category == category)
-        return list(self.session.execute(query).all())
+        return list(self.session.execute(query).tuples().all())

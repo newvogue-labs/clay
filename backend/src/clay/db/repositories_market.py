@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
@@ -29,7 +30,7 @@ class MarketRepository:
 
     def upsert_market_bars(
         self,
-        bars: list[dict[str, object]],
+        bars: list[dict[str, Any]],
     ) -> tuple[int, int]:
         """Insert-or-update bars; return ``(inserted, updated)``.
 

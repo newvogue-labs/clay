@@ -4,6 +4,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from sqlalchemy import func, select
@@ -29,6 +30,7 @@ from clay.ai_control.models import (
 from clay.db.repositories_ops import OpsRepository
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
+from clay.config.models import RiskConfig
 from clay.db.repositories_runtime_state import (
     AIAssignmentRepository,
     AIControlStateRepository,
@@ -466,8 +468,8 @@ class AIControlService:
         runtime_degraded = (
             runtime_state == RuntimeState.DEGRADED or preflight.status == "hard_fail"
         )
-        confidence_penalty = self.config_loader.load_scope(
-            "risk"
+        confidence_penalty = cast(
+            RiskConfig, self.config_loader.load_scope("risk")
         ).degraded_confidence_penalty
 
         rows: list[AssignmentSnapshot] = []
@@ -600,8 +602,8 @@ class AIControlService:
 
         if not proposed_model.fallback_ready:
             severity = "warning" if severity != "critical" else severity
-            resulting_penalty = self.config_loader.load_scope(
-                "risk"
+            resulting_penalty = cast(
+                RiskConfig, self.config_loader.load_scope("risk")
             ).degraded_confidence_penalty
             risks.append("Proposed model has no safe local fallback path.")
 

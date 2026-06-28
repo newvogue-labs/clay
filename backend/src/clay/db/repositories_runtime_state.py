@@ -88,7 +88,7 @@ def _singleton_save(
         for key, value in fields.items():
             setattr(row, key, value)
         if with_updated_at:
-            row.updated_at = _utcnow()
+            setattr(row, "updated_at", _utcnow())
     session.flush()
 
 

@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Sequence
+from typing import Any, Sequence, cast
 
-from sqlalchemy import text
+from sqlalchemy import CursorResult, text
 from sqlalchemy.orm import Session
 
 from clay.ai_control.provider_pool import (
@@ -167,7 +167,7 @@ class SqlProviderPoolRepository(ProviderPoolRepository):
         """
         result = self._session.execute(text(sql), {"now": now})
         self._session.flush()
-        return result.rowcount
+        return cast("CursorResult[Any]", result).rowcount
 
     def expire_exhausted(self, now: datetime) -> int:
         sql = """
@@ -177,7 +177,7 @@ class SqlProviderPoolRepository(ProviderPoolRepository):
         """
         result = self._session.execute(text(sql), {"now": now})
         self._session.flush()
-        return result.rowcount
+        return cast("CursorResult[Any]", result).rowcount
 
     def list_enabled_deployments(self) -> Sequence[DeploymentRow]:
         sql = """
