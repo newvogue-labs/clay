@@ -652,12 +652,14 @@ Dependencies: E1, E2, E5
 
 ### Task E12.4: Описать release gates
 
-- [ ] Определить, что нельзя релизить без:
+- [x] Определить, что нельзя релизить без:
   - preflight;
   - risk controls;
   - audit trail;
   - demo-read integration;
   - degraded mode visibility.
+
+**✅ Выполнено (Tier-0 W2, 2026-06-29):** формальный спек — [`release-gates.md`](release-gates.md): критерии прохода `G0–G6` + текущий статус + связь с release-rings.
 
 **Dependencies:** `E1`–`E11`
 **Deliverable:** release readiness checklist

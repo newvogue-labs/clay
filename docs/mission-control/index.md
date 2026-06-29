@@ -21,6 +21,9 @@
 - `execution-backlog-v1.md`
   Декомпозиция blueprint в эпики, задачи и подзадачи для дальнейшей разработки.
 
+- `release-gates.md`
+  Формальные критерии прохода гейтов готовности `G0–G6` + текущий статус + связь с release-rings и real-money GO. Закрывает задачу `E12.4`.
+
 - `tech-stack-v1.md`
   Канонический документ по технологическому стеку, transport policy, storage baseline и toolchain.
 
@@ -86,6 +89,7 @@
 - ~~`implementation_plans/deploy5-ai-model-layer-implementation-plan.md`~~ **SUPERSEDED** (live-правда — blueprint §9–§10)
 - `runbooks/runbook-003-killswitch-egress.md`
 - `runbooks/runbook-004-litellm-gateway.md`
+- `release-gates.md`
 
 ## Как использовать
 
