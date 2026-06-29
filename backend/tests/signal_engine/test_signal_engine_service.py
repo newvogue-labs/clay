@@ -8,13 +8,17 @@ from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
+from clay.settings.ingestion import IngestionSettings
 from clay.signal_engine.service import SignalEngineService
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
+from tests.support.factories import make_ingestion_settings
 
 
-def build_signal_engine() -> SignalEngineService:
+def build_signal_engine(
+    ingestion_settings: IngestionSettings | None = None,
+) -> SignalEngineService:
     registry = ServiceRegistry()
     registry.register(
         service_id="control-api",
@@ -38,6 +42,7 @@ def build_signal_engine() -> SignalEngineService:
         preflight_service=PreflightService(registry),
         config_loader=config_loader,
         ai_control_service=ai_control_service,
+        ingestion_settings=ingestion_settings,
     )
 
 
@@ -337,3 +342,104 @@ def test_signal_engine_flags_low_quote_volume(db_session) -> None:
 
     # Гардрейл: liquidity_summary (rank-based) остаётся в своей семантике —
     # этот тест НЕ ассертит liquidity_summary напрямую, т.к. она не наша цель.
+
+
+def test_signal_engine_volume_floor_disabled_by_default(db_session) -> None:
+    # R3: дефолт min_quote_volume_floor=0.0 → guard ВЫКЛЮЧЕН. Тонкий объём
+    # поднимает advisory-флаг (1M), но сигнал НЕ блокируется (dual-tier).
+    engine = build_signal_engine()
+    now = datetime.now(UTC)
+    market_repository = MarketRepository(db_session)
+    # BTCUSDT thin: close=70540, volume=10 → quote_volume=705_400 (< 1M advisory).
+    market_repository.upsert_market_bars(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "open": 70540.0 * 0.99,
+                "high": 70540.0 * 1.01,
+                "low": 70540.0 * 0.985,
+                "close": 70540.0,
+                "volume": 10.0,
+                "quote_volume": 70540.0 * 10.0,
+                "source": "binance_spot",
+                "bar_open_time": now - timedelta(minutes=15),
+                "bar_close_time": now - timedelta(minutes=1),
+            }
+        ]
+    )
+    market_repository.upsert_freshness_status(
+        symbol="BTCUSDT",
+        timeframe="15m",
+        source="binance_spot",
+        freshness_state="fresh",
+        evaluated_at=now,
+        latest_bar_open_time=now - timedelta(minutes=15),
+        is_stale=False,
+    )
+    db_session.commit()
+
+    snapshot = engine.build_snapshot(db_session)
+    btc = next(s for s in snapshot.signals if s.symbol == "BTCUSDT")
+
+    # advisory работает...
+    assert btc.low_quote_volume is True
+    # ...но guard выключен: ни триггера, ни блока.
+    assert not any(
+        t.trigger_id.startswith("low-volume-floor") for t in btc.risk_triggers
+    )
+
+
+def test_signal_engine_blocks_signal_below_volume_floor(db_session) -> None:
+    # R3: floor=1_000_000 включён. BTC (705_400) ниже пола → block_signal/invalidated;
+    # SOL (17_900_000) выше пола → guard не задет.
+    engine = build_signal_engine(
+        ingestion_settings=make_ingestion_settings(min_quote_volume_floor=1_000_000.0)
+    )
+    now = datetime.now(UTC)
+    market_repository = MarketRepository(db_session)
+    for symbol, close, volume in [
+        ("BTCUSDT", 70540.0, 10.0),
+        ("SOLUSDT", 179.0, 100_000.0),
+    ]:
+        market_repository.upsert_market_bars(
+            [
+                {
+                    "symbol": symbol,
+                    "timeframe": "15m",
+                    "open": close * 0.99,
+                    "high": close * 1.01,
+                    "low": close * 0.985,
+                    "close": close,
+                    "volume": volume,
+                    "quote_volume": close * volume,
+                    "source": "binance_spot",
+                    "bar_open_time": now - timedelta(minutes=15),
+                    "bar_close_time": now - timedelta(minutes=1),
+                }
+            ]
+        )
+        market_repository.upsert_freshness_status(
+            symbol=symbol,
+            timeframe="15m",
+            source="binance_spot",
+            freshness_state="fresh",
+            evaluated_at=now,
+            latest_bar_open_time=now - timedelta(minutes=15),
+            is_stale=False,
+        )
+    db_session.commit()
+
+    snapshot = engine.build_snapshot(db_session)
+    btc = next(s for s in snapshot.signals if s.symbol == "BTCUSDT")
+    sol = next(s for s in snapshot.signals if s.symbol == "SOLUSDT")
+
+    # BTC ниже пола → guard-триггер + block_signal + invalidated.
+    assert any(t.trigger_id == "low-volume-floor-btcusdt" for t in btc.risk_triggers)
+    assert btc.response_action == "block_signal"
+    assert btc.state == "invalidated"
+
+    # SOL выше пола → guard не сработал.
+    assert not any(
+        t.trigger_id.startswith("low-volume-floor") for t in sol.risk_triggers
+    )

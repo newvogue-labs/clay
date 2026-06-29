@@ -197,6 +197,7 @@ class SignalEngineService:
                 degraded_ai=degraded_ai,
                 bar_close_time=bar.bar_close_time,
                 now=now,
+                leader_quote_volume=row.leader_quote_volume,
             )
             kelly_result = self._apply_kelly_sizing(
                 runtime_state=runtime_state,
@@ -353,6 +354,7 @@ class SignalEngineService:
         degraded_ai: set[str],
         bar_close_time: datetime,
         now: datetime,
+        leader_quote_volume: float,
     ) -> list[RiskTriggerSnapshot]:
         bar_close_time = self._normalize_timestamp(bar_close_time)
         triggers: list[RiskTriggerSnapshot] = []
@@ -406,6 +408,23 @@ class SignalEngineService:
                     response_action="block_signal",
                 )
             )
+        # R3 min-volume floor guard (anti-slippage): ниже жёсткого пола пара
+        # считается неторгуемой. Выключен при floor <= 0 (дефолт).
+        floor = self.ingestion_settings.min_quote_volume_floor
+        if floor > 0.0 and leader_quote_volume < floor:
+            triggers.append(
+                RiskTriggerSnapshot(
+                    trigger_id=f"low-volume-floor-{symbol.lower()}",
+                    severity="critical",
+                    title="Thin liquidity (below volume floor)",
+                    description=(
+                        "Quote volume on the preferred bar is below the "
+                        "min-volume floor; manual fills would slip, so the "
+                        "signal is blocked (anti-slippage)."
+                    ),
+                    response_action="block_signal",
+                )
+            )
         return triggers
 
     def _resolve_response_action(self, risk_triggers: list[RiskTriggerSnapshot]) -> str:
@@ -441,6 +460,11 @@ class SignalEngineService:
         ):
             penalty += 0.08
         if any(trigger.trigger_id == "runtime-degraded" for trigger in risk_triggers):
+            penalty += degraded_penalty
+        if any(
+            trigger.trigger_id.startswith("low-volume-floor")
+            for trigger in risk_triggers
+        ):
             penalty += degraded_penalty
         return round(min(0.8, penalty), 2)
 
