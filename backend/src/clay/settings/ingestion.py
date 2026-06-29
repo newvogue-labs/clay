@@ -52,6 +52,15 @@ class IngestionSettings(BaseSettings):
     # НЕ используется как gate — только observability-флаг. Env-tunable.
     low_quote_volume_threshold: float = 1_000_000.0
 
+    # === R3: min-volume floor guard (anti-slippage GATE, не advisory) ===
+    # Жёсткий нижний порог USD-оборота preferred-бара. Ниже floor пара
+    # считается неторгуемой → risk-trigger с response_action="block_signal":
+    # на неликвиде ручной вход проскальзывает раньше, чем идея отыграет.
+    # В ОТЛИЧИЕ от low_quote_volume_threshold (advisory-флаг) — это РЕАЛЬНЫЙ gate.
+    # Дефолт 0.0 = guard ВЫКЛЮЧЕН (не трогаем demo-baseline 20/5 и тесты);
+    # включается явным env CLAY_MIN_QUOTE_VOLUME_FLOOR. Прод-ориентир ~250_000.0.
+    min_quote_volume_floor: float = 0.0
+
     def market_freshness_thresholds(self) -> dict[str, timedelta]:
         return {
             "5m": timedelta(minutes=self.market_freshness_5m_minutes),
