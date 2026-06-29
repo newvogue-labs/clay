@@ -137,10 +137,14 @@ class WorkspaceService:
 
     def build_snapshot(self, session: Session) -> WorkspaceSnapshot:
         now = self._clock.now()
-        workspace_state, market_status, context_status, last_ingestion_at = (
-            self._build_workspace_state(session, now=now)
-        )
-        pair_contexts = self._build_pair_contexts(session)
+        (
+            workspace_state,
+            market_status,
+            context_status,
+            last_ingestion_at,
+            freshness_by_symbol,
+        ) = self._build_workspace_state(session, now=now)
+        pair_contexts = self._build_pair_contexts(session, freshness_by_symbol)
         if not pair_contexts:
             return self._build_empty_snapshot(
                 now=now,
@@ -167,6 +171,7 @@ class WorkspaceService:
         workspace_state = self._refine_workspace_state(
             base_state=workspace_state,
             focused_signal_state=focus_context.active_signal_state,
+            focused_market_status=focus_context.availability_status,
         )
 
         return WorkspaceSnapshot(
@@ -219,7 +224,7 @@ class WorkspaceService:
         self,
         session: Session,
         now: datetime | None = None,
-    ) -> tuple[WorkspaceStateSnapshot, str, str, str | None]:
+    ) -> tuple[WorkspaceStateSnapshot, str, str, str | None, dict[str, str]]:
         now = self._clock.now() if now is None else now
         runtime_snapshot = self.runtime_manager.snapshot()
         preflight = self.preflight_service.run()
@@ -228,18 +233,31 @@ class WorkspaceService:
         ops_repo = OpsRepository(session)
 
         freshness_rows = market_repo.list_freshness_statuses()
-        effective_market_statuses = [
-            resolve_market_freshness_status(
+        effective_by_symbol: dict[str, list[str]] = {}
+        for row in freshness_rows:
+            status = resolve_market_freshness_status(
                 stored_status=row.freshness_state,
                 timeframe=row.timeframe,
                 latest_bar_open_time=row.latest_bar_open_time,
                 now=now,
             ).status
-            for row in freshness_rows
-        ]
-        market_status = collapse_market_statuses(effective_market_statuses)
-        if market_status in {"stale", "error"}:
-            market_status = "degraded"
+            effective_by_symbol.setdefault(row.symbol, []).append(status)
+        # Per-symbol worst-of freshness (Finding L). The global health is the
+        # worst across pairs and is exposed as an advisory signal only; actual
+        # gating happens per focused pair in _refine_workspace_state.
+        freshness_by_symbol = {
+            symbol: collapse_market_statuses(statuses)
+            for symbol, statuses in effective_by_symbol.items()
+        }
+        global_market_status = collapse_market_statuses(
+            list(freshness_by_symbol.values())
+        )
+        monitored_data_health = (
+            "degraded"
+            if global_market_status in {"stale", "error"}
+            else global_market_status
+        )
+        market_status = monitored_data_health
 
         latest_news = context_repo.latest_news(limit=10)
         latest_sentiment = context_repo.latest_sentiment(limit=10)
@@ -269,9 +287,6 @@ class WorkspaceService:
         ):
             workspace_posture = "restricted_by_degraded"
             blocking_reason = "runtime is degraded or preflight is blocked"
-        elif market_status != "fresh":
-            workspace_posture = "defensive"
-            blocking_reason = "market freshness requires defensive posture"
         elif execution_mode == "live" and execution_override_state != "confirmed":
             workspace_posture = "restricted_live_override"
             blocking_reason = "Live execution requires Q5 override (not confirmed)"
@@ -290,6 +305,7 @@ class WorkspaceService:
                 can_open_binance=blocking_reason is None,
                 can_log_decision=blocking_reason is None,
                 blocking_reason=blocking_reason,
+                monitored_data_health=monitored_data_health,
                 execution_mode=execution_mode,
                 execution_override_state=execution_override_state,
                 execution_override_expires_at=(
@@ -302,6 +318,7 @@ class WorkspaceService:
             market_status,
             context_status,
             last_ingestion_at,
+            freshness_by_symbol,
         )
 
     def _refine_workspace_state(
@@ -309,9 +326,21 @@ class WorkspaceService:
         *,
         base_state: WorkspaceStateSnapshot,
         focused_signal_state: str,
+        focused_market_status: str,
     ) -> WorkspaceStateSnapshot:
         posture = base_state.workspace_posture
+        can_open_binance = base_state.can_open_binance
         can_log_decision = base_state.can_log_decision
+        blocking_reason = base_state.blocking_reason
+        # Focused-pair freshness gate (Finding L · variant A): gating follows
+        # the freshness of the FOCUSED pair only. A stale pair elsewhere in the
+        # monitoring pool is advisory (monitored_data_health) and must not by
+        # itself force a defensive posture.
+        if posture == "normal" and focused_market_status != "fresh":
+            posture = "defensive"
+            can_open_binance = False
+            can_log_decision = False
+            blocking_reason = "focused pair market data is not fresh"
         if focused_signal_state == "absent" and posture == "normal":
             posture = "monitoring_only"
             can_log_decision = False
@@ -323,17 +352,20 @@ class WorkspaceService:
             runtime_state=base_state.runtime_state,
             workspace_posture=posture,
             focused_signal_state=focused_signal_state,
-            can_open_binance=base_state.can_open_binance,
+            can_open_binance=can_open_binance,
             can_log_decision=can_log_decision
             and focused_signal_state in {"active", "weakening"},
-            blocking_reason=base_state.blocking_reason,
+            blocking_reason=blocking_reason,
+            monitored_data_health=base_state.monitored_data_health,
             execution_mode=base_state.execution_mode,
             execution_override_state=base_state.execution_override_state,
             execution_override_expires_at=base_state.execution_override_expires_at,
             server_time=base_state.server_time,
         )
 
-    def _build_pair_contexts(self, session: Session) -> list[PairContext]:
+    def _build_pair_contexts(
+        self, session: Session, freshness_by_symbol: dict[str, str]
+    ) -> list[PairContext]:
         context_repo = ContextRepository(session)
         market_repo = MarketRepository(session)
         signal_snapshot = self.signal_engine_service.build_snapshot(session)
@@ -384,7 +416,9 @@ class WorkspaceService:
                     symbol=signal.symbol,
                     display_name=signal.display_name,
                     role=role,
-                    availability_status=signal_snapshot.market_status,
+                    availability_status=freshness_by_symbol.get(
+                        signal.symbol, signal_snapshot.market_status
+                    ),
                     last_price=round(bar.close, 4),
                     pct_change_24h=pct_change,
                     volatility=round(min(max(bar.volume / 200, 0.05), 1.0), 2),
@@ -524,7 +558,9 @@ class WorkspaceService:
             focus_source="system_recommendation",
         )
         refined_state = self._refine_workspace_state(
-            base_state=workspace_state, focused_signal_state="absent"
+            base_state=workspace_state,
+            focused_signal_state="absent",
+            focused_market_status=workspace_state.monitored_data_health,
         )
         return WorkspaceSnapshot(
             focus_pair=focus_pair,

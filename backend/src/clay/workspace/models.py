@@ -23,6 +23,7 @@ class WorkspaceStateSnapshot(BaseModel):
     can_open_binance: bool
     can_log_decision: bool
     blocking_reason: str | None = None
+    monitored_data_health: str = "unknown"
     execution_mode: str | None = None
     execution_override_state: str | None = None
     execution_override_expires_at: str | None = None

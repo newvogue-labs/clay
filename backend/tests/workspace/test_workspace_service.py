@@ -144,6 +144,7 @@ def test_workspace_snapshot_contains_required_e3_fields(db_session) -> None:
     }
     assert snapshot.monitoring_pool
     assert snapshot.update_meta.market_status == "fresh"
+    assert snapshot.workspace_state.monitored_data_health == "fresh"
 
 
 def test_workspace_focus_selection_updates_focus_source(db_session) -> None:
@@ -276,4 +277,109 @@ def test_workspace_switches_to_defensive_when_market_data_is_old(
     snapshot = build_workspace_service().build_snapshot(db_session)
 
     assert snapshot.workspace_state.workspace_posture == "defensive"
+    assert snapshot.update_meta.market_status == "degraded"
+    assert snapshot.workspace_state.monitored_data_health == "degraded"
+
+
+def test_workspace_stays_normal_when_focus_fresh_but_monitoring_pair_is_stale(
+    db_session,
+) -> None:
+    now = datetime.now(UTC)
+    market_repository = MarketRepository(db_session)
+    context_repository = ContextRepository(db_session)
+    ops_repository = OpsRepository(db_session)
+
+    # Focused pair (BTCUSDT) is fresh; monitored pair (ETHUSDT) is days stale.
+    market_repository.upsert_market_bars(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "open": 70200.0,
+                "high": 70450.0,
+                "low": 70100.0,
+                "close": 70400.0,
+                "volume": 210.0,
+                "quote_volume": 12840000.0,
+                "source": "binance_spot",
+                "bar_open_time": now - timedelta(minutes=15),
+                "bar_close_time": now - timedelta(minutes=1),
+            },
+            {
+                "symbol": "ETHUSDT",
+                "timeframe": "15m",
+                "open": 3600.0,
+                "high": 3618.0,
+                "low": 3580.0,
+                "close": 3588.0,
+                "volume": 140.0,
+                "quote_volume": 510000.0,
+                "source": "binance_spot",
+                "bar_open_time": now - timedelta(days=6, minutes=15),
+                "bar_close_time": now - timedelta(days=6, minutes=1),
+            },
+        ],
+    )
+    market_repository.upsert_freshness_status(
+        symbol="BTCUSDT",
+        timeframe="15m",
+        source="binance_spot",
+        freshness_state="fresh",
+        evaluated_at=now,
+        latest_bar_open_time=now - timedelta(minutes=15),
+        is_stale=False,
+    )
+    market_repository.upsert_freshness_status(
+        symbol="ETHUSDT",
+        timeframe="15m",
+        source="binance_spot",
+        freshness_state="fresh",
+        evaluated_at=now - timedelta(days=6),
+        latest_bar_open_time=now - timedelta(days=6),
+        is_stale=False,
+    )
+    context_repository.store_news_items(
+        [
+            {
+                "source_name": "demo_news_feed",
+                "headline": "BTC keeps leadership",
+                "summary": "Focused pair data stays fresh.",
+                "published_at": now - timedelta(minutes=30),
+                "symbol": "BTCUSDT",
+                "source_url": "https://example.invalid/news/btc",
+            },
+        ],
+    )
+    context_repository.store_sentiment_snapshots(
+        [
+            {
+                "source_name": "demo_sentiment_feed",
+                "symbol": "BTCUSDT",
+                "sentiment_label": "bullish",
+                "sentiment_score": 0.71,
+                "captured_at": now - timedelta(minutes=20),
+            },
+        ],
+    )
+    ops_repository.record_connector_status(
+        connector_id="demo-news",
+        connector_type="news",
+        status="healthy",
+        observed_at=now,
+    )
+    db_session.commit()
+
+    service = build_workspace_service()
+    service.set_focus(
+        symbol="BTCUSDT", focus_source="monitoring_click", session=db_session
+    )
+    snapshot = service.build_snapshot(db_session)
+
+    # Variant A: a stale monitored pair must NOT force defensive posture,
+    # because gating now follows the freshness of the focused pair only.
+    assert snapshot.focus_pair.symbol == "BTCUSDT"
+    assert snapshot.workspace_state.workspace_posture != "defensive"
+    assert snapshot.workspace_state.workspace_posture in {"normal", "monitoring_only"}
+    # Global staleness is preserved as an advisory signal, not a gate.
+    assert snapshot.workspace_state.monitored_data_health == "degraded"
     assert snapshot.update_meta.market_status == "degraded"
