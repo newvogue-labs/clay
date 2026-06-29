@@ -1,7 +1,10 @@
 from datetime import UTC, datetime
 
 from clay.db.models_market import MarketBar, MarketFreshnessStatus
-from clay.freshness.evaluator import resolve_market_freshness_status
+from clay.freshness.evaluator import (
+    collapse_market_statuses,
+    resolve_market_freshness_status,
+)
 from clay.shortlist.models import ShortlistMetricRow
 
 
@@ -17,7 +20,7 @@ def build_shortlist_metrics(
 
     max_volume = max(bar.volume for bar in bars) or 1.0
     now = now if now is not None else datetime.now(UTC)
-    freshness_by_symbol: dict[str, str] = {}
+    evaluated_by_symbol: dict[str, list[str]] = {}
     stale_timeframes_by_symbol: dict[str, list[str]] = {}
     for row in freshness_rows:
         evaluated_status = resolve_market_freshness_status(
@@ -28,10 +31,11 @@ def build_shortlist_metrics(
         ).status
         if evaluated_status != "fresh":
             stale_timeframes_by_symbol.setdefault(row.symbol, []).append(row.timeframe)
-        current = freshness_by_symbol.get(row.symbol, "fresh")
-        if current != "fresh":
-            continue
-        freshness_by_symbol[row.symbol] = evaluated_status
+        evaluated_by_symbol.setdefault(row.symbol, []).append(evaluated_status)
+    freshness_by_symbol = {
+        symbol: collapse_market_statuses(statuses)
+        for symbol, statuses in evaluated_by_symbol.items()
+    }
 
     rows: list[ShortlistMetricRow] = []
     for bar in bars:
