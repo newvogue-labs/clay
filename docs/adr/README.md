@@ -40,7 +40,8 @@
 | 024 | Deterministic Replay Harness + Trade Provenance | Proposed | docs/adr | [`024-deterministic-replay-and-trade-provenance.md`](024-deterministic-replay-and-trade-provenance.md) |
 | 025 | Execution Layer & Real-Money Gate | accepted | docs/adr | [`025-execution-layer-and-real-money-gate.md`](025-execution-layer-and-real-money-gate.md) |
 | 026 | Freshness Dual-Policy (per-pair worst-of + focused-pair gate) | accepted | docs/adr | [`026-freshness-dual-policy.md`](026-freshness-dual-policy.md) |
-| 027+ | свободны | — | — | |
+| 027 | Min-Volume Floor Guard (anti-slippage signal gate) | accepted | docs/adr | [`027-min-volume-floor-guard.md`](027-min-volume-floor-guard.md) |
+| 028+ | свободны | — | — | |
 
 ## Карта номеров
 
