@@ -29,8 +29,13 @@ export function FocusedPairHeader({
       <p>24h change: {focusPair.pct_change_24h}%</p>
       <p>Volatility: {focusPair.volatility}</p>
       <p>Focus source: {focusPair.focus_source}</p>
-      <p>Role: {focusPair.role}</p>
-      {workspaceState?.can_open_binance ? (
+<p>Role: {focusPair.role}</p>
+{workspaceState?.monitored_data_health === 'degraded' ? (
+  <p role="status">
+    ⚠️ Часть пар вне фокуса несвежие — гейтинг ведём по фокусной паре.
+  </p>
+) : null}
+{workspaceState?.can_open_binance ? (
         <p>
           <a href={buildBinanceUrl(focusPair.symbol)} rel="noreferrer" target="_blank">
             Open in Binance

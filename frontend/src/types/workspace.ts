@@ -28,6 +28,7 @@ export interface WorkspaceStateSnapshot {
   can_open_binance: boolean
   can_log_decision: boolean
   blocking_reason: string | null
+  monitored_data_health: string
   execution_mode: string | null
   execution_override_state: ExecutionOverrideState | null
   execution_override_expires_at: string | null
