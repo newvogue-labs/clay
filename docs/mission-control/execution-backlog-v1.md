@@ -659,8 +659,38 @@ Dependencies: E1, E2, E5
   - demo-read integration;
   - degraded mode visibility.
 
-**Dependencies:** `E1`–`E11`  
+**Dependencies:** `E1`–`E11`
 **Deliverable:** release readiness checklist
+
+### Task E12.5: UI E2E аудит и полировка запуска
+
+Сквозной трек: довести веб-интерфейс до состояния «каждая кнопка, ползунок,
+индикатор и поток реально работают против живого бэка», и сделать запуск в
+браузере простым и воспроизводимым. Пре-реквизит real-money GO (Ring 1) —
+оператор не может вести реальные сессии через полу-рабочий UI. Расширяет
+узкий AI-панельный трек (E5-DEPLOY5 → «Текущие приоритеты» п.5, Фазы 1–3) до
+полного аудита ВСЕХ поверхностей; питает гейты G1 (стабильность) и
+G4 (confirm на destructive).
+
+- [ ] **UI-AUDIT.0 — recon (read-only, 0 коммитов):** инвентарь всех
+  поверхностей и контролов, карта «кнопка/поток → endpoint», что
+  live / mock / UNIMPLEMENTED, какие SSE-стримы.
+- [ ] **UI-AUDIT.1 — удобный запуск (deliverable = runbook):** one-command
+  старт фронт+бэк, env-дефолты (`VITE_CLAY_API_BASE_URL`), bind 127.0.0.1
+  (FOOTGUN B), опц. прод-сборка; задокументировать в существующем
+  runbook (расширить `runbooks/003|004`, новый не плодить).
+- [ ] **UI-AUDIT.2 — функциональный проход по поверхностям:** каждый
+  контрол отрабатывается против живого бэка; баги → backlog/incident-log;
+  фиксы = обычные код-слайсы.
+- [ ] **UI-AUDIT.3 — потоки и состояния:** SSE-живость на каждой панели +
+  состояния loading/empty/error/degraded на всех поверхностях.
+
+**Порядок (sequential):** после Task E12.4 (формализация release gates
+G0–G6), до перехода в Ring 1. Док-footprint: 1 runbook (UI-AUDIT.1) +
+backlog/incident-log записи; новых ADR не требуется (Фаза 3 «промпты в DB»
+уже покрыта ADR-014).
+**Dependencies:** `E3`, `E4`, `E5`, `E7`, `E9`, `E12.4`
+**Deliverable:** working-UI E2E audit report + launch runbook
 
 ---
 
