@@ -303,12 +303,11 @@ def main() -> int:
             )
         return result
 
-    SignalEngineService._orig_build_snapshot = SignalEngineService.build_snapshot
     SignalEngineService.build_snapshot = _counting_bs
 
     _harness_start = _time_module.time()
     summary = harness.run(SYMBOL, TF)
-    SignalEngineService.build_snapshot = SignalEngineService._orig_build_snapshot
+    SignalEngineService.build_snapshot = _orig_bs
     _harness_elapsed = _time_module.time() - _harness_start
     print(f"      Harness completed in {_harness_elapsed:.1f}s", flush=True)
 

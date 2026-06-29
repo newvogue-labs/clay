@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import stat
+from collections.abc import Iterator
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import patch
@@ -53,7 +54,7 @@ def _row(
 
 
 @pytest.fixture
-def live_path() -> Path:
+def live_path() -> Iterator[Path]:
     with NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(_LIVE_CONFIG)
         path = Path(f.name)

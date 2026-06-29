@@ -17,7 +17,7 @@ import time
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import DateTime, func, select
 
 from clay.db.models_ops import (
     AIAssignment,
@@ -387,5 +387,7 @@ def test_utc_datetime_none_passes_through_on_both_sides() -> None:
 
 
 def test_utc_datetime_impl_is_timezone_aware_datetime_and_caches() -> None:
-    assert UTCDateTime.impl.timezone is True
+    impl = UTCDateTime.impl
+    assert isinstance(impl, DateTime)
+    assert impl.timezone is True
     assert UTCDateTime.cache_ok is True

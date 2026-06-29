@@ -1,3 +1,6 @@
+from typing import cast
+
+from sqlalchemy import Table
 from sqlalchemy.orm import sessionmaker
 
 from clay.db.models_demo import DemoTradeRecord
@@ -40,17 +43,19 @@ def test_market_schema_contains_expected_tables() -> None:
 
 
 def test_timescale_partition_columns_are_part_of_market_primary_keys() -> None:
+    market_table = cast(Table, MarketBar.__table__)
+    orderbook_table = cast(Table, OrderBookSummary.__table__)
     market_bar_primary_key = {
-        column.name for column in MarketBar.__table__.primary_key.columns
+        column.name for column in market_table.primary_key.columns
     }
     orderbook_primary_key = {
-        column.name for column in OrderBookSummary.__table__.primary_key.columns
+        column.name for column in orderbook_table.primary_key.columns
     }
 
     assert market_bar_primary_key == {"id", "bar_open_time"}
     assert orderbook_primary_key == {"id", "captured_at"}
-    assert MarketBar.__table__.c.id.identity is not None
-    assert OrderBookSummary.__table__.c.id.identity is not None
+    assert market_table.c.id.identity is not None
+    assert orderbook_table.c.id.identity is not None
 
 
 def test_context_schema_contains_expected_tables() -> None:

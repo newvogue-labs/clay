@@ -41,7 +41,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -170,7 +170,7 @@ class FakeIngestionService:
             "freshness_state_transitions": summary.freshness_state_transitions,
             "incidents": len(summary.incidents),
         }
-        self._audit_writer.write("ingestion.run", payload)
+        self._audit_writer.write("ingestion.run", cast(dict[str, object], payload))
         self._event_bus.publish(
             "ingestion.updated",
             {"event_type": "ingestion.run", **payload},
@@ -342,7 +342,9 @@ async def test_on_error_does_not_mutate_session_scheduler(tmp_path: Path) -> Non
 
     job.on_error(RuntimeError("ingestion boom"))
 
-    assert registry.get("session-scheduler").status is ServiceStatus.HEALTHY
+    record = registry.get("session-scheduler")
+    assert record is not None
+    assert record.status is ServiceStatus.HEALTHY
 
 
 @pytest.mark.anyio

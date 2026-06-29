@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import MagicMock, patch
@@ -72,7 +73,7 @@ def _unhealthy_resp():
 
 
 @pytest.fixture
-def live_path() -> Path:
+def live_path() -> Iterator[Path]:
     with NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(_LIVE_CONFIG)
         path = Path(f.name)

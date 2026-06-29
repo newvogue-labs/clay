@@ -7,9 +7,10 @@ Covers the DB-layer only (S-EXEC-3b slice 1):
 """
 
 from datetime import UTC, datetime
+from typing import cast
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import Table, select
 
 from clay.db.models_ops import ExecutionOverride
 from clay.db.repositories_ops import OverrideRepository
@@ -64,7 +65,8 @@ def test_execution_overrides_tablename_and_columns() -> None:
 
 
 def test_execution_overrides_has_expected_indexes() -> None:
-    index_names = {idx.name for idx in ExecutionOverride.__table__.indexes}
+    table = cast(Table, ExecutionOverride.__table__)
+    index_names = {idx.name for idx in table.indexes}
     assert "ix_execution_overrides_override_created_at" in index_names
     assert "ix_execution_overrides_actor_created_at" in index_names
 
