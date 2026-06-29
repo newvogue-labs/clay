@@ -21,7 +21,7 @@
 
 ```mermaid
 flowchart LR
-G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data 🟡"] --> G3["G3 Signal 🟡"] --> G4["G4 Safety ✅"] --> G5["G5 Demo ✅"] --> G6["G6 Observability 🟡"] --> GO{"🟢 Real-money GO"}
+G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data ✅"] --> G3["G3 Signal 🟡"] --> G4["G4 Safety ✅"] --> G5["G5 Demo ✅"] --> G6["G6 Observability 🟡"] --> GO{"🟢 Real-money GO"}
 ```
 
 ## 2. Гейты G0–G6 — критерии и статус
@@ -36,10 +36,10 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data 🟡"] --> G3["G3 S
 - **Зачем:** система работает сама и честно сообщает о деградации, а не молчит.
 - **Статус:** 🟡 — механика ✅ (джобы, degraded-mode, health). **Блокер: контрольный 24ч-soak ещё не проведён.**
 
-### G2 — Data integrity 🟡
+### G2 — Data integrity ✅
 - **Критерий прохода:** миграции без дрейфа (`G2.1` no-op / `G2.2` round-trip / `G2.3` no-drift), alembic head `0015`; freshness/retention-политики работают; нет рассинхрона freshness между signal-pipeline и workspace.
 - **Зачем:** решения принимаются на консистентных, свежих данных.
-- **Статус:** 🟡 — миграции ✅. **Блокер: Finding L (freshness dual-policy — pipeline `best-of`, workspace `worst-of` → визуальный рассинхрон).**
+- **Статус:** ✅ — миграции ✅; **Finding L закрыт** (freshness dual-policy выровнен: per-pair worst-of в shortlist + гейтинг по свежести фокусной пары + advisory `monitored_data_health`; L2 `3aea771` / L3a `b38df40` / L3b `bb3a246`, ADR-026). Рассинхрон pipeline↔workspace устранён.
 
 ### G3 — Signal quality 🟡
 - **Критерий прохода:** R3 — нижний порог объёма (min-volume floor) как guard против ложной «высокой ликвидности» на тихом рынке (anti-slippage); установлен demo win-rate baseline (≥20 сессий).
@@ -59,7 +59,7 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data 🟡"] --> G3["G3 S
 ### G6 — Observability & tuning 🟡
 - **Критерий прохода:** осознанные caveats закрыты или видимы в briefing — Finding M (ai-conflict penalty), Finding L (freshness), R3 (liquidity); наблюдаемость сигнала и сессии.
 - **Зачем:** остаточные риски либо устранены, либо честно показаны оператору.
-- **Статус:** 🟡 — **Finding M ✅ закрыт (ADR-017, all-Google homo)**; осталось L + R3 (общие с G2/G3).
+- **Статус:** 🟡 — **Finding M ✅ (ADR-017)** + **Finding L ✅ (ADR-026)** закрыты; осталось R3 (общий с G3).
 
 ## 3. Сводная таблица статуса
 
@@ -67,19 +67,20 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data 🟡"] --> G3["G3 S
 |---|---|---|---|
 | G0 Infra bring-up | БД autostart + kill-switch + шлюз | ✅ | — |
 | G1 Runtime stability | scheduler / degraded-mode / health > 24ч | 🟡 | 24ч-soak |
-| G2 Data integrity | миграции no-drift + freshness | 🟡 | Finding L |
+| G2 Data integrity | миграции no-drift + freshness | ✅ | — |
 | G3 Signal quality | R3 min-volume + win-rate baseline | 🟡 | R3 guard |
 | G4 Safety & audit | Q5 + confirm + audit + lint/pyright 0 + FOOTGUN B | ✅ | — |
 | G5 Live/demo sessions | FSM ≥5 живых сессий | ✅ | — (20/5) |
-| G6 Observability & tuning | Finding L/M + R3 + наблюдаемость | 🟡 | Finding L + R3 |
+| G6 Observability & tuning | Finding L/M + R3 + наблюдаемость | 🟡 | R3 |
 
 ## 4. Что осталось до GO (открытые хвосты)
 
-Зелёных гейтов сейчас **3 из 7** (G0, G4, G5). Все 4 жёлтых разблокируются **тремя** рабочими единицами:
+Зелёных гейтов сейчас **4 из 7** (G0, G2, G4, G5). Оставшиеся 3 жёлтых (G1, G3, G6) разблокируются **двумя** рабочими единицами:
 
-1. **Finding L** — выровнять freshness dual-policy (закрывает часть G2 и G6).
-2. **R3** — min-volume floor guard (закрывает часть G3 и G6).
-3. **24ч-soak** — непрерывный прогон health (закрывает G1).
+1. **R3** — min-volume floor guard (закрывает G3 и остаток G6).
+2. **24ч-soak** — непрерывный прогон health (закрывает G1).
+
+✅ **Finding L закрыт** (2026-06-29) — freshness dual-policy выровнен (L2 `3aea771` → L3a `b38df40` → L3b `bb3a246`, ADR-026): закрыл G2, снял половину G6.
 
 Дополнительно — **E12.5 (UI E2E аудит + полировка запуска)** как пре-реквизит входа в Ring 1.
 
@@ -96,6 +97,6 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data 🟡"] --> G3["G3 S
 
 - **Roadmap:** `Clay — Product Roadmap & PRD v1` — §B3 product gates + кольца (источник модели Rings).
 - **Notion:** «Clay — Hardening до real-money: чек-лист» (операционный Tier-0 трекер) · «Architect Working Log Том 3» (Tier-0 W1/W2).
-- **ADR:** ADR-009 (egress) · ADR-017 (Finding M / all-Google homo) · Tier-3 (после GO): ADR-018 (ccxt) / ADR-019 (freqtrade-protections) / ADR-020 (Kelly + EV-gate).
+- **ADR:** ADR-009 (egress) · ADR-017 (Finding M / all-Google homo) · ADR-026 (Finding L / freshness dual-policy) · Tier-3 (после GO): ADR-018 (ccxt) / ADR-019 (freqtrade-protections) / ADR-020 (Kelly + EV-gate).
 - **Runbooks:** runbook-001 (preflight / degraded) · runbook-003 (kill-switch) · runbook-004 (gateway).
 - **Backlog:** `execution-backlog-v1.md` → Task `E12.4` (закрыта этим документом), Task `E12.5` (UI E2E — пре-реквизит Ring 1).
