@@ -32,11 +32,8 @@ jobs:
         run: uv run ruff format --check .
       - name: Pytest (offline)
         run: uv run pytest -m "not slow"
-      - name: Pyright (src/, blocking — enforced 0)
-        run: uv run pyright src
-      - name: Pyright (full incl tests/, informational — remainder = S-LINT-2)
+      - name: Pyright (full incl src+tests, blocking — enforced 0)
         run: uv run pyright
-        continue-on-error: true
 
   frontend:
     runs-on: ubuntu-latest
