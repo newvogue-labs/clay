@@ -21,7 +21,7 @@
 
 ```mermaid
 flowchart LR
-G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data ✅"] --> G3["G3 Signal ✅"] --> G4["G4 Safety ✅"] --> G5["G5 Demo ✅"] --> G6["G6 Observability ✅"] --> GO{"🟢 Real-money GO"}
+G0["G0 Infra ✅"] --> G1["G1 Runtime ✅"] --> G2["G2 Data ✅"] --> G3["G3 Signal ✅"] --> G4["G4 Safety ✅"] --> G5["G5 Demo ✅"] --> G6["G6 Observability ✅"] --> GO{"🟢 Real-money GO"}
 ```
 
 ## 2. Гейты G0–G6 — критерии и статус
@@ -31,10 +31,10 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data ✅"] --> G3["G3 Si
 - **Зачем:** безопасный изолированный хост — данные и AI-egress под контролем, без утечек и без ручного babysitting.
 - **Статус:** ✅ — DEPLOY-3.5e + DB-AUTOSTART, ребут-гейт зелёный.
 
-### G1 — Runtime stability 🟡
+### G1 — Runtime stability ✅
 - **Критерий прохода:** scheduler с 4 джобами (health / reliability / ingestion / retention), 0 джобов исполняют сделки; health-endpoints; degraded-mode «громкий» (виден в UI и audit); непрерывный health > 24ч перед GO.
 - **Зачем:** система работает сама и честно сообщает о деградации, а не молчит.
-- **Статус:** 🟡 — механика ✅ (джобы, degraded-mode, health). **Блокер: контрольный 24ч-soak ещё не проведён.**
+- **Статус:** ✅ — механика ✅ (джобы, degraded-mode, health) + **контрольный 24ч-soak пройден** (2026-06-30): 145 сэмплов / 144 строго healthy; единственная аномалия 13:32 — operator TUN-свитч v2rayN (артефакт пробы, не сервиса; самовосстановление <10мин, процесс не падал); scheduler 4 джобы, 0 трейдовых.
 
 ### G2 — Data integrity ✅
 - **Критерий прохода:** миграции без дрейфа (`G2.1` no-op / `G2.2` round-trip / `G2.3` no-drift), alembic head `0015`; freshness/retention-политики работают; нет рассинхрона freshness между signal-pipeline и workspace.
@@ -66,7 +66,7 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data ✅"] --> G3["G3 Si
 | Гейт | Что проверяет | Статус | Блокер |
 |---|---|---|---|
 | G0 Infra bring-up | БД autostart + kill-switch + шлюз | ✅ | — |
-| G1 Runtime stability | scheduler / degraded-mode / health > 24ч | 🟡 | 24ч-soak |
+| G1 Runtime stability | scheduler / degraded-mode / health > 24ч | ✅ | — (24ч-soak ✅) |
 | G2 Data integrity | миграции no-drift + freshness | ✅ | — |
 | G3 Signal quality | R3 min-volume + win-rate baseline | ✅ | — (R3 + 20/5) |
 | G4 Safety & audit | Q5 + confirm + audit + lint/pyright 0 + FOOTGUN B | ✅ | — |
@@ -75,9 +75,9 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime 🟡"] --> G2["G2 Data ✅"] --> G3["G3 Si
 
 ## 4. Что осталось до GO (открытые хвосты)
 
-Зелёных гейтов сейчас **6 из 7** (G0, G2, G3, G4, G5, G6). Остался **один** жёлтый — G1, разблокируется одной рабочей единицей:
+Все гейты зелёные — **7 из 7** (G0–G6). Технический блокер перехода demo → real-money снят; решение о real-money принимает человек (Emma, Q5).
 
-1. **24ч-soak** — непрерывный прогон health (закрывает G1).
+✅ **24ч-soak пройден** (2026-06-30) — непрерывный health 24ч+ (145 сэмплов / 144 строго `healthy`; единственная аномалия 13:32 — operator TUN-свитч v2rayN, артефакт пробы, не сервиса): закрыл **последний** гейт G1.
 
 ✅ **R3 закрыт** (2026-06-29) — min-volume floor guard (squash `0f418d5`, PR #5, ADR-027): закрыл G3 и снял последний блокер G6.
 ✅ **Finding L закрыт** (2026-06-29) — freshness dual-policy выровнен (L2 `3aea771` → L3a `b38df40` → L3b `bb3a246`, ADR-026): закрыл G2, снял половину G6.
