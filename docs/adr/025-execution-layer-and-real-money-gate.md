@@ -1,12 +1,13 @@
 # ADR-025: Execution Layer + Real-Money Gate (RV8)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-26
 - **Supersedes:** —
 - **Replaces:** —
 - **Depends on:** ADR-008 (Exchange Abstraction), ADR-024 (Replay/Provenance)
 - **Donor-ref:** —
 - **v2:** 2026-06-26 — исправлена премиза про ccxt: добавлена как новая зависимость, ExecutionClient объявлен NEW protocol parallel to MarketDataClient
+- **Accepted:** 2026-06-30 — статус Proposed→Accepted: execution-цепочка (S-EXEC-2/4 + S-EXEC-3a→3b-4) смержена и live; гейт дремлет по D2 (env не армит live — нужны confirm-override + Q5).
 
 ## Context
 

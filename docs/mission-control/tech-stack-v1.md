@@ -8,6 +8,8 @@
 - `/home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/execution-backlog-v1.md`
 - `/home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/adrs/adr-001-runtime-state-model.md`
 
+> **Актуализация (2026-06-30, DOC-3):** toolchain-канон с тех пор уточнён — Python-typing = `pyright` (не `mypy`), Python runtime = `3.14` (`requires-python >=3.14,<3.15`), forecast — локальный quant (ADR-011). Планировочные таблицы ниже сохранены; точечные факты приведены к текущему канону.
+
 ## 1. Назначение документа
 
 Этот документ является каноническим источником истины по технологическому стеку `CLAY Mission Control v1`.
@@ -51,7 +53,7 @@
 
 | Слой | Выбор для `v1` | Причина |
 |---|---|---|
-| Language runtime | `Python 3.12+` | Хорошо подходит для AI integrations, data pipelines и локальной orchestration-логики |
+| Language runtime | `Python 3.14` | Хорошо подходит для AI integrations, data pipelines и локальной orchestration-логики |
 | API framework | `FastAPI` | Async, typed contracts, auto-docs, удобен для control plane |
 | Validation | `Pydantic v2` | Явная валидация data contracts и runtime-конфигурации |
 | Config system | `pydantic-settings` | Типизированные конфиги, `env`-интеграция и валидация |
@@ -73,7 +75,7 @@
 |---|---|---|
 | Chief/text-heavy models | `pluggable cloud LLM providers` | Сохраняет свободу выбора между бесплатными и платными провайдерами |
 | Local fallback | `optional local lightweight model layer` | Только для degraded/fallback сценариев, без тяжёлых локальных LLM |
-| Forecast training | `Google Colab` | Базовая training-площадка на старте |
+| Forecast training | `Google Colab` | Базовая training-площадка на старте (forecast-модель = локальный quant, см. ADR-011; Colab/Lightning — только обучение burst-GPU) |
 | Extended training option | `Lightning AI` | Запасной вариант, если `Colab` станет узким местом |
 | Forecast inference | `local compact inference` | Соответствует железу пользователя и `local-first` архитектуре |
 
@@ -93,7 +95,7 @@
 | Frontend package manager | `pnpm` |
 | Python project / env management | `uv` |
 | Python linting | `ruff` |
-| Python typing | `mypy` |
+| Python typing | `pyright` |
 | Python testing | `pytest` + `pytest-asyncio` |
 | Frontend unit testing | `Vitest` + `Testing Library` |
 | Frontend e2e | `Playwright` |
@@ -141,7 +143,7 @@
 - `pnpm`
 - `uv`
 - `ruff`
-- `mypy`
+- `pyright`
 - `pytest`
 - `Vitest`
 - `Playwright`

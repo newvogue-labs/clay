@@ -1,3 +1,5 @@
+> **Историческая запись (решение 2026-06-10).** Текущий chief-agent — `minimax-m3` (nvidia-nim), не Gemini free-tier: ADR-017 сделал all-Google tier лишь *опцией* (eligibility), дефолт рантайма = `minimax-m3` (`INITIAL_ASSIGNMENTS`); см. ADR-017 и `runbooks/runbook-004`. Маршрутизация через LiteLLM-шлюз (ADR-009) сохраняется. Тело ниже не переписано — фиксирует исходное решение.
+
 # ADR-010 — Chief-agent на Gemini free-tier через шлюз
 
 Дата: 2026-06-10

@@ -58,6 +58,8 @@
   Подробные implementation plans как будущая карта сборки по конкретному эпику; их наличие не означает немедленный старт реализации.
 
 > **Полный сводный индекс ADR → [`docs/adr/README.md`](../adr/README.md)**
+>
+> ADR от 016 и далее (016–027) каталогизированы **только** там; локальный список «Уже добавлено» ниже отражает замороженный архив 001–015.
 
 ## Уже добавлено
 
@@ -90,6 +92,17 @@
 - `runbooks/runbook-003-killswitch-egress.md`
 - `runbooks/runbook-004-litellm-gateway.md`
 - `release-gates.md`
+
+## Актуализация (2026-06-30, DOC-3)
+
+Индекс отражает текущее состояние репозитория, не только апрельский planning-снимок. Ссылки на операционные и более поздние документы:
+
+- `deploy-runbook.md` — операционный runbook (bring-up, alembic head, env-matrix, egress, scheduler-джобы).
+- `roles-taxonomy.md` — таксономия AI-ролей (chief-agent, market-scanner, news-sentiment, forecast).
+- `ev-gate-proof.md` — доказательство EV-gate + session-limits (ADR-020/021), включая известный capital-gap.
+- `../development/` — handoff-документы и точки восстановления (актуальный вход — `handoff-2026-05-02.md`).
+
+Полный канонический индекс ADR (001–027) — `../adr/README.md`.
 
 ## Как использовать
 

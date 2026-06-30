@@ -1,4 +1,5 @@
 > **STATUS: SUPERSEDED (2026-06-13).** Написан до реализации кода;
+> **Chief-model:** план фиксировал Gemini free-tier; текущий chief = `minimax-m3` (ADR-017 + `runbook-004`). Тело/таблицы ниже — исторические (deploy5-era baselines §8: pytest 409 / pyright 33 / ruff 47 vs recon ruff 13 — числа эпохи, не текущие).
 > live-правда AI-слоя — в `blueprint-v1.md` §9–§10 и `runbooks/runbook-004`.
 > Документ сохранён как исторический контекст deploy5 (слайсы 5a–5e).
 

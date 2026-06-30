@@ -14,7 +14,7 @@
 - `ui-references/` - распакованные visual reference exports от Gemini для UI-pass.
 - `development/` - handoff-документы, текущий статус разработки, точки остановки и следующие шаги.
 - `architecture/` - архитектурные планы и ADRs по слоям.
-  - [DEPLOY-5 — AI Model Layer](architecture/deploy5-ai-model-layer.md)
+  - [DEPLOY-5 — AI Model Layer](architecture/deploy5-ai-model-layer.md) — **SUPERSEDED (2026-06-13)**, live-правда AI-слоя в `blueprint-v1.md` §9–§10 и `runbooks/runbook-004`
 
 ## Источник Snapshot
 
