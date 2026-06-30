@@ -32,12 +32,12 @@ G0["G0 Infra ✅"] --> G1["G1 Runtime ✅"] --> G2["G2 Data ✅"] --> G3["G3 Sig
 - **Статус:** ✅ — DEPLOY-3.5e + DB-AUTOSTART, ребут-гейт зелёный.
 
 ### G1 — Runtime stability ✅
-- **Критерий прохода:** scheduler с 4 джобами (health / reliability / ingestion / retention), 0 джобов исполняют сделки; health-endpoints; degraded-mode «громкий» (виден в UI и audit); непрерывный health > 24ч перед GO.
+- **Критерий прохода:** scheduler с 4 джобами по умолчанию (health / reliability / ingestion / retention) + 2 opt-in (ai-agent / provider-pool, флаг-gated, выкл), 0 джобов исполняют сделки; health-endpoints; degraded-mode «громкий» (виден в UI и audit); непрерывный health > 24ч перед GO.
 - **Зачем:** система работает сама и честно сообщает о деградации, а не молчит.
 - **Статус:** ✅ — механика ✅ (джобы, degraded-mode, health) + **контрольный 24ч-soak пройден** (2026-06-30): 145 сэмплов / 144 строго healthy; единственная аномалия 13:32 — operator TUN-свитч v2rayN (артефакт пробы, не сервиса; самовосстановление <10мин, процесс не падал); scheduler 4 джобы, 0 трейдовых.
 
 ### G2 — Data integrity ✅
-- **Критерий прохода:** миграции без дрейфа (`G2.1` no-op / `G2.2` round-trip / `G2.3` no-drift), alembic head `0015`; freshness/retention-политики работают; нет рассинхрона freshness между signal-pipeline и workspace.
+- **Критерий прохода:** миграции без дрейфа (`G2.1` no-op / `G2.2` round-trip / `G2.3` no-drift), alembic head `0021`; freshness/retention-политики работают; нет рассинхрона freshness между signal-pipeline и workspace.
 - **Зачем:** решения принимаются на консистентных, свежих данных.
 - **Статус:** ✅ — миграции ✅; **Finding L закрыт** (freshness dual-policy выровнен: per-pair worst-of в shortlist + гейтинг по свежести фокусной пары + advisory `monitored_data_health`; L2 `3aea771` / L3a `b38df40` / L3b `bb3a246`, ADR-026). Рассинхрон pipeline↔workspace устранён.
 
