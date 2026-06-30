@@ -1,5 +1,6 @@
 > **Live-правда AI-слоя консолидирована в `blueprint-v1.md` §9–§10.**
 > Этот документ — детальная planning-chain E5, сохраняется как история.
+> Namespace в тексте — планировочный (`clay_mc`, `app/backend`); реальный код использует `clay` / `backend`.
 
 # E5 AI Roles, Orchestration And Model Assignment Implementation Plan
 

@@ -1,3 +1,6 @@
+> **STATUS: HISTORICAL PLANNING (заморожен).** Документ относится к этапу планирования (апрель 2026) и сохраняется как исторический контекст.
+> Источник истины — `blueprint-v1.md`, `release-gates.md`, ADR (`docs/adr/`) и код (`backend/`).
+
 # E10 Build Spec — Knowledge Base And Research Layer
 
 Дата: 2026-04-15

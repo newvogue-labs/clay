@@ -1,3 +1,7 @@
+> **STATUS: HISTORICAL PLANNING (заморожен).** План относится к этапу планирования (апрель 2026) и сохраняется как исторический контекст.
+> Источник истины — `blueprint-v1.md`, `release-gates.md`, ADR (`docs/adr/`) и код (`backend/`).
+> Namespace в тексте — планировочный (`clay_mc`, `app/backend`); реальный код использует `clay` / `backend`.
+
 # E3 Implementation Plan — Execution Override (S-EXEC-3c)
 
 Эпик S-EXEC-3c: показать и управлять execution-override во фронтовом trading-workspace.

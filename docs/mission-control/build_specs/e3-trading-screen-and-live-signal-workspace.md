@@ -606,7 +606,7 @@
 - `execution_override_expires_at | null` — ISO 8601 UTC, момент истечения override; `null` означает отсутствие активного override (см. ADR-025, ADR-001 addendum 2026-06-28).
 - `server_time` — ISO 8601 UTC, серверное время на момент сборки snapshot; клиент использует для компенсации часового дрейфа при расчёте countdown.
 
-### 16.7 Operator action: execution override (header badge + modal)
+### 16.8 Operator action: execution override (header badge + modal)
 
 - Override-badge-кнопка в command-strip header trading-workspace видна при
   `execution_override_state ∈ {pending, confirmed}` (НЕ в workspace-state-banner —
@@ -655,7 +655,7 @@
 
 ## 18. Transport contract для `E3`
 
-### 14.1 Snapshot path
+### 18.1 Snapshot path
 
 Через `HTTP/JSON`:
 
@@ -665,7 +665,7 @@
 - current active signals list
 - latest reasoning / risk / news bundle
 
-### 14.2 Live update path
+### 18.2 Live update path
 
 Через `SSE`:
 
@@ -675,7 +675,7 @@
 - degraded / defensive / invalidated events
 - freshness warnings
 
-### 14.3 Что нельзя
+### 18.3 Что нельзя
 
 Нельзя:
 
