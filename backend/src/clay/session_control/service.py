@@ -712,7 +712,18 @@ class SessionControlService:
             total_exposure = round(
                 sum(r.advisory_size_pct or 0.0 for r in open_positions), 4
             )
-            if total_exposure > limits_cfg.max_total_exposure_pct:
+            block_pct = limits_cfg.max_total_exposure_block_pct
+            if block_pct > 0.0 and total_exposure > block_pct:
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-exposure",
+                        label="Aggregate advisory exposure",
+                        status="hard_fail",
+                        reason=f"Total open exposure = {total_exposure}% exceeds hard block limit of {block_pct}%.",
+                        blocks_start=True,
+                    )
+                )
+            elif total_exposure > limits_cfg.max_total_exposure_pct:
                 checks.append(
                     SessionPreflightCheck(
                         check_id="risk-limit-exposure",
