@@ -87,7 +87,8 @@ export function useWorkspace(): WorkspaceController {
     return () => {
       stream.close()
     }
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function runAction(task: () => Promise<unknown>): Promise<void> {
     startTransition(() => {

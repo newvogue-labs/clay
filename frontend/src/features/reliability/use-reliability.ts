@@ -77,7 +77,8 @@ export function useReliability(): ReliabilityController {
     return () => {
       stream.close()
     }
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function recheck(): Promise<void> {
     if (!confirmAction('Запустить повторную reliability-проверку?')) {

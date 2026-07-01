@@ -50,7 +50,8 @@ export function useAlphaReadiness(): AlphaReadinessController {
 
   useEffect(() => {
     void refresh()
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     ...state,
