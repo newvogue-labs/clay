@@ -319,6 +319,160 @@ def test_l4_exposure_passes_within_threshold(
     assert checks["risk-limit-exposure"].status == "ok"
 
 
+# ── D9: Exposure hard block (dual-tier off-by-default) ────────────────────────
+
+
+@patch("clay.db.repositories_demo.DemoRepository.list_resolved_window", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_ordered_recent", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_open_positions")
+@patch("clay.db.repositories_demo.DemoRepository.list_session_trades", return_value=[])
+def test_exposure_block_disabled_by_default(
+    mock_session, mock_open, mock_ordered, mock_window, db_session
+) -> None:
+    """block_pct=0.0 (off), exposure 6% > 4% → warn, NOT blocks_start."""
+    mock_open.return_value = [
+        _demo_record(
+            pnl_pct=None, advisory_size_pct=3.0, broker_status="awaiting_result"
+        ),
+        _demo_record(
+            pnl_pct=None, advisory_size_pct=3.0, broker_status="awaiting_result"
+        ),
+    ]
+    service = _build_service()
+    checks = _risk_checks(service, db_session)
+    assert checks["risk-limit-exposure"].status == "warn"
+    assert checks["risk-limit-exposure"].blocks_start is False
+
+
+@patch("clay.db.repositories_demo.DemoRepository.list_resolved_window", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_ordered_recent", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_open_positions")
+@patch("clay.db.repositories_demo.DemoRepository.list_session_trades", return_value=[])
+def test_exposure_hard_block_when_enabled(
+    mock_session, mock_open, mock_ordered, mock_window, db_session
+) -> None:
+    """block_pct=5.0, exposure 6% → hard_fail + blocks_start=True."""
+    mock_open.return_value = [
+        _demo_record(
+            pnl_pct=None, advisory_size_pct=5.0, broker_status="awaiting_result"
+        ),
+        _demo_record(
+            pnl_pct=None, advisory_size_pct=1.0, broker_status="awaiting_result"
+        ),
+    ]
+    service = _build_service()
+    service.config_loader.apply_raw_text(
+        "risk",
+        "confidence_warning_threshold = 0.6\n"
+        "degraded_confidence_penalty = 0.2\n"
+        "[kelly]\n"
+        "lambda = 0.25\n"
+        "cap = 0.02\n"
+        "min_ev = 0.15\n"
+        "equity_base = 1.0\n"
+        "[calibration]\n"
+        "min_outcomes_for_recalibration = 30\n"
+        "[session_limits]\n"
+        "max_drawdown_pct = 15.0\n"
+        "max_consecutive_losses = 3\n"
+        "cooldown_minutes = 60\n"
+        "drawdown_window_hours = 24\n"
+        "max_concurrent_sessions = 1\n"
+        "max_total_exposure_pct = 4.0\n"
+        "max_total_exposure_block_pct = 5.0\n"
+        "per_session_loss_warn_pct = 8.0\n",
+    )
+    service.config_loader.load_all()
+    checks = _risk_checks(service, db_session)
+    assert checks["risk-limit-exposure"].status == "hard_fail"
+    assert checks["risk-limit-exposure"].blocks_start is True
+
+
+@patch("clay.db.repositories_demo.DemoRepository.list_resolved_window", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_ordered_recent", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_open_positions")
+@patch("clay.db.repositories_demo.DemoRepository.list_session_trades", return_value=[])
+def test_exposure_block_within_limit(
+    mock_session, mock_open, mock_ordered, mock_window, db_session
+) -> None:
+    """block_pct=5.0, exposure 3% → ok (below both thresholds)."""
+    mock_open.return_value = [
+        _demo_record(
+            pnl_pct=None, advisory_size_pct=3.0, broker_status="awaiting_result"
+        ),
+    ]
+    service = _build_service()
+    service.config_loader.apply_raw_text(
+        "risk",
+        "confidence_warning_threshold = 0.6\n"
+        "degraded_confidence_penalty = 0.2\n"
+        "[kelly]\n"
+        "lambda = 0.25\n"
+        "cap = 0.02\n"
+        "min_ev = 0.15\n"
+        "equity_base = 1.0\n"
+        "[calibration]\n"
+        "min_outcomes_for_recalibration = 30\n"
+        "[session_limits]\n"
+        "max_drawdown_pct = 15.0\n"
+        "max_consecutive_losses = 3\n"
+        "cooldown_minutes = 60\n"
+        "drawdown_window_hours = 24\n"
+        "max_concurrent_sessions = 1\n"
+        "max_total_exposure_pct = 4.0\n"
+        "max_total_exposure_block_pct = 5.0\n"
+        "per_session_loss_warn_pct = 8.0\n",
+    )
+    service.config_loader.load_all()
+    checks = _risk_checks(service, db_session)
+    assert checks["risk-limit-exposure"].status == "ok"
+    assert checks["risk-limit-exposure"].blocks_start is False
+
+
+@patch("clay.db.repositories_demo.DemoRepository.list_resolved_window", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_ordered_recent", return_value=[])
+@patch("clay.db.repositories_demo.DemoRepository.list_open_positions")
+@patch("clay.db.repositories_demo.DemoRepository.list_session_trades", return_value=[])
+def test_exposure_warn_coexists_with_block(
+    mock_session, mock_open, mock_ordered, mock_window, db_session
+) -> None:
+    """block_pct=10.0, exposure 6% (>4 advisory, <10 block) → warn, NOT block."""
+    mock_open.return_value = [
+        _demo_record(
+            pnl_pct=None, advisory_size_pct=3.0, broker_status="awaiting_result"
+        ),
+        _demo_record(
+            pnl_pct=None, advisory_size_pct=3.0, broker_status="awaiting_result"
+        ),
+    ]
+    service = _build_service()
+    service.config_loader.apply_raw_text(
+        "risk",
+        "confidence_warning_threshold = 0.6\n"
+        "degraded_confidence_penalty = 0.2\n"
+        "[kelly]\n"
+        "lambda = 0.25\n"
+        "cap = 0.02\n"
+        "min_ev = 0.15\n"
+        "equity_base = 1.0\n"
+        "[calibration]\n"
+        "min_outcomes_for_recalibration = 30\n"
+        "[session_limits]\n"
+        "max_drawdown_pct = 15.0\n"
+        "max_consecutive_losses = 3\n"
+        "cooldown_minutes = 60\n"
+        "drawdown_window_hours = 24\n"
+        "max_concurrent_sessions = 1\n"
+        "max_total_exposure_pct = 4.0\n"
+        "max_total_exposure_block_pct = 10.0\n"
+        "per_session_loss_warn_pct = 8.0\n",
+    )
+    service.config_loader.load_all()
+    checks = _risk_checks(service, db_session)
+    assert checks["risk-limit-exposure"].status == "warn"
+    assert checks["risk-limit-exposure"].blocks_start is False
+
+
 # ── L5: Per-session loss alert ───────────────────────────────────────────────
 
 

@@ -105,6 +105,7 @@ class ConfigLoader:
                 "drawdown_window_hours = 24\n"
                 "max_concurrent_sessions = 1\n"
                 "max_total_exposure_pct = 4.0\n"
+                "max_total_exposure_block_pct = 0.0\n"
                 "per_session_loss_warn_pct = 8.0\n",
                 encoding="utf-8",
             )

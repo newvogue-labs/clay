@@ -35,6 +35,7 @@ class SessionLimitsConfig(BaseModel):
     drawdown_window_hours: int = Field(default=24, ge=1)
     max_concurrent_sessions: int = Field(default=1, ge=1)
     max_total_exposure_pct: float = Field(default=4.0, gt=0.0, le=100.0)
+    max_total_exposure_block_pct: float = Field(default=0.0, ge=0.0, le=100.0)
     per_session_loss_warn_pct: float = Field(default=8.0, gt=0.0, le=100.0)
 
 
