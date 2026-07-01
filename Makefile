@@ -36,7 +36,7 @@ typecheck: backend-typecheck frontend-typecheck
 check: lint format-check backend-test frontend-typecheck frontend-test
 
 backend-run:
-	cd backend && uv run uvicorn clay.api.main:app --host 127.0.0.1 --port 8000 --reload
+	cd backend && uv run uvicorn clay.api.main:app --host 127.0.0.1 --port 8000 --reload --env-file .env
 
 frontend-install:
 	cd frontend && pnpm install

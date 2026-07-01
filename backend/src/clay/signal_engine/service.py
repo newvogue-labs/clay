@@ -288,7 +288,7 @@ class SignalEngineService:
                 ev_gate_triggered=kelly_result.ev_gate_triggered,
             )
             if applied_penalties:
-                logger.info(
+                logger.debug(
                     "signal.ranking_capped symbol=%s base=%.2f capped=%.2f penalties=%s",
                     row.symbol,
                     base_ranking,
@@ -299,13 +299,13 @@ class SignalEngineService:
                     ),
                 )
             if row.stale_timeframes:
-                logger.info(
+                logger.debug(
                     "signal.stale_timeframes_detected symbol=%s stale_tfs=%s",
                     row.symbol,
                     ",".join(row.stale_timeframes),
                 )
             if row.low_quote_volume:
-                logger.info(
+                logger.debug(
                     "signal.low_quote_volume_detected symbol=%s leader_quote_volume=%.2f threshold=%.2f",
                     row.symbol,
                     row.leader_quote_volume,
