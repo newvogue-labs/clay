@@ -95,11 +95,13 @@ export function useSessionReview(): SessionReviewController {
     return () => {
       stream.close()
     }
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     void refresh()
-  }, [state.filters.pair, state.filters.strategy, state.filters.modelVersion, state.filters.confidenceBand, refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.filters.pair, state.filters.strategy, state.filters.modelVersion, state.filters.confidenceBand])
 
   async function runAction(task: () => Promise<void>): Promise<void> {
     startTransition(() => {

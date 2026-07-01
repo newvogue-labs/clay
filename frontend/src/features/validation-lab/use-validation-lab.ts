@@ -84,7 +84,8 @@ export function useValidationLab(): ValidationLabController {
     return () => {
       stream.close()
     }
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function runAction(task: () => Promise<void>): Promise<void> {
     startTransition(() => {

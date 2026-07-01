@@ -103,7 +103,8 @@ export function useControlPlane(): ControlPlaneController {
     return () => {
       stream.close()
     }
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function transitionRuntime(target: RuntimeState): Promise<void> {
     startTransition(() => {
