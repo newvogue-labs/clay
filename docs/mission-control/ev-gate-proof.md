@@ -51,17 +51,10 @@
 
 ### Известные gaps (НЕ покрыты)
 
-1. **session-level `risk-limits-active` — заглушка**  
-   В `session_control/service.py:522`:
-   ```python
-   SessionPreflightCheck(
-       check_id="risk-limits-active",
-       status="ok",           # hardcoded
-       blocks_start=False,    # НИКОГДА не блокирует
-   )
-   ```
-   Этот check **всегда** `"ok"` и **всегда пропускает**, независимо от размера позиции, капитала, drawdown или session-P&L. Капитальные/сессионные лимиты НЕ enforced.  
-   **Статус:** KNOWN GAP — кандидат на отдельный слайс/ADR.
+1. **session-level `risk-limits-active` — заглушка → гранулярные `risk-limit-*`**  
+   Строба `risk-limits-active` (бывшая `service.py:522`) декомпозирована в гранулярные checks `risk-limit-drawdown`, `risk-limit-cooldown`, `risk-limit-concurrent`, `risk-limit-exposure`, `risk-limit-session-loss` (ADR-021, S-RISKLIMITS-2).  
+   Капитальная часть (`risk-limit-exposure`) обновлена: добавлен опциональный hard-block `max_total_exposure_block_pct` (default 0.0 = off, ADR-029, S-CAPLIMITS-1).  
+   **Статус:** RESOLVED — все пять лимитов enforced, exposure hard-block-capable off-by-default.
 
 2. **Per-signal stop/target (ATR)** — `S-KELLY-2-R` enhancement, не входит в данный proof.
 
@@ -82,4 +75,4 @@ _evaluate_candidates()
 
 - [ADR-020: Fractional Kelly + EV-gate](../adr/020-position-sizing-kelly-ev-gate.md)
 - Тесты: `tests/signal_engine/test_sizing.py` — `TestEvGateScenarios`, `TestEvGateNoCascade`, `TestHardBlockRegression`
-- Session-level gap: `backend/src/clay/session_control/service.py:522`
+- Session-level gap — resolved: ADR-021 (session risk limits) + ADR-029 (exposure hard-block)

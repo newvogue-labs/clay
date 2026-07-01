@@ -1,6 +1,6 @@
 # ADR-021: Session-Level Risk Limits (Admission Gate)
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-07-01)
 - **Date:** 2026-06-24
 - **Replaces:** —
 - **Depends on:** ADR-020 (Kelly/EV-gate), M211 ev-gate-proof Scope & Limits
@@ -41,6 +41,7 @@
 - **Severity:** `hard_fail` → blocks_start
 - **Reason:** "Active session already in progress — start blocked."
 - **Примечание:** defense-in-depth поверх существующей архитектурной гарантии. Явный check для единообразия/читаемой причины.
+- **Аспирационное поле:** `max_concurrent_sessions` — конфиг допускает N>1, но архитектура физически держит максимум 1 активную сессию (`_active_session` = `ActiveSessionRecord | None`). Текущий чек корректно enforced'ит реальный инвариант «1 активная». Пересмотр — при мульти-сессионности (backlog).
 
 ### L4 — Max aggregate advisory exposure (warn, placeholder)
 
@@ -50,7 +51,8 @@
 - **Severity:** `warn` (advisory для pre-money; не blocks_start)
 - **Reason:** "Total open exposure = {X}% exceeds {Y}% threshold."
 - **Prerequisite:** `advisory_size_pct` nullable — если данные не заполнены, L4 пропускается (best-effort)
-- **Near-vacuous note:** при текущей one-session + DEDUP-1 (≤1 открытая запись/сессия) L4 почти всегда ≤1 позиции. Станет осмысленным только при мульти-позиции. Сейчас это placeholder, не активная защита.
+- **Near-vacuous note:** при текущей one-session + DEDUP-1 (≤1 открытая запись/сессия) L4 почти всегда ≤1 позиции. Станет осмысленным только при мульти-позиции.
+- **Upgraded (ADR-029, 2026-07-01):** L4 больше не placeholder — добавлен `max_total_exposure_block_pct: float = 0.0` (off-by-default). Dual-tier: warn на `max_total_exposure_pct` (4.0) + опциональный hard-block при `block_pct > 0.0`. ADR-029 — `docs/adr/029-capital-exposure-hard-block.md`.
 
 ### L5 — Per-session loss alert (warn, advisory)
 
@@ -161,6 +163,6 @@ per_session_loss_warn_pct = 8.0
 
 ## Ссылки
 
-- M211: `docs/mission-control/ev-gate-proof.md` — Scope & Limits (KNOWN GAP)
+- M211: `docs/mission-control/ev-gate-proof.md` — Scope & Limits (KNOWN GAP → resolved)
 - ADR-020: `docs/adr/020-position-sizing-kelly-ev-gate.md`
-- KNOWN GAP: `backend/src/clay/session_control/service.py:522-528`
+- ADR-029: `docs/adr/029-capital-exposure-hard-block.md` — L4 hard-block upgrade
