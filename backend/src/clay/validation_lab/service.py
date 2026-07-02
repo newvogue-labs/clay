@@ -186,43 +186,63 @@ class ValidationLabService:
             severity=severity,
         )
         created_at = datetime.now(UTC)
-        row = repository.create_activation_review(
-            {
-                "review_id": str(uuid4()),
-                "target_type": target_type,
-                "target_id": target_id,
-                "proposed_value": proposed_value,
-                "current_value": current_value,
-                "status": status,
-                "severity": severity,
-                "summary": summary,
-                "evidence_json": evidence,
-                "created_at": created_at,
-                "applied_at": None,
-            }
-        )
+
+        # Upsert: replace existing non-applied review for the same target
+        existing = repository.get_activation_review_by_target(target_type, target_id)
+        if existing is not None:
+            existing.proposed_value = proposed_value
+            existing.current_value = current_value
+            existing.status = status
+            existing.severity = severity
+            existing.summary = summary
+            existing.evidence_json = json.dumps(evidence, sort_keys=True, default=str)
+            existing.created_at = created_at
+            existing.applied_at = None
+            session.flush()
+            review_id = existing.review_id
+            is_new = False
+        else:
+            row = repository.create_activation_review(
+                {
+                    "review_id": str(uuid4()),
+                    "target_type": target_type,
+                    "target_id": target_id,
+                    "proposed_value": proposed_value,
+                    "current_value": current_value,
+                    "status": status,
+                    "severity": severity,
+                    "summary": summary,
+                    "evidence_json": evidence,
+                    "created_at": created_at,
+                    "applied_at": None,
+                }
+            )
+            review_id = row.review_id
+            is_new = True
+
         session.commit()
         self.audit_writer.write(
             "validation.activation.reviewed",
             {
-                "review_id": row.review_id,
+                "review_id": review_id,
                 "target_type": target_type,
                 "target_id": target_id,
                 "status": status,
                 "severity": severity,
+                "is_upsert": not is_new,
             },
         )
         self.event_bus.publish(
             "validation.updated",
             {
                 "event_type": "validation.activation.reviewed",
-                "review_id": row.review_id,
+                "review_id": review_id,
                 "target_type": target_type,
                 "target_id": target_id,
                 "status": status,
             },
         )
-        return self._serialize_review(row)
+        return self._serialize_review(existing if existing is not None else row)
 
     def apply_activation(
         self, session: Session, review_id: str
@@ -275,6 +295,36 @@ class ValidationLabService:
             {
                 "event_type": "validation.activation.applied",
                 "review_id": row.review_id,
+                "target_type": row.target_type,
+                "target_id": row.target_id,
+            },
+        )
+        return self.build_snapshot(session)
+
+    def discard_activation_review(
+        self, session: Session, review_id: str
+    ) -> ValidationLabSnapshot:
+        repository = ValidationRepository(session)
+        row = repository.get_activation_review(review_id)
+        if row is None:
+            raise ValueError("activation review not found")
+        if row.status == "applied":
+            raise ValueError("cannot discard an applied activation review")
+        repository.discard_activation_review(review_id)
+        session.commit()
+        self.audit_writer.write(
+            "validation.activation.discarded",
+            {
+                "review_id": review_id,
+                "target_type": row.target_type,
+                "target_id": row.target_id,
+            },
+        )
+        self.event_bus.publish(
+            "validation.updated",
+            {
+                "event_type": "validation.activation.discarded",
+                "review_id": review_id,
                 "target_type": row.target_type,
                 "target_id": row.target_id,
             },

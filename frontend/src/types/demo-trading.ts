@@ -50,3 +50,10 @@ export type DemoTradingSnapshot = {
   active_session: DemoActiveSessionSnapshot
   records: DemoTradeRecordSnapshot[]
 }
+
+export function outcomeTone(outcome: DemoTradeRecordSnapshot['outcome_status']): 'success' | 'warning' | 'danger' | 'muted' {
+  if (outcome === 'matched') return 'success'
+  if (outcome === 'mismatched') return 'danger'
+  if (outcome === 'late_matched' || outcome === 'missed' || outcome === 'unresolved') return 'warning'
+  return 'muted'
+}

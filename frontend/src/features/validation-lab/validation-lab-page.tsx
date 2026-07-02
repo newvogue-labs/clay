@@ -9,6 +9,7 @@ import {
   PlayCircle,
   ShieldCheck,
   Sparkles,
+  ThumbsDown,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
@@ -155,6 +156,9 @@ export function ValidationLabPage() {
             isLoading={validation.isLoading}
             onApply={() => {
               void validation.applyActivation()
+            }}
+            onDiscard={(reviewId) => {
+              void validation.discardActivation(reviewId)
             }}
             pendingReview={activeReview}
             reviews={reviews}
@@ -344,6 +348,7 @@ type ActivationReviewConsoleProps = {
   isLoading: boolean
   isActing: boolean
   onApply: () => void
+  onDiscard: (reviewId: string) => void
 }
 
 function ActivationReviewConsole({
@@ -352,6 +357,7 @@ function ActivationReviewConsole({
   isLoading,
   isActing,
   onApply,
+  onDiscard,
 }: ActivationReviewConsoleProps) {
   return (
     <section className="validation-review-console" aria-label="activation-review-panel">
@@ -369,6 +375,7 @@ function ActivationReviewConsole({
           isPending
           isActing={isActing}
           onApply={onApply}
+          onDiscard={onDiscard}
           review={pendingReview}
         />
       ) : null}
@@ -380,6 +387,7 @@ function ActivationReviewConsole({
             <ReviewCard
               isActing={isActing}
               key={review.review_id}
+              onDiscard={onDiscard}
               review={review}
             />
           ))
@@ -393,9 +401,11 @@ type ReviewCardProps = {
   isActing: boolean
   isPending?: boolean
   onApply?: () => void
+  onDiscard?: (reviewId: string) => void
 }
 
-function ReviewCard({ review, isActing, isPending = false, onApply }: ReviewCardProps) {
+function ReviewCard({ review, isActing, isPending = false, onApply, onDiscard }: ReviewCardProps) {
+  const canDiscard = review.status !== 'applied'
   return (
     <article className="validation-review-card" data-tone={getReviewTone(review.severity)}>
       <div>
@@ -422,12 +432,20 @@ function ReviewCard({ review, isActing, isPending = false, onApply }: ReviewCard
           ))}
         </div>
       ) : null}
-      {isPending && onApply ? (
-        <button disabled={isActing} onClick={onApply} type="button">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Apply Activation Review
-        </button>
-      ) : null}
+      <div className="validation-review-actions">
+        {isPending && onApply ? (
+          <button disabled={isActing} onClick={onApply} type="button">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Apply Activation Review
+          </button>
+        ) : null}
+        {canDiscard && onDiscard ? (
+          <button disabled={isActing} onClick={() => onDiscard(review.review_id)} type="button">
+            <ThumbsDown className="h-3.5 w-3.5" />
+            Discard
+          </button>
+        ) : null}
+      </div>
     </article>
   )
 }
