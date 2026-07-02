@@ -19,6 +19,7 @@ import type {
   DemoReadinessSnapshot,
   DemoTradeRecordSnapshot,
 } from '../../types/demo-trading'
+import { outcomeTone } from '../../types/demo-trading'
 import { useDemoTrading } from './use-demo-trading'
 
 function formatDateTime(value: string | null | undefined): string {
@@ -56,19 +57,6 @@ function getGateTone(status: DemoReadinessGateSnapshot['status']): 'success' | '
     return 'danger'
   }
   return 'warning'
-}
-
-function getOutcomeTone(outcome: DemoTradeRecordSnapshot['outcome_status']): 'success' | 'warning' | 'danger' | 'muted' {
-  if (outcome === 'matched') {
-    return 'success'
-  }
-  if (outcome === 'mismatched') {
-    return 'danger'
-  }
-  if (outcome === 'late_matched' || outcome === 'missed' || outcome === 'unresolved') {
-    return 'warning'
-  }
-  return 'muted'
 }
 
 export function DemoValidationPage() {
@@ -354,7 +342,7 @@ function ResultTrackingConsole({
                 <span>{record.executed_symbol ? `Executed symbol: ${record.executed_symbol}` : `Broker status: ${record.broker_status ?? 'pending'}`}</span>
               </div>
               <div>
-                <StatusBadge label={record.outcome_status} />
+                <StatusBadge label={record.outcome_status} tone={outcomeTone(record.outcome_status)} />
                 <span>{formatDateTime(record.observed_at ?? record.recorded_at)}</span>
               </div>
               <div className={(record.pnl_pct ?? 0) >= 0 ? 'is-positive' : 'is-negative'}>
@@ -414,7 +402,7 @@ function OutcomeMixConsole({ readiness, isLoading }: OutcomeMixConsoleProps) {
       {!isLoading ? (
         <div className="demo-outcome-list">
           {outcomes.map(([label, value, outcome]) => (
-            <p data-tone={getOutcomeTone(outcome)} key={outcome}>
+            <p data-tone={outcomeTone(outcome)} key={outcome}>
               <span>{label}</span>
               <strong>{value}</strong>
             </p>
