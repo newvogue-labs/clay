@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 
 import { StatusBadge } from '../../components/status-badge'
+import { getPriorityTone } from '../../helpers/tone'
 import type {
   KnowledgeItemSnapshot,
   KnowledgeSearchResultSnapshot,
@@ -42,16 +43,6 @@ function formatDate(value: string | null | undefined): string {
     minute: '2-digit',
     month: 'short',
   })
-}
-
-function getPriorityTone(priority: KnowledgeItemSnapshot['priority']): 'success' | 'warning' | 'muted' {
-  if (priority === 'high') {
-    return 'success'
-  }
-  if (priority === 'medium') {
-    return 'warning'
-  }
-  return 'muted'
 }
 
 function formatBoolean(value: boolean): string {
@@ -269,7 +260,7 @@ function KnowledgeResultsConsole({
                 <article className="knowledge-item-card" data-tone={getPriorityTone(item.priority)} key={item.item_id}>
                   <div>
                     <strong>{item.title}</strong>
-                    <StatusBadge label={item.priority} />
+                    <StatusBadge label={item.priority} tone={getPriorityTone(item.priority)} />
                   </div>
                   <p>{item.content_preview}</p>
                   <dl>

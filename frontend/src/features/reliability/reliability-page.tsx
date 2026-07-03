@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 
 import { StatusBadge } from '../../components/status-badge'
+import { getSeverityTone } from '../../helpers/tone'
 import type {
   DegradedTriggerSnapshot,
   LocalFallbackReadinessSnapshot,
@@ -60,19 +61,6 @@ function getCheckTone(status: ReliabilityCheckSnapshot['status']): Tone {
     return 'warning'
   }
   return 'danger'
-}
-
-function getSeverityTone(severity: DegradedTriggerSnapshot['severity'] | string): Tone {
-  if (severity === 'critical' || severity === 'error' || severity === 'danger') {
-    return 'danger'
-  }
-  if (severity === 'warning' || severity === 'warn') {
-    return 'warning'
-  }
-  if (severity === 'info') {
-    return 'success'
-  }
-  return 'muted'
 }
 
 function getReadinessTone(status: ReliabilitySummary['release_readiness_status'] | undefined): Tone {
@@ -363,7 +351,7 @@ function DegradedModeConsole({ triggers, fallback, isLoading }: DegradedModeCons
               <article className="reliability-trigger-card" data-tone={getSeverityTone(trigger.severity)} key={trigger.trigger_id}>
                 <div>
                   <AlertCircle className="h-4 w-4" />
-                  <StatusBadge label={trigger.severity} />
+                  <StatusBadge label={trigger.severity} tone={getSeverityTone(trigger.severity)} />
                 </div>
                 <h4>{trigger.title}</h4>
                 <p>{trigger.description}</p>
@@ -450,7 +438,7 @@ function IncidentConsole({ incidents, isLoading }: IncidentConsoleProps) {
             >
               <div>
                 <strong>{incident.source_name}</strong>
-                <StatusBadge label={incident.severity} />
+                <StatusBadge label={incident.severity} tone={getSeverityTone(incident.severity)} />
               </div>
               <p>{incident.message}</p>
               <span>{formatDateTime(incident.recorded_at)}</span>

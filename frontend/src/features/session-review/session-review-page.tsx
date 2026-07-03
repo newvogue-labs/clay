@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 
 import { StatusBadge } from '../../components/status-badge'
+import { getOutcomeTone, getSeverityTone } from '../../helpers/tone'
 import type {
   AIReviewCardSnapshot,
   FeedbackItemSnapshot,
@@ -60,20 +61,6 @@ function getBestPair(records: ReviewedTradeRecord[]): string {
   }
 
   return resolved.reduce((best, record) => ((record.pnl_pct ?? 0) > (best.pnl_pct ?? 0) ? record : best)).symbol
-}
-
-function getOutcomeTone(outcome: string): 'success' | 'warning' | 'danger' | 'muted' {
-  const normalized = outcome.toLowerCase()
-  if (normalized === 'matched' || normalized === 'profitable') {
-    return 'success'
-  }
-  if (normalized === 'mismatched' || normalized === 'violation') {
-    return 'danger'
-  }
-  if (normalized === 'late_matched' || normalized === 'missed' || normalized === 'unresolved') {
-    return 'warning'
-  }
-  return 'muted'
 }
 
 export function SessionReviewPage() {
@@ -314,7 +301,7 @@ function ReviewRecordsConsole({
                 <span>{record.signal_id} / {record.strategy_mode}</span>
               </div>
               <div>
-                <StatusBadge label={record.outcome_status} />
+                <StatusBadge label={record.outcome_status} tone={getOutcomeTone(record.outcome_status)} />
                 <span>{record.operator_action}</span>
               </div>
               <div>
@@ -417,10 +404,10 @@ function ReviewAuditConsole({
       {isLoading ? <div className="review-empty-line">Loading audit trail...</div> : null}
       {!isLoading
         ? aiReviewCards.map((card) => (
-            <article className="review-ai-card" data-tone={getOutcomeTone(card.severity)} key={card.card_id}>
+            <article className="review-ai-card" data-tone={getSeverityTone(card.severity)} key={card.card_id}>
               <div>
                 <h4>{card.title}</h4>
-                <StatusBadge label={card.severity} />
+                <StatusBadge label={card.severity} tone={getSeverityTone(card.severity)} />
               </div>
               <p>{card.summary}</p>
               {card.recommendations.map((item) => (
@@ -434,7 +421,7 @@ function ReviewAuditConsole({
             <article className="review-audit-event" key={`${event.timestamp}-${event.event_type}`}>
               <div>
                 <strong>{event.event_type}</strong>
-                <StatusBadge label={event.severity} />
+                <StatusBadge label={event.severity} tone={getSeverityTone(event.severity)} />
               </div>
               <p>Module: {event.module}</p>
               <p>{event.explanation}</p>
