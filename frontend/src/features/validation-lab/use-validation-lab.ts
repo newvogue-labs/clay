@@ -2,6 +2,7 @@ import { startTransition, useEffect, useEffectEvent, useState } from 'react'
 
 import {
   applyActivation as postApplyActivation,
+  discardActivation as postDiscardActivation,
   getValidationLabOverview,
   getValidationLabStreamUrl,
   reviewActivation as postReviewActivation,
@@ -22,6 +23,7 @@ type ValidationLabController = ValidationLabState & {
   reviewStrategyActivation: () => Promise<void>
   reviewModelActivation: () => Promise<void>
   applyActivation: () => Promise<void>
+  discardActivation: (reviewId: string) => Promise<void>
 }
 
 function getErrorMessage(error: unknown): string {
@@ -159,11 +161,28 @@ export function useValidationLab(): ValidationLabController {
     })
   }
 
+  async function discardActivation(reviewId: string): Promise<void> {
+    if (!confirmAction(`Отклонить activation review ${reviewId}?`)) {
+      return
+    }
+    await runAction(async () => {
+      const snapshot = await postDiscardActivation(reviewId)
+      startTransition(() => {
+        setState((current) => ({
+          ...current,
+          snapshot,
+          pendingReview: current.pendingReview?.review_id === reviewId ? null : current.pendingReview,
+        }))
+      })
+    })
+  }
+
   return {
     ...state,
     runReplay,
     reviewStrategyActivation,
     reviewModelActivation,
     applyActivation,
+    discardActivation,
   }
 }

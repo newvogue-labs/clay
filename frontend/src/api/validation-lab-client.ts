@@ -55,6 +55,10 @@ export function applyActivation(reviewId: string): Promise<ValidationLabSnapshot
   })
 }
 
+export function discardActivation(reviewId: string): Promise<ValidationLabSnapshot> {
+  return postJson<ValidationLabSnapshot>(`/validation-lab/activation/review/${reviewId}/discard`, {})
+}
+
 export function getValidationLabStreamUrl(): string {
   return `${API_BASE_URL}/validation-lab/stream`
 }

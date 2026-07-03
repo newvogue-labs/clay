@@ -2,6 +2,7 @@ import { startTransition, useEffect, useEffectEvent, useState } from 'react'
 
 import {
   applyPairReplacement as postApplyPairReplacement,
+  closeReview as postCloseReview,
   completeSession as postCompleteSession,
   getSessionOverview,
   getSessionStreamUrl,
@@ -28,6 +29,7 @@ type SessionControlController = SessionControlState & {
   pauseSession: () => Promise<void>
   resumeSession: () => Promise<void>
   completeSession: () => Promise<void>
+  closeReview: () => Promise<void>
   reviewReplacement: (proposedSymbol?: string) => Promise<void>
   applyReplacement: () => Promise<void>
 }
@@ -162,6 +164,18 @@ export function useSessionControl(): SessionControlController {
     })
   }
 
+  async function closeReview(): Promise<void> {
+    if (!confirmAction('Закрыть review и вернуться в idle?')) {
+      return
+    }
+    await runAction(async () => {
+      const snapshot = await postCloseReview()
+      startTransition(() => {
+        setState((current) => ({ ...current, snapshot, replacementReview: null }))
+      })
+    })
+  }
+
   async function reviewReplacement(proposedSymbol?: string): Promise<void> {
     if (!confirmAction('Подготовить review для pair replacement?')) {
       return
@@ -196,6 +210,7 @@ export function useSessionControl(): SessionControlController {
     pauseSession,
     resumeSession,
     completeSession,
+    closeReview,
     reviewReplacement,
     applyReplacement,
   }

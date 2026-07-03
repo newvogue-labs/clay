@@ -1,6 +1,8 @@
 import json
 
-from sqlalchemy import select
+from datetime import datetime, UTC
+
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from clay.db.models_validation import ActivationReview, ValidationRun
@@ -46,3 +48,25 @@ class ValidationRepository:
             .limit(limit)
         )
         return list(self.session.scalars(query).all())
+
+    def get_activation_review_by_target(
+        self, target_type: str, target_id: str
+    ) -> ActivationReview | None:
+        query = (
+            select(ActivationReview)
+            .where(ActivationReview.target_type == target_type)
+            .where(ActivationReview.target_id == target_id)
+            .where(ActivationReview.status != "applied")
+            .order_by(ActivationReview.created_at.desc())
+            .limit(1)
+        )
+        return self.session.scalar(query)
+
+    def discard_activation_review(self, review_id: str) -> None:
+        stmt = (
+            update(ActivationReview)
+            .where(ActivationReview.review_id == review_id)
+            .values(status="discarded", applied_at=datetime.now(UTC))
+        )
+        self.session.execute(stmt)
+        self.session.flush()

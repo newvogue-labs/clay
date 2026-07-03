@@ -48,6 +48,10 @@ export function completeSession(): Promise<SessionControlSnapshot> {
   return postJson<SessionControlSnapshot>('/session/complete', {})
 }
 
+export function closeReview(): Promise<SessionControlSnapshot> {
+  return postJson<SessionControlSnapshot>('/session/review/close', {})
+}
+
 export function reviewPairReplacement(
   proposedSymbol?: string,
 ): Promise<PairReplacementReviewSnapshot> {

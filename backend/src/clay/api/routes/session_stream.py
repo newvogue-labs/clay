@@ -14,6 +14,7 @@ router = APIRouter(prefix="/session", tags=["session"])
 RELEVANT_EVENTS = {
     "runtime.updated",
     "session.updated",
+    "session.review_closed",
     "workspace.updated",
     "signals.updated",
     "ai.updated",

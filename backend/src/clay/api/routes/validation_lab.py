@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from clay.api.dependencies import get_db_session, get_validation_lab_service
@@ -53,3 +53,16 @@ async def apply_activation(
     service: Annotated[ValidationLabService, Depends(get_validation_lab_service)],
 ) -> dict[str, object]:
     return service.apply_activation(session, command.review_id).model_dump(mode="json")
+
+
+@router.post("/activation/review/{review_id}/discard")
+async def discard_activation_review(
+    review_id: str,
+    session: Annotated[Session, Depends(get_db_session)],
+    service: Annotated[ValidationLabService, Depends(get_validation_lab_service)],
+) -> dict[str, object]:
+    try:
+        snapshot = service.discard_activation_review(session, review_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return snapshot.model_dump(mode="json")

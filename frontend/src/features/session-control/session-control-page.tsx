@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Square,
   Target,
+  XCircle,
   Zap,
 } from 'lucide-react'
 
@@ -143,6 +144,9 @@ export function SessionControlPage() {
             isActing={sessionControl.isActing}
             isLoading={sessionControl.isLoading}
             lifecycle={lifecycle}
+            onCloseReview={() => {
+              void sessionControl.closeReview()
+            }}
             onComplete={() => {
               void sessionControl.completeSession()
             }}
@@ -351,6 +355,7 @@ type LifecycleConsoleProps = {
   onPause: () => void
   onResume: () => void
   onComplete: () => void
+  onCloseReview: () => void
 }
 
 function LifecycleConsole({
@@ -360,6 +365,7 @@ function LifecycleConsole({
   onPause,
   onResume,
   onComplete,
+  onCloseReview,
 }: LifecycleConsoleProps) {
   return (
     <section className="session-lifecycle-console">
@@ -415,6 +421,12 @@ function LifecycleConsole({
               <Square className="h-3.5 w-3.5" />
               Complete session
             </button>
+            {lifecycle.lifecycle_state === 'review' ? (
+              <button disabled={isActing} onClick={onCloseReview} type="button">
+                <XCircle className="h-3.5 w-3.5" />
+                Close review
+              </button>
+            ) : null}
           </div>
         </>
       )}
