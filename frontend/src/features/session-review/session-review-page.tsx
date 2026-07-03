@@ -67,10 +67,14 @@ export function SessionReviewPage() {
   const review = useSessionReview()
   const snapshot = review.snapshot
   const summary = snapshot?.summary ?? null
+  const sessionSummary = review.sessionSummary
   const records = snapshot?.records ?? []
   const feedback = snapshot?.feedback ?? []
   const audit = snapshot?.audit ?? []
   const aiReviewCards = snapshot?.ai_review_cards ?? []
+
+  // Session-level fields from unfiltered overview (F20)
+  const stableSummary: SessionReviewSummary | null = sessionSummary ?? summary
 
   return (
     <div aria-label="session-review-page" className="screen-page session-review-page" data-screen="session-review">
@@ -80,10 +84,10 @@ export function SessionReviewPage() {
           <p>Historical performance, signal evidence, feedback capture, and audit review</p>
         </div>
         <div className="review-command-row">
-          <StatusBadge label={summary?.review_status ?? (review.isLoading ? 'loading' : 'unknown')} />
+          <StatusBadge label={stableSummary?.review_status ?? (review.isLoading ? 'loading' : 'unknown')} />
           <span>
             <Calendar className="h-3.5 w-3.5" />
-            {formatDateTime(summary?.last_reviewed_at)}
+            {formatDateTime(stableSummary?.last_reviewed_at)}
           </span>
         </div>
       </header>
@@ -99,6 +103,7 @@ export function SessionReviewPage() {
         isLoading={review.isLoading}
         records={records}
         summary={summary}
+        sessionSummary={stableSummary}
       />
 
       <div className="review-command-grid">
@@ -106,8 +111,14 @@ export function SessionReviewPage() {
           <ReviewFilterConsole
             filterOptions={snapshot?.filter_options ?? null}
             isLoading={review.isLoading}
-            onSelectPair={review.setPair}
             selectedPair={review.filters.pair}
+            selectedStrategy={review.filters.strategy}
+            selectedModelVersion={review.filters.modelVersion}
+            selectedConfidenceBand={review.filters.confidenceBand}
+            onSelectPair={review.setPair}
+            onSelectStrategy={review.setStrategy}
+            onSelectModelVersion={review.setModelVersion}
+            onSelectConfidenceBand={review.setConfidenceBand}
           />
           <ReviewRecordsConsole
             isActing={review.isActing}
@@ -124,6 +135,7 @@ export function SessionReviewPage() {
             feedback={feedback}
             isLoading={review.isLoading}
             summary={summary}
+            sessionSummary={stableSummary}
           />
           <ReviewAuditConsole
             aiReviewCards={aiReviewCards}
@@ -140,9 +152,10 @@ type ReviewOverviewStripProps = {
   summary: SessionReviewSummary | null
   records: ReviewedTradeRecord[]
   isLoading: boolean
+  sessionSummary: SessionReviewSummary | null
 }
 
-function ReviewOverviewStrip({ summary, records, isLoading }: ReviewOverviewStripProps) {
+function ReviewOverviewStrip({ summary, records, isLoading, sessionSummary }: ReviewOverviewStripProps) {
   const winCount = getWinCount(records)
   const resolvedCount = summary?.resolved_demo_records ?? 0
   const winRate = resolvedCount > 0 ? Math.round((winCount / resolvedCount) * 100) : 0
@@ -170,8 +183,8 @@ function ReviewOverviewStrip({ summary, records, isLoading }: ReviewOverviewStri
       <ReviewMetricCard
         icon={MessageSquare}
         label="Feedback count"
-        value={String(summary?.feedback_count ?? 0)}
-        detail={summary?.operator_message ?? 'Waiting for review summary.'}
+        value={String(sessionSummary?.feedback_count ?? summary?.feedback_count ?? 0)}
+        detail={sessionSummary?.operator_message ?? summary?.operator_message ?? 'Waiting for review summary.'}
       />
     </section>
   )
@@ -200,15 +213,27 @@ function ReviewMetricCard({ icon: Icon, label, value, detail }: ReviewMetricCard
 type ReviewFilterConsoleProps = {
   filterOptions: SessionReviewFilterOptions | null
   selectedPair: string | null
+  selectedStrategy: string | null
+  selectedModelVersion: string | null
+  selectedConfidenceBand: string | null
   isLoading: boolean
   onSelectPair: (pair: string | null) => void
+  onSelectStrategy: (strategy: string | null) => void
+  onSelectModelVersion: (modelVersion: string | null) => void
+  onSelectConfidenceBand: (confidenceBand: string | null) => void
 }
 
 function ReviewFilterConsole({
   filterOptions,
   selectedPair,
+  selectedStrategy,
+  selectedModelVersion,
+  selectedConfidenceBand,
   isLoading,
   onSelectPair,
+  onSelectStrategy,
+  onSelectModelVersion,
+  onSelectConfidenceBand,
 }: ReviewFilterConsoleProps) {
   return (
     <section className="review-filter-console" aria-label="review-filter-panel">
@@ -222,35 +247,104 @@ function ReviewFilterConsole({
 
       {isLoading ? <div className="review-empty-line">Loading filters...</div> : null}
       {!isLoading && filterOptions ? (
-        <div className="review-filter-row">
-          <button
-            aria-pressed={selectedPair === null}
-            className={selectedPair === null ? 'is-active' : ''}
-            onClick={() => onSelectPair(null)}
-            type="button"
-          >
-            All Pairs
-          </button>
-          {filterOptions.pairs.map((pair) => (
+        <>
+          <div className="review-filter-row">
+            <span className="review-filter-label">Pair</span>
             <button
-              key={pair}
-              aria-pressed={selectedPair === pair}
-              className={selectedPair === pair ? 'is-active' : ''}
-              onClick={() => onSelectPair(pair)}
+              aria-pressed={selectedPair === null}
+              className={selectedPair === null ? 'is-active' : ''}
+              onClick={() => onSelectPair(null)}
               type="button"
             >
-              {pair}
+              All Pairs
             </button>
-          ))}
-        </div>
-      ) : null}
+            {filterOptions.pairs.map((pair) => (
+              <button
+                key={pair}
+                aria-pressed={selectedPair === pair}
+                className={selectedPair === pair ? 'is-active' : ''}
+                onClick={() => onSelectPair(pair)}
+                type="button"
+              >
+                {pair}
+              </button>
+            ))}
+          </div>
 
-      {!isLoading && filterOptions ? (
-        <div className="review-filter-meta">
-          <span>Strategies: {filterOptions.strategies.join(', ') || 'any'}</span>
-          <span>Models: {filterOptions.model_versions.join(', ') || 'any'}</span>
-          <span>Confidence: {filterOptions.confidence_bands.join(', ') || 'any'}</span>
-        </div>
+          <div className="review-filter-row">
+            <span className="review-filter-label">Strategy</span>
+            <button
+              aria-pressed={selectedStrategy === null}
+              className={selectedStrategy === null ? 'is-active' : ''}
+              onClick={() => onSelectStrategy(null)}
+              type="button"
+            >
+              All
+            </button>
+            {filterOptions.strategies.map((s) => (
+              <button
+                key={s}
+                aria-pressed={selectedStrategy === s}
+                className={selectedStrategy === s ? 'is-active' : ''}
+                onClick={() => onSelectStrategy(s)}
+                type="button"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          <div className="review-filter-row">
+            <span className="review-filter-label">Model</span>
+            <button
+              aria-pressed={selectedModelVersion === null}
+              className={selectedModelVersion === null ? 'is-active' : ''}
+              onClick={() => onSelectModelVersion(null)}
+              type="button"
+            >
+              All
+            </button>
+            {filterOptions.model_versions.map((m) => (
+              <button
+                key={m}
+                aria-pressed={selectedModelVersion === m}
+                className={selectedModelVersion === m ? 'is-active' : ''}
+                onClick={() => onSelectModelVersion(m)}
+                type="button"
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+
+          <div className="review-filter-row">
+            <span className="review-filter-label">Confidence</span>
+            <button
+              aria-pressed={selectedConfidenceBand === null}
+              className={selectedConfidenceBand === null ? 'is-active' : ''}
+              onClick={() => onSelectConfidenceBand(null)}
+              type="button"
+            >
+              All
+            </button>
+            {filterOptions.confidence_bands.map((c) => (
+              <button
+                key={c}
+                aria-pressed={selectedConfidenceBand === c}
+                className={selectedConfidenceBand === c ? 'is-active' : ''}
+                onClick={() => onSelectConfidenceBand(c)}
+                type="button"
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="review-filter-row review-filter-unimplemented">
+            <span className="review-filter-label">Time</span>
+            <span className="review-unimplemented-label">Unimplemented</span>
+          </div>
+        </>
       ) : null}
     </section>
   )
@@ -347,15 +441,16 @@ type FeedbackLedgerProps = {
   summary: SessionReviewSummary | null
   feedback: FeedbackItemSnapshot[]
   isLoading: boolean
+  sessionSummary: SessionReviewSummary | null
 }
 
-function FeedbackLedger({ summary, feedback, isLoading }: FeedbackLedgerProps) {
+function FeedbackLedger({ summary, feedback, isLoading, sessionSummary }: FeedbackLedgerProps) {
   return (
     <section className="review-feedback-ledger" aria-label="review-feedback-panel">
       <div className="review-panel-title">
         <div>
           <h3>Captured Feedback</h3>
-          <span>Feedback count: {summary?.feedback_count ?? 0}</span>
+          <span>Feedback count: {sessionSummary?.feedback_count ?? summary?.feedback_count ?? 0}</span>
         </div>
         <MessageSquare className="h-4 w-4 text-clay-accent" />
       </div>
