@@ -75,7 +75,6 @@ export function useSettings(): SettingsController {
       void refresh()
     }
     stream.addEventListener('config.updated', handleRefresh)
-    stream.addEventListener('events.ready', handleRefresh)
     return () => {
       stream.close()
     }

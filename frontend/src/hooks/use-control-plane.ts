@@ -95,7 +95,6 @@ export function useControlPlane(): ControlPlaneController {
       void refresh()
     }
 
-    stream.addEventListener('control.ready', handleRefresh)
     stream.addEventListener('runtime.updated', handleRefresh)
     stream.addEventListener('service.updated', handleRefresh)
     stream.addEventListener('config.updated', handleRefresh)

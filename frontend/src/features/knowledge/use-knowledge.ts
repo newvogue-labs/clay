@@ -117,7 +117,6 @@ export function useKnowledge(): KnowledgeController {
     const handleRefresh = () => {
       void refresh()
     }
-    stream.addEventListener('knowledge.ready', handleRefresh)
     stream.addEventListener('knowledge.refresh', handleRefresh)
     return () => {
       stream.close()

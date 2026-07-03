@@ -86,7 +86,6 @@ export function useControlCenter(): ControlCenterController {
       void refresh()
     }
 
-    stream.addEventListener('control-center.ready', handleRefresh)
     stream.addEventListener('control-center.refresh', handleRefresh)
 
     return () => {

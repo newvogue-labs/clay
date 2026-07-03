@@ -85,7 +85,6 @@ export function useDemoTrading(): DemoTradingController {
     const handleRefresh = () => {
       void refresh()
     }
-    stream.addEventListener('demo.ready', handleRefresh)
     stream.addEventListener('demo.refresh', handleRefresh)
 
     return () => {

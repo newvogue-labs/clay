@@ -81,7 +81,6 @@ export function useWorkspace(): WorkspaceController {
       void refresh()
     }
 
-    stream.addEventListener('workspace.ready', handleRefresh)
     stream.addEventListener('workspace.refresh', handleRefresh)
 
     return () => {

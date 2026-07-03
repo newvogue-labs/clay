@@ -81,7 +81,6 @@ export function useSessionReview(): SessionReviewController {
   })
 
   useEffect(() => {
-    void refresh()
     const EventSourceCtor = globalThis.EventSource
     if (typeof EventSourceCtor !== 'function') {
       return
@@ -90,7 +89,6 @@ export function useSessionReview(): SessionReviewController {
     const handleRefresh = () => {
       void refresh()
     }
-    stream.addEventListener('session-review.ready', handleRefresh)
     stream.addEventListener('session-review.refresh', handleRefresh)
     return () => {
       stream.close()

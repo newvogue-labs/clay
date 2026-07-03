@@ -81,7 +81,6 @@ export function useValidationLab(): ValidationLabController {
     const handleRefresh = () => {
       void refresh()
     }
-    stream.addEventListener('validation-lab.ready', handleRefresh)
     stream.addEventListener('validation-lab.refresh', handleRefresh)
     return () => {
       stream.close()

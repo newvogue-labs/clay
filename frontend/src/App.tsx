@@ -141,7 +141,6 @@ export function App() {
     const handleRefresh = () => {
       void refreshShell()
     }
-    stream.addEventListener('control-center.ready', handleRefresh)
     stream.addEventListener('control-center.refresh', handleRefresh)
 
     return () => {

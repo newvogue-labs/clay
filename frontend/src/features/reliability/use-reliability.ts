@@ -72,7 +72,6 @@ export function useReliability(): ReliabilityController {
     const handleRefresh = () => {
       void refresh()
     }
-    stream.addEventListener('reliability.ready', handleRefresh)
     stream.addEventListener('reliability.refresh', handleRefresh)
     return () => {
       stream.close()

@@ -90,7 +90,6 @@ export function useSessionControl(): SessionControlController {
     const handleRefresh = () => {
       void refresh()
     }
-    stream.addEventListener('session.ready', handleRefresh)
     stream.addEventListener('session.refresh', handleRefresh)
     return () => {
       stream.close()

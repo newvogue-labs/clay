@@ -80,7 +80,6 @@ export function useAIControl(): AIControlController {
       void refresh()
     }
 
-    stream.addEventListener('ai-control.ready', handleRefresh)
     stream.addEventListener('ai-control.refresh', handleRefresh)
 
     return () => {
