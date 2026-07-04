@@ -25,3 +25,4 @@ playwright-report/
 # Host-local agent session memory, not part of Clay product
 .context/
 backend/scripts/smoke_testnet_evidence.json
+frontend/test-results/
