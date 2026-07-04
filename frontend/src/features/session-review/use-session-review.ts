@@ -5,7 +5,7 @@ import {
   getSessionReviewOverview,
   getSessionReviewStreamUrl,
 } from '../../api/session-review-client'
-import type { SessionReviewSnapshot } from '../../types/session-review'
+import type { SessionReviewSnapshot, SessionReviewSummary } from '../../types/session-review'
 
 type Filters = {
   pair: string | null
@@ -16,6 +16,7 @@ type Filters = {
 
 type SessionReviewState = {
   snapshot: SessionReviewSnapshot | null
+  sessionSummary: SessionReviewSummary | null
   filters: Filters
   isLoading: boolean
   isActing: boolean
@@ -24,6 +25,9 @@ type SessionReviewState = {
 
 type SessionReviewController = SessionReviewState & {
   setPair: (pair: string | null) => void
+  setStrategy: (strategy: string | null) => void
+  setModelVersion: (modelVersion: string | null) => void
+  setConfidenceBand: (confidenceBand: string | null) => void
   captureFeedback: (
     recordId: number,
     feedbackLabel: 'useful' | 'noise' | 'needs_follow_up',
@@ -47,6 +51,7 @@ function confirmAction(message: string): boolean {
 export function useSessionReview(): SessionReviewController {
   const [state, setState] = useState<SessionReviewState>({
     snapshot: null,
+    sessionSummary: null,
     filters: {
       pair: null,
       strategy: null,
@@ -65,6 +70,7 @@ export function useSessionReview(): SessionReviewController {
         setState((current) => ({
           ...current,
           snapshot,
+          sessionSummary: current.sessionSummary ?? snapshot.summary,
           isLoading: false,
           error: null,
         }))
@@ -128,6 +134,33 @@ export function useSessionReview(): SessionReviewController {
     })
   }
 
+  function setStrategy(strategy: string | null): void {
+    startTransition(() => {
+      setState((current) => ({
+        ...current,
+        filters: { ...current.filters, strategy },
+      }))
+    })
+  }
+
+  function setModelVersion(modelVersion: string | null): void {
+    startTransition(() => {
+      setState((current) => ({
+        ...current,
+        filters: { ...current.filters, modelVersion },
+      }))
+    })
+  }
+
+  function setConfidenceBand(confidenceBand: string | null): void {
+    startTransition(() => {
+      setState((current) => ({
+        ...current,
+        filters: { ...current.filters, confidenceBand },
+      }))
+    })
+  }
+
   async function captureFeedback(
     recordId: number,
     feedbackLabel: 'useful' | 'noise' | 'needs_follow_up',
@@ -138,7 +171,7 @@ export function useSessionReview(): SessionReviewController {
     await runAction(async () => {
       const snapshot = await postCaptureSessionFeedback(recordId, feedbackLabel)
       startTransition(() => {
-        setState((current) => ({ ...current, snapshot }))
+        setState((current) => ({ ...current, snapshot, sessionSummary: snapshot.summary }))
       })
     })
   }
@@ -146,6 +179,9 @@ export function useSessionReview(): SessionReviewController {
   return {
     ...state,
     setPair,
+    setStrategy,
+    setModelVersion,
+    setConfidenceBand,
     captureFeedback,
   }
 }
