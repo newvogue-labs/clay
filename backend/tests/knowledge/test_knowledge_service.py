@@ -35,6 +35,35 @@ def test_knowledge_service_creates_items_and_chunks(db_session, tmp_path: Path) 
     assert snapshot.recent_items[0].chunk_count >= 1
 
 
+def test_knowledge_service_deletes_item_and_returns_updated_snapshot(
+    db_session, tmp_path: Path
+) -> None:
+    service = build_knowledge_service(tmp_path)
+    snapshot = service.create_item(
+        db_session,
+        KnowledgeCreateCommand(
+            title="Delete me",
+            category="note",
+            priority="low",
+            tags=["test"],
+            content="Temporary item to delete.",
+        ),
+    )
+    item_id = snapshot.recent_items[0].item_id
+    assert snapshot.summary.total_items == 1
+
+    updated = service.delete_item(db_session, item_id)
+    assert updated.summary.total_items == 0
+
+
+def test_knowledge_service_delete_missing_raises(db_session, tmp_path: Path) -> None:
+    service = build_knowledge_service(tmp_path)
+    import pytest
+
+    with pytest.raises(ValueError, match="not found"):
+        service.delete_item(db_session, 99999)
+
+
 def test_knowledge_service_searches_with_keyword_and_priority(
     db_session, tmp_path: Path
 ) -> None:

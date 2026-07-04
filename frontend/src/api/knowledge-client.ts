@@ -11,6 +11,16 @@ async function getJson<T>(path: string): Promise<T> {
   return (await response.json()) as T
 }
 
+async function deleteJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    throw new Error(`Request failed for ${path}: ${response.status}`)
+  }
+  return (await response.json()) as T
+}
+
 async function postJson<T>(path: string, body: object): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
@@ -48,6 +58,10 @@ export function createKnowledgeItem(payload: {
     content: payload.content,
     source_type: payload.sourceType ?? 'manual',
   })
+}
+
+export function deleteKnowledgeItem(itemId: number): Promise<KnowledgeSnapshot> {
+  return deleteJson<KnowledgeSnapshot>(`/knowledge/items/${itemId}`)
 }
 
 export function getKnowledgeStreamUrl(): string {

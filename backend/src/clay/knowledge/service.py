@@ -111,6 +111,28 @@ class KnowledgeService:
         )
         return self.build_snapshot(session)
 
+    def delete_item(
+        self,
+        session: Session,
+        item_id: int,
+    ) -> KnowledgeSnapshot:
+        repository = KnowledgeRepository(session)
+        if not repository.delete_item(item_id):
+            raise ValueError(f"Knowledge item {item_id} not found")
+        session.commit()
+        self.audit_writer.write(
+            "knowledge.item.deleted",
+            {"item_id": item_id},
+        )
+        self.event_bus.publish(
+            "knowledge.updated",
+            {
+                "event_type": "knowledge.item.deleted",
+                "item_id": item_id,
+            },
+        )
+        return self.build_snapshot(session)
+
     def search(
         self,
         session: Session,

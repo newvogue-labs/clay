@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from clay.api.dependencies import get_db_session, get_knowledge_service
@@ -30,3 +30,17 @@ async def create_knowledge_item(
     service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
 ) -> dict[str, object]:
     return service.create_item(session, command).model_dump(mode="json")
+
+
+@router.delete("/items/{item_id}")
+async def delete_knowledge_item(
+    item_id: int,
+    session: Annotated[Session, Depends(get_db_session)],
+    service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+) -> dict[str, object]:
+    try:
+        return service.delete_item(session, item_id).model_dump(mode="json")
+    except ValueError:
+        raise HTTPException(
+            status_code=404, detail=f"Knowledge item {item_id} not found"
+        )

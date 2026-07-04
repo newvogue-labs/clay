@@ -2,6 +2,7 @@ import { startTransition, useEffect, useEffectEvent, useState } from 'react'
 
 import {
   createKnowledgeItem as postCreateKnowledgeItem,
+  deleteKnowledgeItem as apiDeleteKnowledgeItem,
   getKnowledgeOverview,
   getKnowledgeStreamUrl,
 } from '../../api/knowledge-client'
@@ -19,6 +20,7 @@ type KnowledgeController = KnowledgeState & {
   setQuery: (query: string) => void
   runSearch: () => Promise<void>
   addSample: (sampleType: 'strategy_rule' | 'checklist' | 'observation' | 'note') => Promise<void>
+  deleteItem: (itemId: number) => Promise<void>
 }
 
 function getErrorMessage(error: unknown): string {
@@ -86,6 +88,9 @@ export function useKnowledge(): KnowledgeController {
   })
 
   const refresh = useEffectEvent(async (queryOverride?: string) => {
+    startTransition(() => {
+      setState((current) => ({ ...current, isLoading: true }))
+    })
     try {
       const snapshot = await getKnowledgeOverview(queryOverride ?? state.query)
       startTransition(() => {
@@ -152,6 +157,18 @@ export function useKnowledge(): KnowledgeController {
     await refresh(state.query)
   }
 
+  async function deleteItem(itemId: number): Promise<void> {
+    if (!confirmAction(`Удалить knowledge item #${itemId}?`)) {
+      return
+    }
+    await runAction(async () => {
+      const snapshot = await apiDeleteKnowledgeItem(itemId)
+      startTransition(() => {
+        setState((current) => ({ ...current, snapshot }))
+      })
+    })
+  }
+
   async function addSample(
     sampleType: 'strategy_rule' | 'checklist' | 'observation' | 'note',
   ): Promise<void> {
@@ -170,6 +187,7 @@ export function useKnowledge(): KnowledgeController {
     ...state,
     setQuery,
     runSearch,
+    deleteItem,
     addSample,
   }
 }
