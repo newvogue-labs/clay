@@ -39,6 +39,16 @@ class KnowledgeRepository:
         )
         return list(self.session.scalars(query).all())
 
+    def delete_item(self, item_id: int) -> bool:
+        item = self.session.get(KnowledgeItem, item_id)
+        if item is None:
+            return False
+        self.session.execute(
+            delete(KnowledgeChunk).where(KnowledgeChunk.item_id == item_id)
+        )
+        self.session.delete(item)
+        return True
+
     def list_search_candidates(
         self,
         *,

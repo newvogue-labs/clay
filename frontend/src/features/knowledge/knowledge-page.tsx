@@ -96,7 +96,9 @@ export function KnowledgePage() {
             searchResults={searchResults}
           />
           <KnowledgeResultsConsole
+            isActing={knowledge.isActing}
             isLoading={knowledge.isLoading}
+            onDeleteItem={(itemId) => { void knowledge.deleteItem(itemId) }}
             recentItems={recentItems}
             searchResults={searchResults}
           />
@@ -231,12 +233,16 @@ type KnowledgeResultsConsoleProps = {
   recentItems: KnowledgeItemSnapshot[]
   searchResults: KnowledgeSearchResultSnapshot[]
   isLoading: boolean
+  isActing: boolean
+  onDeleteItem: (itemId: number) => void
 }
 
 function KnowledgeResultsConsole({
   recentItems,
   searchResults,
   isLoading,
+  isActing,
+  onDeleteItem,
 }: KnowledgeResultsConsoleProps) {
   return (
     <section>
@@ -277,6 +283,15 @@ function KnowledgeResultsConsole({
                       <dd>{formatDate(item.updated_at)}</dd>
                     </div>
                   </dl>
+                  <button
+                    className="knowledge-delete-btn"
+                    disabled={isActing}
+                    onClick={() => onDeleteItem(item.item_id)}
+                    title={`Удалить «${item.title}»`}
+                    type="button"
+                  >
+                    Delete
+                  </button>
                   <div className="knowledge-tag-strip">
                     {item.tags.map((tag) => <span key={tag}>{tag}</span>)}
                   </div>
