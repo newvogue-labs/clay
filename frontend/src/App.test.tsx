@@ -1459,7 +1459,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /ai control/i })).toBeInTheDocument()
     expect(await screen.findByText(/provider mix needs review/i)).toBeInTheDocument()
 
-    fireEvent.click(await screen.findByRole('button', { name: /review forecast lite v1/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /stage forecast lite v1/i }))
     expect(await screen.findByText(/review required before assigning forecast lite v1/i)).toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole('button', { name: /apply reviewed assignment/i }))

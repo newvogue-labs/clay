@@ -409,9 +409,10 @@ function AssignmentCard({ assignment, models, isActing, onReviewAssignment }: As
               onClick={() => {
                 onReviewAssignment(assignment.role_id, model.model_id)
               }}
+              title="Готовит review-карточку справа — текущая модель сменится только после Apply"
               type="button"
             >
-              Review {model.display_name}
+              Stage {model.display_name}…
             </button>
           ))
         )}
