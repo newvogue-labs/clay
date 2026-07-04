@@ -1,4 +1,4 @@
-.PHONY: backend-install backend-test backend-run backend-lint backend-format backend-format-check backend-typecheck backend-typecheck-src frontend-install frontend-test frontend-build frontend-run lint format format-check typecheck check frontend-typecheck
+.PHONY: backend-install backend-test backend-run backend-lint backend-format backend-format-check backend-typecheck backend-typecheck-src backend-sync frontend-install frontend-test frontend-build frontend-run lint format format-check typecheck check frontend-typecheck
 
 backend-install:
 	cd backend && uv sync
@@ -34,6 +34,9 @@ typecheck: backend-typecheck frontend-typecheck
 
 # Локальное зеркало CI-гейта (pyright informational — не входит).
 check: lint format-check backend-test frontend-typecheck frontend-test
+
+backend-sync:
+	cd backend && uv run python -m clay.knowledge.sync
 
 backend-run:
 	cd backend && uv run uvicorn clay.api.main:app --host 127.0.0.1 --port 8000 --reload --env-file .env
