@@ -92,7 +92,7 @@ export function AlphaOperatorPage({ onNavigate }: AlphaOperatorPageProps) {
       <section className="alpha-operator-next-panel">
         <div className="alpha-operator-next-copy">
           <span>Next alpha step</span>
-          <strong>{nextStep?.action_label ?? 'Path complete'}</strong>
+          <strong>{nextStep?.action_label ?? (alpha.isLoading && !alpha.snapshot ? 'Loading…' : 'Path complete')}</strong>
           <p>{nextStep?.detail ?? summary?.next_action ?? 'No pending operator step.'}</p>
         </div>
         <div className="alpha-operator-next-actions">

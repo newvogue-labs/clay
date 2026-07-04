@@ -221,7 +221,7 @@ export function App() {
           sessionState={shellSessionState}
         />
         <div className="screen-content-area">
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             <motion.div
               animate={{ opacity: 1, y: 0 }}
               className="screen-content"
