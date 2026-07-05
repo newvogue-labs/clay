@@ -1,34 +1,39 @@
-# Отчёт: сессия 2026-07-03 — Batch F (F19+F20) session-review
+# Отчёт: сессия 2026-07-04 — Batch F/G/H + branch-protection + E12.5 CLOSED
 
 ## Что сделано
 
-### Batch E — .ready listener sweep + validation-lab dedup
-- Чтение рекапа сессии + повторный рекон E12.5-решений
-- Удаление 5 dead `-panel.tsx` файлов (dead code, zero imports)
-- Удаление всех `*.ready` SSE echo-listeners из use-session-control, use-demo-validation, use-validation-lab
-- Остановка двойного `refresh()` на mount (убрано из `[]`-эффекта)
-- Исправлен duplicate card в validation-lab (идентификация по review_id)
-- Штатный merge в main: `c4d5a34`. **База для Batch F.**
+### Batch F (F19+F20) — verification + landing
+- Проверено, что Batch F отсутствует в `1223a15` (main до F). F24 (Vitest scope src/) оказался между Batch F и main — сначала F24 → main green (PR #8), затем rebase Batch F → CI green → squash-merge PR #7 (`59119c8`).
+- Landing sweep: grep подтвердил все 5 sentinel-паттернов Batch A–F на `59119c8`.
 
-### Batch F — F19 Interactive filters + F20 session-level scope
-- **F19:** 3 новых сеттера (`setStrategy`/`setModelVersion`/`setConfidenceBand`) в `use-session-review.ts`; button grids для strategy/model/confidence в `ReviewFilterConsole` + `review-filter-panel.tsx`; Time filter — `<span>Unimplemented</span>`.
-- **F20:** `sessionSummary` — записывается на первом unfiltered `refresh()`, НЕ перезаписывается при смене фильтра; хедер/`ReviewOverviewStrip`/`FeedbackLedger` используют session-level поля (`review_status`, `last_reviewed_at`, `feedback_count`) из `sessionSummary`; `captureFeedback` тоже обновляет `sessionSummary` (feedback — session-level action).
-- Верификация: tsc 0, vitest 17/17, build clean, E2E 7/7.
-- Коммит: `f05359c` на ветке `fix/E12.5-batchF-session-review-filters-scope`, запушен.
+### Batch G (P2 cosmetic) — PR #9
+- F7: alpha label flicker — `Loading…` fallback при refresh
+- F8: nav click swallow — `AnimatePresence mode="wait"` → default sync
+- F14: ai-control `Review {model}` → `Stage {model}…` + tooltip
+- F29: `git rm` 3 orphan knowledge panels (0 imports)
+- CI success → squash-merge `5d89729`
 
-### Проблемы
-- Трижды loadFile-верификация Emma показывала отсутствие изменений (проблема кэша инструмента) — финально подтверждено через GitHub API / raw, что код на remote совпадает с локальным.
-- SHA остался тем же (`f05359c`) — так как commit не пересоздавался, только пуш.
+### Batch H (knowledge-polish) — PR #10
+- F27: `DELETE /knowledge/items/{id}` — репозиторий (chunks→item), service (ValueError→404), route, фронт (client+hook+button+confirm), pytest 2 новых
+- F28: `isLoading: true` в `refresh()` — консистентность
+- CI success → squash-merge `14be6e9`
 
-## Baseline
-| Метрика | Значение |
-|---------|----------|
-| **Batch F HEAD** | `f05359c` (fix/E12.5-batchF-session-review-filters-scope) |
-| **main** | `c4d5a34` |
-| **tsc** | 0 |
-| **Vitest** | 17/17 |
-| **E2E** | 7/7 |
+### Branch-protection (M275)
+- `gh api -X PUT` — `required_status_checks.strict=true`, `contexts=["backend","frontend"]`, `enforce_admins=true`, `required_pull_request_reviews=0` (solo), `linear=true`, `force_push=false`, `deletions=false`
+- Verify JSON: совпал с ожидаемым 1:1
+- M271 dev-DX recon: `de10b26` — предок текущей main → **уже на main**
+
+### Dead-code cleanup — PR #11
+- `workspace-state-banner.tsx` — 0 импортов → `git rm`
+- Первый PR под новым branch-protection gate
+- Main-CI упал на flaky test (pre-existing race condition) → rerun → success
+- Merge `a02bc78`
+
+### E12.5 CLOSED
+- Все F-тикеты: done или wontfix
+- Branch-protection структурно закрывает дыру M275
 
 ## Открытые вопросы
-1. **loadFile-верификация:** Emma перепроверяет `f05359c` (возможно, со сбросом кэша). Если зелено — FF-merge в main.
-2. **Ring 1 GO / G2 / Real-money GO** — по-прежнему ждут решения Emma.
+1. **Ring 1 GO** — следующий слайс (Q5-гейт, execution layer, real-money gate)
+2. **E-KNOW** — новый эпик в карте
+3. **Sampler `--noproxy`** — deferred до следующего soak-прогона
