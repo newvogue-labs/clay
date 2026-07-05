@@ -17,6 +17,7 @@ from clay.knowledge.models import KnowledgeCreateCommand
 _yaml = YAML(typ="safe")
 
 _EXCLUDED_FILES = frozenset({"index.md", "log.md", "AGENTS.md", "sync-manifest.json"})
+_SYNCABLE_STATUSES = frozenset({"peer_reviewed", "backtested", "live"})
 
 ActionKind = Literal["create", "update", "delete", "skip"]
 
@@ -116,6 +117,8 @@ class VaultKnowledgeSync:
             return None
         if fm.get("runtime_eligible") is not True:
             return None
+        if fm.get("status") not in _SYNCABLE_STATUSES:
+            return None
         title = fm.get("title", rel.stem)
         category = str(fm.get("kb_category", "note"))
         priority = str(fm.get("priority", "medium"))
@@ -201,7 +204,7 @@ class VaultKnowledgeSync:
         async with httpx.AsyncClient(base_url=self.base_url) as client:
             for action in plan:
                 await self._execute_action(client, action)
-        self._save_manifest()
+                self._save_manifest()
 
     async def _execute_action(
         self, client: httpx.AsyncClient, action: PlanAction
@@ -222,7 +225,8 @@ class VaultKnowledgeSync:
             assert action.file is not None
             assert action.item_id is not None
             r = await client.delete(f"/knowledge/items/{action.item_id}")
-            r.raise_for_status()
+            if r.status_code != 404:
+                r.raise_for_status()
             cmd = self._to_command(action.file)
             r = await client.post("/knowledge/items", json=cmd.model_dump(mode="json"))
             r.raise_for_status()

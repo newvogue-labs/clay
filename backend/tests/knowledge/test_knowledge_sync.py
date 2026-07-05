@@ -20,6 +20,7 @@ title: SMA Crossover
 kb_category: strategy_rule
 priority: high
 runtime_eligible: true
+status: peer_reviewed
 tags:
   - momentum
   - trend
@@ -35,6 +36,7 @@ title: Entry Rule
 kb_category: checklist
 priority: medium
 runtime_eligible: true
+status: peer_reviewed
 tags:
   - entry
 domain: trading
@@ -58,6 +60,7 @@ title: Market Observation
 kb_category: observation
 priority: low
 runtime_eligible: true
+status: live
 tags:
   - btc
 domain: trading
@@ -301,3 +304,155 @@ class TestApply:
 
         mock_client.delete.assert_called_once_with("/knowledge/items/44")
         assert "strategy/gone" not in sync.manifest.files
+
+
+DRAFT_FM = """\
+---
+title: Draft Strategy
+runtime_eligible: true
+status: draft
+domain: strategy
+---
+This should be skipped.
+"""
+
+
+REVIEWED_FM = """\
+---
+title: Reviewed Strategy
+runtime_eligible: true
+status: peer_reviewed
+domain: strategy
+---
+This should be synced.
+"""
+
+
+class TestStatusGate:
+    def test_draft_skipped(self, tmp_path: Path) -> None:
+        vault = tmp_path / "vault"
+        strat_dir = vault / "strategy"
+        strat_dir.mkdir(parents=True)
+        (strat_dir / "draft-strat.md").write_text(DRAFT_FM)
+        sync = VaultKnowledgeSync(vault)
+        files = sync.read_vault_files()
+        assert len(files) == 0
+
+    def test_peer_reviewed_passes(self, tmp_path: Path) -> None:
+        vault = tmp_path / "vault"
+        strat_dir = vault / "strategy"
+        strat_dir.mkdir(parents=True)
+        (strat_dir / "reviewed-strat.md").write_text(REVIEWED_FM)
+        sync = VaultKnowledgeSync(vault)
+        files = sync.read_vault_files()
+        assert len(files) == 1
+        assert files[0].id == "strategy/reviewed-strat"
+
+    def test_backtested_passes(self, tmp_path: Path) -> None:
+        vault = tmp_path / "vault"
+        strat_dir = vault / "strategy"
+        strat_dir.mkdir(parents=True)
+        fm = REVIEWED_FM.replace("peer_reviewed", "backtested")
+        (strat_dir / "backtested-strat.md").write_text(fm)
+        sync = VaultKnowledgeSync(vault)
+        files = sync.read_vault_files()
+        assert len(files) == 1
+
+    def test_live_passes(self, tmp_path: Path) -> None:
+        vault = tmp_path / "vault"
+        strat_dir = vault / "strategy"
+        strat_dir.mkdir(parents=True)
+        fm = REVIEWED_FM.replace("peer_reviewed", "live")
+        (strat_dir / "live-strat.md").write_text(fm)
+        sync = VaultKnowledgeSync(vault)
+        files = sync.read_vault_files()
+        assert len(files) == 1
+
+
+class TestManifestCrashSafety:
+    @pytest.mark.asyncio
+    async def test_manifest_saved_after_each_action(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        make_manifest(
+            vault,
+            {
+                "market/sma-crossover": {
+                    "id": "market/sma-crossover",
+                    "item_id": 42,
+                    "content_hash": "oldhash",
+                },
+            },
+        )
+        sync = VaultKnowledgeSync(vault)
+        plan = sync.build_plan()
+        assert any(a.action == "update" for a in plan)
+        assert any(a.action == "create" for a in plan)
+
+        mock_client = make_mock_client()
+        call_count = 0
+
+        async def mock_request(*args: object, **kwargs: object) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                return mock_response()
+            raise RuntimeError("simulated crash on third action")
+
+        mock_client.delete = AsyncMock(side_effect=mock_request)
+        mock_client.post = AsyncMock(side_effect=mock_request)
+
+        with (
+            patch("httpx.AsyncClient", return_value=mock_client),
+            pytest.raises(RuntimeError),
+        ):
+            await sync.apply(plan)
+
+        manifest_path = vault / "sync-manifest.json"
+        assert manifest_path.exists()
+        saved = json.loads(manifest_path.read_text())
+        assert "observation/market-note" in saved["files"]
+        assert "strategy/entry-rule" in saved["files"]
+        assert (
+            saved["files"]["market/sma-crossover"]["content_hash"] == "oldhash"
+        )  # update action crashed, hash unchanged
+
+
+class TestUpdate404Tolerant:
+    @pytest.mark.asyncio
+    async def test_update_404_does_not_crash(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        make_manifest(
+            vault,
+            {
+                "market/sma-crossover": {
+                    "id": "market/sma-crossover",
+                    "item_id": 42,
+                    "content_hash": "oldhash",
+                },
+            },
+        )
+        sync = VaultKnowledgeSync(vault)
+        plan = sync.build_plan()
+        update_actions = [a for a in plan if a.action == "update"]
+        assert len(update_actions) == 1
+
+        too_many_call = False
+
+        async def delete_404(*args: object, **kwargs: object) -> MagicMock:
+            nonlocal too_many_call
+            if too_many_call:
+                raise AssertionError("DELETE should not be called more than once")
+            too_many_call = True
+            r = MagicMock()
+            r.status_code = 404
+            return r
+
+        mock_client = make_mock_client()
+        mock_client.delete = AsyncMock(side_effect=delete_404)
+        mock_client.post = AsyncMock(return_value=mock_response())
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await sync.apply(update_actions)
+
+        assert mock_client.post.call_count == 1
+        assert sync.manifest.files["market/sma-crossover"].item_id == 100
