@@ -1,39 +1,45 @@
-# Отчёт: сессия 2026-07-04 — Batch F/G/H + branch-protection + E12.5 CLOSED
+# Отчёт: сессия 2026-07-04 — E-KNOW S1–S3 bootstrap
 
 ## Что сделано
 
-### Batch F (F19+F20) — verification + landing
-- Проверено, что Batch F отсутствует в `1223a15` (main до F). F24 (Vitest scope src/) оказался между Batch F и main — сначала F24 → main green (PR #8), затем rebase Batch F → CI green → squash-merge PR #7 (`59119c8`).
-- Landing sweep: grep подтвердил все 5 sentinel-паттернов Batch A–F на `59119c8`.
+### E-KNOW S1 — vault bootstrap ✅
+- Создан `~/Projects/clay-knowledge/` — отдельный git-репо с OKF-структурой
+- D1–D7: git init, references/concepts/mocs дерево, index.md, log.md, AGENTS.md
+- 5 donor-файлов (okf, karpathy-llm-wiki, google-codewiki, ccxt, freqtrade)
+- 5 concept-файлов (accumulate-not-rag, okf-format, progressive-disclosure, dual-audience-docs, source-of-truth-boundary)
+- HEAD `9127736`
 
-### Batch G (P2 cosmetic) — PR #9
-- F7: alpha label flicker — `Loading…` fallback при refresh
-- F8: nav click swallow — `AnimatePresence mode="wait"` → default sync
-- F14: ai-control `Review {model}` → `Stage {model}…` + tooltip
-- F29: `git rm` 3 orphan knowledge panels (0 imports)
-- CI success → squash-merge `5d89729`
+### E-KNOW S1-доп — доменная таксономия ✅
+- master → main
+- 8 MOC-заглушек (market/strategy/risk/signals/agents/ops/method/donors)
+- Доменная таксономия + frontmatter-конвенции в AGENTS.md
+- Backfill id/domain/runtime_eligible на 10 файлах
+- vault @ `4d22bc7`
 
-### Batch H (knowledge-polish) — PR #10
-- F27: `DELETE /knowledge/items/{id}` — репозиторий (chunks→item), service (ValueError→404), route, фронт (client+hook+button+confirm), pytest 2 новых
-- F28: `isLoading: true` в `refresh()` — консистентность
-- CI success → squash-merge `14be6e9`
+### E-KNOW S1-доп-2 — kb_category ✅
+- `kb_category` в frontmatter-конвенциях (note|strategy_rule|checklist|observation)
+- vault @ `0bf4cb1`
 
-### Branch-protection (M275)
-- `gh api -X PUT` — `required_status_checks.strict=true`, `contexts=["backend","frontend"]`, `enforce_admins=true`, `required_pull_request_reviews=0` (solo), `linear=true`, `force_push=false`, `deletions=false`
-- Verify JSON: совпал с ожидаемым 1:1
-- M271 dev-DX recon: `de10b26` — предок текущей main → **уже на main**
+### E-KNOW S3 — ingest pipeline vault→KB 🔶 PR #12 open
+- `backend/src/clay/knowledge/sync.py` (297 строк) — VaultKnowledgeSync
+  - Парсинг OKF frontmatter + тела
+  - Отбор runtime_eligible: true
+  - Маппинг → KnowledgeCreateCommand
+  - content_hash (SHA256 по нормализованному payload)
+  - Манифест sync-manifest.json (load/save/merge)
+  - build_plan: create/skip/update/delete — 4 кейса
+  - Dry-run по умолчанию, --apply через HTTP API (httpx)
+- CLI: `python -m clay.knowledge.sync` + `make backend-sync`
+- 8 тестов (parse, filter, plan 4 кейса, dry-run, create, update, delete)
+- ruff 0, pyright 0, pytest 8/8, full suite 762/762 pass
+- PR #12: `feature/E-KNOW-S3-vault-sync` @ `140240c`
 
-### Dead-code cleanup — PR #11
-- `workspace-state-banner.tsx` — 0 импортов → `git rm`
-- Первый PR под новым branch-protection gate
-- Main-CI упал на flaky test (pre-existing race condition) → rerun → success
-- Merge `a02bc78`
+### Recon knowledge module ✅
+- Полный recon #knowledge: модель, service, API, фронт, тесты, миграции, интеграция
+- Находки: ❗FK не объявлена, ❗индексы не в миграции, ❗нет пагинации
+- Словарь: vault / KB (#knowledge) / мост
 
-### E12.5 CLOSED
-- Все F-тикеты: done или wontfix
-- Branch-protection структурно закрывает дыру M275
-
-## Открытые вопросы
-1. **Ring 1 GO** — следующий слайс (Q5-гейт, execution layer, real-money gate)
-2. **E-KNOW** — новый эпик в карте
-3. **Sampler `--noproxy`** — deferred до следующего soak-прогона
+## Следующий шаг
+1. **S3 код-верификация** — Emma проверяет PR #12, merge
+2. **Наполнение market/strategy/risk** — первый Wolf-контент в vault
+3. **Q5-GO** — execution layer (параллельно)

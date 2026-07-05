@@ -50,11 +50,33 @@
 - F2/F26 → wontfix
 - M275 (red-main дыра) → branch-protection закрыта структурно
 
+### E-KNOW S1 — vault bootstrap ✅
+- `~/Projects/clay-knowledge/` — OKF-скелет, git init @ `9127736`
+- D1–D7: AGENTS.md, index.md, log.md, 5 donor, 5 concept, tree references/concepts/mocs
+
+### E-KNOW S1-доп — таксономия ✅
+- master → main, 8 MOC-заглушек (market/strategy/risk/signals/agents/ops/method/donors)
+- Доменная таксономия + frontmatter-конвенции в AGENTS.md
+- Backfill id/domain/runtime_eligible на 10 файлах
+- vault @ `4d22bc7`
+
+### E-KNOW S1-доп-2 — kb_category ✅
+- `kb_category` в конвенции (note|strategy_rule|checklist|observation)
+- vault @ `0bf4cb1`
+
+### E-KNOW S3 — ingest pipeline vault→KB 🔶 PR #12 open
+- `backend/src/clay/knowledge/sync.py` — build_plan, manifest, dry-run/apply
+- CLI: `python -m clay.knowledge.sync` + `make backend-sync`
+- 8 тестов, ruff/pyright 0, full suite 762/762 pass
+- PR #12: `feature/E-KNOW-S3-vault-sync` @ `140240c`
+
 ## Baseline
 
 | Метрика | Значение |
 |---------|----------|
 | **HEAD (main)** | `a02bc78` |
+| **HEAD (vault)** | `0bf4cb1` |
+| **PR open** | #12 — E-KNOW S3 vault→KB sync |
 | **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history |
 | **Ruff / Pyright / tsc** | 0 |
 | **Vitest / E2E** | 17/17 / 7/7 |
@@ -64,12 +86,12 @@
 
 ## In Progress
 
-- **E-KNOW S3** — vault → knowledge sync pipeline (sync.py + tests + CLI + Makefile target)
+- **E-KNOW S3** — PR #12 open, ждёт код-верификацию + merge
+- **Q5-GO** — параллельно
 
 ## Next Step
 
-**Ждёт решения Emma:**
-1. **Ring 1 GO** — следующий большой слайс (Q5-гейт, execution layer, real-money gate).
-2. **E-KNOW S4+** — продолжение knowledge-эпика.
-3. **G2** — следующий soak-milestone после Ring 1.
-4. **Sampler `--noproxy`** — deferred до следующего soak-прогона.
+1. **S3 код-верификация + merge** — Emma проверяет PR #12
+2. **Наполнение market/strategy/risk доменов** — первый настоящий Wolf-контент в vault
+3. **Q5-GO** — execution layer, real-money gate (параллельно)
+4. **Sampler `--noproxy`** — deferred до следующего soak-прогона
