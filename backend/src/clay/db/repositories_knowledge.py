@@ -1,4 +1,4 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from clay.db.models_knowledge import KnowledgeChunk, KnowledgeItem
@@ -30,6 +30,16 @@ class KnowledgeRepository:
             select(KnowledgeItem).order_by(KnowledgeItem.updated_at.desc()).limit(limit)
         )
         return list(self.session.scalars(query).all())
+
+    def count_items(self) -> int:
+        return int(
+            self.session.scalar(select(func.count()).select_from(KnowledgeItem)) or 0
+        )
+
+    def count_chunks(self) -> int:
+        return int(
+            self.session.scalar(select(func.count()).select_from(KnowledgeChunk)) or 0
+        )
 
     def list_chunks_for_item(self, item_id: int) -> list[KnowledgeChunk]:
         query = (

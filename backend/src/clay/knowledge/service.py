@@ -190,12 +190,9 @@ class KnowledgeService:
 
     def _build_summary(self, session: Session, items) -> KnowledgeSummarySnapshot:
         repository = KnowledgeRepository(session)
-        total_chunks = sum(
-            len(repository.list_chunks_for_item(item.id)) for item in items
-        )
         return KnowledgeSummarySnapshot(
-            total_items=len(items),
-            total_chunks=total_chunks,
+            total_items=repository.count_items(),
+            total_chunks=repository.count_chunks(),
             retrieval_mode="keyword_plus_metadata",
             retrieval_policy="review and research only",
             hot_path_dependency=False,

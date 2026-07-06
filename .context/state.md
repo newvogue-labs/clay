@@ -84,27 +84,28 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (main)** | `d994844` |
+| **HEAD (main)** | `3651185` |
 | **HEAD (vault)** | `f10e217` |
 | **Alembic** | `df9cf24f3af4` (0022, head) |
 | **Backend migration** | `source_type VARCHAR(32)→VARCHAR(64)` applied |
-| **#knowledge items** | 49 |
+| **#knowledge items** | 49 (чистка: удалены id=4/27/31, каноничная id=34) |
 | **PR open** | — |
 | **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history |
 | **Ruff / Pyright / tsc** | 0 |
-| **Vitest / E2E** | 17/17 / 7/7 |
+| **Vitest / E2E** | 17/17 / 7/7 (frontend: pre-existing flaky test, не блокирует) |
 | **Pytest CI** | success |
-| **ADR** | 001–029 |
+| **ADR** | 001–030 |
 
 ## In Progress
 
-- **E-KNOW S4+S5** — peer review и sync завершены
+- **E-KNOW S3b CLOSED** — advisory #knowledge → chief-agent merged (PR #15)
+- **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod, inject gated behind evals + sign-off
 - **Ждёт выбора Emma** — следующий приоритет
 
 ## Next Step
 
 Выбор Emma (из возможного):
-1. **Новый контент** — наполнение vault следующими доменами/карточками
+1. **E-KNOW S4** — vault наполнение (следующие домены/карточки)
 2. **Q5-GO** — execution layer, real-money gate
 3. **#knowledge overview bug** — pre-existing, не блокирует, но стоит исправить
 4. **Sampler `--noproxy`** — deferred
