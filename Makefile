@@ -38,6 +38,12 @@ check: lint format-check backend-test frontend-typecheck frontend-test
 backend-sync:
 	cd backend && uv run python -m clay.knowledge.sync
 
+backend-eval-m278:
+	cd backend && uv run python scripts/eval/m278_scan.py /tmp/summary_inject.txt /tmp/summary_off.txt
+
+backend-eval-ablation:
+	cd backend && uv run python scripts/eval/knowledge_ablation_llm.py
+
 backend-run:
 	cd backend && uv run uvicorn clay.api.main:app --host 127.0.0.1 --port 8000 --reload --env-file .env
 
