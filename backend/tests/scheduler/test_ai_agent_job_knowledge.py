@@ -43,13 +43,14 @@ def _card(
     priority: str = "medium",
     score: float = 0.5,
     chunk: str = "x",
+    tags: list[str] | None = None,
 ) -> KnowledgeSearchResultSnapshot:
     return KnowledgeSearchResultSnapshot(
         item_id=item_id,
         title=f"t{item_id}",
         category=category,
         priority=priority,
-        tags=[],
+        tags=tags or [],
         score=score,
         matched_chunk=chunk,
         rationale="r",
@@ -105,6 +106,25 @@ class TestRetrieveAdvisoryCards:
             mode="darklaunch",
         )._maybe_apply_knowledge(MagicMock(), "BTC")
         assert out == "BTC"
+
+    def test_excludes_execution_tagged_cards(self) -> None:
+        ks = MagicMock()
+        process_card = _card(1, "checklist", tags=["market", "checklist", "process"])
+        exec_card = _card(2, "checklist", tags=["market", "checklist", "execution"])
+        interp_card = _card(3, "observation", score=0.3, chunk="noise")
+        ks.search.side_effect = [
+            [interp_card],  # interp query
+            [_card(9, "strategy_rule")],  # risk query
+            [process_card, exec_card],  # checklist query
+            [],  # dynamic
+        ]
+        out = _job(ks=ks, mode="darklaunch")._retrieve_advisory_cards(
+            MagicMock(), "BTC-USDT"
+        )
+        ids = {c.item_id for c in out}
+        assert 1 in ids  # process — должен быть
+        assert 2 not in ids  # execution tag — исключён
+        assert 3 in ids  # interp — должен быть
 
 
 class TestMergeDedupBoost:

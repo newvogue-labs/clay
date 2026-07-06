@@ -31,6 +31,21 @@
 - Найден backend bug (VARCHAR overflow) → миграция `df9cf24f3af4`
 - Манифест закоммичен, vault @ `f10e217`
 
+### E-KNOW S4 phase 2 — 4 advisory cards + sync idempotency + retrieval guaranteed slots ✅
+- 4 advisory карты (83-86) в vault: signals/noise-vs-signal, rank-confidence-kelly, data-freshness-discount, posture-flag-triggers
+- Idempotent vault sync: `external_id` + UNIQUE CONSTRAINT + upsert API — PR #17
+- 2 бага post-PR#17: migration constraint vs index fix, duplicated external_id in .values() — пофикшено
+- Guaranteed retrieval: `_STANDING_INTERP_QUERY` + `guaranteed_ids` + `_MAX_CARDS=14` — PR #18
+- Multi-snapshot verification: 3/3 snapshots — все 4 карты present
+
+### Knowledge Ablation Eval (minimax-m3) ✅
+- 3 сценария (quiet, volatile, mixed) × off vs inject = 6 прогонов LLM
+- **M278: 0 violations** в inject — advisory-only на 100%
+- **Все 4 карты (83-86) использованы** LLM в inject-режиме
+- **Карта 84 (rank-confidence-kelly)** — самая impactful (все 3 сценария)
+- **Карта 86 (posture-flag-triggers)** — situational (только volatile сценарий)
+- INJECT-ответы структурированнее, конкретнее, decisive чем OFF
+
 ### Batch F (F19+F20) verification + landing
 - F24 (Vitest scope src/) — PR #8 → `d2364ce`
 - Batch F rebase + squash-merge PR #7 → `59119c8`
@@ -98,14 +113,14 @@
 
 ## In Progress
 
-- **E-KNOW S3b CLOSED** — advisory #knowledge → chief-agent merged (PR #15)
-- **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod, inject gated behind evals + sign-off
-- **Ждёт выбора Emma** — следующий приоритет
+- **Ablation eval DONE** — результаты показывают пользу всех 4 карт (83-86), M278 0 violations
+- **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod, eval пройден → можно обсуждать открытие
+- **Рекомендовано** добавить 2 карты: regime classification + stale data escalation protocol
 
 ## Next Step
 
-Выбор Emma (из возможного):
-1. **E-KNOW S4** — vault наполнение (следующие домены/карточки)
+Выбор Emma:
+1. **Создать spec для карт 3/4** (regime + stale escalation) на основе eval findings
 2. **Q5-GO** — execution layer, real-money gate
-3. **#knowledge overview bug** — pre-existing, не блокирует, но стоит исправить
-4. **Sampler `--noproxy`** — deferred
+3. **Открыть valve** — переключить `ai_agent_knowledge_mode` → `"inject"`
+4. **#knowledge overview bug** — pre-existing, не блокирует

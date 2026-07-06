@@ -1,26 +1,36 @@
-# Отчёт: сессия 2026-07-05 — peer review + первый --apply vault→#knowledge
+# Отчёт: сессия 2026-07-06 — E-KNOW S4 phase 2 (advisory cards) + ablation eval
 
 ## Что сделано
 
-### E-KNOW S4 — review всего корпуса clay-knowledge
-Последовательный peer review 4 доменов (49 карточек):
-- **signals/ (3)** — regime-detection: найдена неверная атрибуция CHOP (Dreiss, не Wilder). Исправлено.
-- **risk/ (13)** — atr-stop: Chandelier Exit описан через EMA вместо Highest High (LeBeau). optimal-f: некорректное сравнение с Kelly (классический Kelly — p/b-бинарная модель, не «нормальное распределение»). Исправлено.
-- **market/ (18)** — все формулы/атрибуции корректны. Без замечаний.
-- **strategy/ (15)** — keltner-breakout: повтор ошибки Chandelier Exit (EMA→Highest High). Исправлено.
-- Все 49 промотированы `draft → peer_reviewed`
+### E-KNOW S4 phase 2 — 4 advisory карты (83-86)
+- Созданы 4 карты в vault: signals/noise-vs-signal, rank-confidence-kelly, data-freshness-discount, posture-flag-triggers
+- Все карты используют голос strict advisory (рекомендуют/флагят, без императивов)
+- Карты скопированы из `chief-agent-interpretive-cards.md` (6 оригинальных → выбраны 4 под архитектора)
 
-### E-KNOW S5 — первый --apply vault→#knowledge ✅
-- Dry-run: 49 CREATE (signals 3, risk 13, market 18, strategy 15)
-- `--apply`: ошибка 500 — `source_type VARCHAR(32)` overflow для длинных имён файлов
-- Создана alembic-миграция `df9cf24f3af4`: `source_type VARCHAR(32)→VARCHAR(64)` (non-destructive)
-- Повторный `--apply`: 49/49, 0 ошибок (3 SKIP, 46 CREATE)
-- Манифест закоммичен в vault (`f10e217`)
-- Найден pre-existing баг в `/knowledge/overview`: `total_items = len(recent_items(limit=20))`, не реальный count
+### Idempotent vault sync (PR #17 → #18)
+- `external_id` колонка + UNIQUE CONSTRAINT + upsert API в knowledge backend
+- Sync больше не delete+recreate — атомарный INSERT ON CONFLICT DO UPDATE
+- 56 items, 0 дублей (верифицировано двойным прогоном)
+- 2 бага пофикшено post-PR#17: migration constraint vs index, duplicated external_id в .values()
 
-### Найденные баги в clay backend
-1. **FIXED:** `source_type VARCHAR(32)` — overflow для `vault:market/stop-hunt-liquidity-pools` (38 символов). Миграция → VARCHAR(64).
-2. **LOGGED (pre-existing):** `/knowledge/overview` — `_build_summary` считает `total_items = len(items)`, где items — `list_recent_items(limit=20)`, не реальный total count в БД.
+### Guaranteed retrieval slots (PR #18)
+- Новый `_STANDING_INTERP_QUERY` с `category=None` для observation/note карт
+- `guaranteed_ids` параметр — force-include curated карт в inject
+- `_MAX_CARDS` 10→14: 4 curated + 9 risk + 1 checklist
+- Multi-snapshot verification: 3/3 снапшота — все 4 карты present
+
+### Knowledge Ablation Eval (minimax-m3)
+- 3 сценария × off vs inject = 6 LLM-прогонов
+- **M278: 0 violations** в inject-режиме (advisory-only holds)
+- Все 4 карты (83-86) использованы LLM: карта 84 (rank-confidence-kelly) — самая impactful
+- INJECT-ответы структурированнее, с конкретными порогами (rank ≥ ~0.5, conf ≥ ~0.5)
+- OFF → generic, INJECT → decisive ("нет позиции" через Kelly≈0)
+- Рекомендовано добавить 2 карты: regime classification + stale data escalation protocol
+
+### Общее
+- 129 тестов pass (scheduler + knowledge), ruff 0, pyright 0
+- Eval результаты сохранены в `/tmp/eval_*.txt`
 
 ## Следующий шаг
-Выбор Emma: что дальше — новый контент в vault, Q5-GO, или другое.
+
+Выбор Emma: создание карт 3/4 (regime + stale escalation), Q5-GO, или открытие valve.

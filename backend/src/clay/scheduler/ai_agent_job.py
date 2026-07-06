@@ -49,6 +49,7 @@ _CATEGORY_BOOST = {
 _TOKEN_CAP = 2000
 _MAX_CARDS = 14
 _MAX_TERMS = 5
+_EXCLUDED_TAGS = {"execution"}
 _ALIAS_MAP = {
     "sl": "stop-loss",
     "hard stop": "stop-loss",
@@ -495,9 +496,9 @@ class AIAgentCycleJob:
                 if terms
                 else []
             )
-            return _merge_dedup_boost(
-                [*standing, *dynamic], guaranteed_ids=guaranteed_ids
-            )
+            combined = [*standing, *dynamic]
+            combined = [c for c in combined if not (_EXCLUDED_TAGS & set(c.tags))]
+            return _merge_dedup_boost(combined, guaranteed_ids=guaranteed_ids)
         except Exception:
             logger.warning(
                 "clay.knowledge: advisory retrieval failed (fail-open)",
