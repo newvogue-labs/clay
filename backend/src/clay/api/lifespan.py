@@ -66,6 +66,7 @@ from clay.bootstrap import (
     reliability_service as _reliability_service,
     scheduler_settings,
     session_factory as _session_factory,
+    signal_engine_service as _signal_engine_service,
 )
 from clay.ai_control.runner import (
     AgentRunner,
@@ -166,6 +167,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 ai_control_service=_ai_control_service,
                 knowledge_service=_knowledge_service,
                 knowledge_mode=scheduler_settings.ai_agent_knowledge_mode,
+                signal_engine_service=_signal_engine_service,
             )
         if scheduler_settings.enabled:
             scheduler = ClayScheduler(

@@ -28,6 +28,8 @@ from clay.db.models_ops import AIAgentRun
 from clay.db.repositories_ops import OpsRepository
 from clay.knowledge.models import KnowledgeSearchResultSnapshot
 from clay.knowledge.service import KnowledgeService
+from clay.signal_engine.models import SignalEngineSnapshot
+from clay.signal_engine.service import SignalEngineService
 
 logger = logging.getLogger(__name__)
 
@@ -146,10 +148,39 @@ def _append_advisory_section(
     return f"{context}\n\n{block}\n"
 
 
+# ---------------------------------------------------------------------------
+# S3b-chief-B: ranked signals section (шаг B — «дать зрение»)
+# ---------------------------------------------------------------------------
+
+_MAX_SIGNALS = 10
+
+
+def _render_signals_section(snapshot: SignalEngineSnapshot) -> str:
+    """Pure. Ranked signals (backend = источник истины), top-N по ranking_score."""
+    signals = sorted(snapshot.signals, key=lambda s: s.ranking_score, reverse=True)[
+        :_MAX_SIGNALS
+    ]
+    if not signals:
+        return ""
+    lines = [
+        "=== signals ===",
+        "Ranked signals из signal_engine (backend = источник истины; только для справки):",
+    ]
+    for s in signals:
+        kelly = f"{s.kelly_fraction:.3f}" if s.kelly_fraction is not None else "N/A"
+        lines.append(
+            f"- {s.symbol} {s.direction} | rank={s.ranking_score:.3f} "
+            f"conf={s.confidence:.2f} kelly={kelly}"
+        )
+    return "\n".join(lines)
+
+
 def _render_context(
     snapshot: AIControlSnapshot,
     role_id: str | None = None,
     session: Session | None = None,
+    *,
+    signals_section: str = "",
 ) -> str:
     """Deterministic plain-text rendering of the 7 AIControlSnapshot sections.
 
@@ -232,6 +263,10 @@ def _render_context(
     else:
         lines.append("  none")
 
+    if role_id == "chief-agent" and signals_section:
+        lines.append("")
+        lines.append(signals_section)
+
     if role_id == "chief-agent" and session is not None:
         if snapshot.roles:
             all_role_ids = [r.role_id for r in snapshot.roles]
@@ -284,6 +319,7 @@ class AIAgentCycleJob:
         ai_control_service: AIControlService,
         knowledge_service: KnowledgeService | None = None,
         knowledge_mode: str = "off",
+        signal_engine_service: SignalEngineService | None = None,
     ) -> None:
         self._runner = runner
         self._session_factory = session_factory
@@ -291,6 +327,7 @@ class AIAgentCycleJob:
         self._ai_control_service = ai_control_service
         self._knowledge_service = knowledge_service
         self._knowledge_mode = knowledge_mode
+        self._signal_engine_service = signal_engine_service
         self._lock = asyncio.Lock()
 
     async def run_once(self) -> None:
@@ -311,7 +348,13 @@ class AIAgentCycleJob:
             for role_id in self._role_ids:
                 if role_id == "chief-agent":
                     with self._session_factory() as s:
-                        context = _render_context(snapshot, role_id, session=s)
+                        signals_section = self._render_signals_safe(s)
+                        context = _render_context(
+                            snapshot,
+                            role_id,
+                            session=s,
+                            signals_section=signals_section,
+                        )
                         context = self._maybe_apply_knowledge(s, context)
                 else:
                     context = _render_context(snapshot, role_id)
@@ -426,6 +469,20 @@ class AIAgentCycleJob:
                 exc_info=True,
             )
             return []
+
+    def _render_signals_safe(self, session: Session) -> str:
+        svc = self._signal_engine_service
+        if svc is None:
+            return ""
+        try:
+            snap = svc.build_snapshot(session)
+            return _render_signals_section(snap)
+        except Exception:
+            logger.warning(
+                "clay.signals: chief-agent signals render failed (fail-open)",
+                exc_info=True,
+            )
+            return ""
 
     def _maybe_apply_knowledge(self, session: Session, context: str) -> str:
         if self._knowledge_service is None or self._knowledge_mode == "off":
