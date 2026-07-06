@@ -43,7 +43,8 @@
 | 027 | Min-Volume Floor Guard (anti-slippage signal gate) | accepted | docs/adr | [`027-min-volume-floor-guard.md`](027-min-volume-floor-guard.md) |
 | 028 | *(резерв)* | — | — | |
 | 029 | Capital Exposure Hard-Block (dual-tier off-by-default) | accepted | docs/adr | [`029-capital-exposure-hard-block.md`](029-capital-exposure-hard-block.md) |
-| 030+ | свободны | — | — | |
+| 030 | Advisory #knowledge → chief-agent (advisory-only) | Accepted | docs/adr | [`030-advisory-knowledge-chief-agent.md`](030-advisory-knowledge-chief-agent.md) |
+| 031+ | свободны | — | — | |
 
 ## Карта номеров
 
