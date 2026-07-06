@@ -15,6 +15,7 @@ Run:
 from __future__ import annotations
 
 import asyncio
+import os
 
 from clay.ai_control.runner import (
     AgentRunResult,
@@ -22,7 +23,6 @@ from clay.ai_control.runner import (
     LiteLLMModelClient,
     OllamaNativeClient,
     RoutingModelClient,
-    ServiceModelResolver,
 )
 from clay.bootstrap import (
     ai_control_service,
@@ -41,6 +41,7 @@ from clay.settings.ollama import OllamaSettings
 
 
 def _build_runner() -> AgentRunner:
+    model_id = os.environ.get("CHIEF_AGENT_MODEL", "minimax-m3")
     ollama = OllamaNativeClient.from_settings(OllamaSettings())
     llm = LiteLLMModelClient(adapter=LLMAdapter(LLMSettings()))
     router = RoutingModelClient(
@@ -48,16 +49,78 @@ def _build_runner() -> AgentRunner:
         cloud_client=llm,
         transport_lookup=ai_control_service.transport_for,
     )
-    resolver = ServiceModelResolver(ai_control_service)
-    return AgentRunner(
-        model_resolver=resolver,
+
+    # bypass resolver for eval: force minimax-m3 (gemma-4-31b via Gemini
+    # returns null content when think=True, which breaks our eval)
+    class _EvalModelResolver:
+        def resolve_model_id(self, role_id: str) -> str:
+            return model_id
+
+    runner = AgentRunner(
+        model_resolver=_EvalModelResolver(),
         model_client=router,
+        role_prompts={"chief-agent": CHIEF_AGENT_SYSTEM_PROMPT},
+    )
+    return runner
+
+
+def _lite_llm_is_alive() -> bool:
+    """Check production LiteLLM at :4000 with auth."""
+    import httpx
+
+    mk = os.environ.get("LITELLM_MASTER_KEY", "")
+    if not mk:
+        return False
+    try:
+        with httpx.Client(timeout=30) as client:
+            r = client.get(
+                "http://127.0.0.1:4000/health",
+                headers={"Authorization": f"Bearer {mk}"},
+            )
+            return r.is_success
+    except Exception:
+        return False
+
+
+class _FixedModelResolver:
+    """Always returns the same model_id — bypasses AI-control assignments."""
+
+    def __init__(self, model_id: str) -> None:
+        self._model_id = model_id
+
+    def resolve_model_id(self, role_id: str) -> str:
+        return self._model_id
+
+
+def _build_local_runner() -> AgentRunner:
+    """Simplified runner that always uses the local Ollama model.
+
+    Use when the cloud transport (LiteLLM) is unavailable in the current
+    environment. Assumes ``gemma4:e2b-it-qat`` exists locally.
+    """
+    ollama = OllamaNativeClient.from_settings(OllamaSettings())
+    return AgentRunner(
+        model_resolver=_FixedModelResolver("gemma4:e2b-it-qat"),
+        model_client=ollama,
         role_prompts={"chief-agent": CHIEF_AGENT_SYSTEM_PROMPT},
     )
 
 
+async def _try_cloud_runner() -> AgentRunner | None:
+    """Build cloud runner if production LiteLLM is reachable, else return None."""
+    if not _lite_llm_is_alive():
+        return None
+    return _build_runner()
+
+
 async def _run_eval() -> None:
-    runner = _build_runner()
+    cloud = await _try_cloud_runner()
+    if cloud is not None:
+        runner = cloud
+        print("=== Using cloud model (LiteLLM) ===", flush=True)
+    else:
+        runner = _build_local_runner()
+        print("=== Using local model (gemma4:e2b-it-qat) ===", flush=True)
 
     # --- один снимок на две ветки -------------------------------------------
     with session_factory() as s:

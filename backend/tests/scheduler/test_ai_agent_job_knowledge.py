@@ -109,16 +109,27 @@ class TestRetrieveAdvisoryCards:
 
 class TestMergeDedupBoost:
     def test_dedup_and_cap(self) -> None:
-        cards = [_card(i % 3, score=i / 20) for i in range(15)]
+        cards = [_card(i % 3, score=i / 20, chunk=f"chunk-{i % 3}") for i in range(15)]
         out = _merge_dedup_boost(cards)
         assert len(out) == 3
         assert len({c.item_id for c in out}) == 3
 
+    def test_near_dedup_by_text(self) -> None:
+        cards = [
+            _card(1, chunk="Check liquidity. Confirm invalidation."),
+            _card(2, chunk="Check liquidity. Confirm invalidation."),
+            _card(3, chunk="Check liquidity. Confirm invalidation."),
+            _card(4, chunk="Different text entirely."),
+        ]
+        out = _merge_dedup_boost(cards)
+        assert len(out) == 2
+        assert {c.item_id for c in out} == {1, 4}
+
     def test_category_boost_ordering(self) -> None:
         out = _merge_dedup_boost(
             [
-                _card(1, "note", score=0.5),
-                _card(2, "strategy_rule", score=0.5),
+                _card(1, "note", score=0.5, chunk="alpha"),
+                _card(2, "strategy_rule", score=0.5, chunk="beta"),
             ]
         )
         assert out[0].item_id == 2

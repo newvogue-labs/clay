@@ -73,10 +73,18 @@ def _extract_terms(context: str) -> list[str]:
     return terms
 
 
+def _normalise(text: str) -> str:
+    """Strip, lower, collapse whitespace — for near-duplicate comparison."""
+    import re as _re
+
+    return _re.sub(r"\s+", " ", text.strip().lower())
+
+
 def _merge_dedup_boost(
     cards: list[KnowledgeSearchResultSnapshot],
 ) -> list[KnowledgeSearchResultSnapshot]:
-    """Category-boost + dedup + top-10 + token-cap ~2000."""
+    """Category-boost + dedup-by-id + near-dedup-by-text + top-10 + token-cap ~2000."""
+    seen_text: set[tuple[str, str]] = set()
     best: dict[int, tuple[float, KnowledgeSearchResultSnapshot]] = {}
     for c in cards:
         boosted = c.score * _CATEGORY_BOOST.get(c.category, 1.0)
@@ -86,6 +94,11 @@ def _merge_dedup_boost(
     out: list[KnowledgeSearchResultSnapshot] = []
     budget = _TOKEN_CAP
     for c in ranked[:_MAX_CARDS]:
+        normalised = _normalise(c.matched_chunk)
+        key = (c.category, normalised)
+        if key in seen_text:
+            continue
+        seen_text.add(key)
         cost = len(c.matched_chunk)
         if out and budget - cost < 0:
             break
