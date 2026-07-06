@@ -175,11 +175,57 @@ class TestMergeDedupBoost:
         out = _merge_dedup_boost(cards, guaranteed_ids={99})
         assert 99 in {c.item_id for c in out}
 
-    def test_max_cards_is_14(self) -> None:
-        """_merge_dedup_boost respects _MAX_CARDS=14."""
+    def test_max_cards_is_15(self) -> None:
+        """_merge_dedup_boost respects _MAX_CARDS=15."""
         cards = [_card(i, score=i / 20, chunk=f"unique-{i}") for i in range(20)]
         out = _merge_dedup_boost(cards)
-        assert len(out) == 14
+        assert len(out) == 15
+
+    def test_reserved_slots_prioritized_over_fillable(self) -> None:
+        """Reserved cards enter before fillable regardless of score."""
+        fillable = [_card(i, score=0.1, chunk=f"fill-{i}") for i in range(5)]
+        reserved = [_card(99, score=0.01, chunk="reserved-dynamic")]
+        out = _merge_dedup_boost(
+            [*fillable, *reserved],
+            reserved_ids={99},
+            reserved_slots=1,
+        )
+        assert out[0].item_id == 99
+
+    def test_reserved_slot_cap(self) -> None:
+        """No more than reserved_slots reserved cards enter."""
+        cards = [_card(i, score=0.5, chunk=f"c-{i}") for i in range(10)]
+        reserved_ids = {0, 1, 2, 3}
+        out = _merge_dedup_boost(cards, reserved_ids=reserved_ids, reserved_slots=2)
+        reserved_in = [c for c in out if c.item_id in reserved_ids]
+        assert len(reserved_in) <= 2
+
+    def test_reserved_does_not_evict_guaranteed(self) -> None:
+        """Guaranteed cards always precede reserved."""
+        cards = [
+            _card(1, "observation", score=0.01, chunk="guaranteed"),
+            _card(2, "note", score=0.5, chunk="reserved"),
+        ]
+        out = _merge_dedup_boost(
+            cards,
+            guaranteed_ids={1},
+            reserved_ids={2},
+            reserved_slots=1,
+        )
+        assert [c.item_id for c in out] == [1, 2]
+
+    def test_reserved_does_not_overflow_char_cap(self) -> None:
+        """Reserved cards still respect _TOKEN_CAP."""
+        cards = [
+            _card(1, "note", score=0.5, chunk="A" * 2500, tags=["reserved"]),
+            _card(2, "strategy_rule", score=0.5, chunk="B"),
+        ]
+        out = _merge_dedup_boost(
+            cards,
+            reserved_ids={1},
+            reserved_slots=1,
+        )
+        assert len(out) == 1  # too long, dropped
 
 
 class TestExtractTerms:

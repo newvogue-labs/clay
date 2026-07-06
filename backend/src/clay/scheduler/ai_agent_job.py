@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 _STANDING_RISK_QUERY = "risk stop-loss sizing drawdown exposure"
 _STANDING_CHECKLIST_QUERY = "checklist review pre-trade"
-_STANDING_INTERP_QUERY = "signal quality noise confidence freshness drawdown posture"
+_STANDING_INTERP_QUERY = "signal quality noise confidence freshness drawdown posture regime confluence funding liquidity microstructure correlation volatility"
 _CATEGORY_BOOST = {
     "strategy_rule": 1.15,
     "checklist": 1.10,
@@ -47,7 +47,8 @@ _CATEGORY_BOOST = {
     "note": 1.0,
 }
 _TOKEN_CAP = 2000
-_MAX_CARDS = 14
+_MAX_CARDS = 15
+_RESERVED_DYNAMIC_SLOTS = 2
 _MAX_TERMS = 5
 _EXCLUDED_TAGS = {"execution"}
 _ALIAS_MAP = {
@@ -85,11 +86,17 @@ def _normalise(text: str) -> str:
 def _merge_dedup_boost(
     cards: list[KnowledgeSearchResultSnapshot],
     guaranteed_ids: set[int] | None = None,
+    reserved_ids: set[int] | None = None,
+    reserved_slots: int = 2,
 ) -> list[KnowledgeSearchResultSnapshot]:
-    """Category-boost + dedup-by-id + guaranteed curated slots
-    + near-dedup-by-text + top-_MAX_CARDS + token-cap ~2000."""
+    """Category-boost + dedup-by-id + 3-tier slot allocation:
+    guaranteed (interp) → reserved (dynamic/ticker-matched) → fillable (risk/checklist).
+    ``_MAX_CARDS`` is the upper bound; ``_TOKEN_CAP`` is the binding constraint.
+    When over cap, lowest non-guaranteed cards are dropped first."""
     if guaranteed_ids is None:
         guaranteed_ids = set()
+    if reserved_ids is None:
+        reserved_ids = set()
     best: dict[int, tuple[float, KnowledgeSearchResultSnapshot]] = {}
     for c in cards:
         boosted = c.score * _CATEGORY_BOOST.get(c.category, 1.0)
@@ -98,27 +105,49 @@ def _merge_dedup_boost(
     ranked = [c for _, c in sorted(best.values(), key=lambda t: t[0], reverse=True)]
 
     guaranteed: list[KnowledgeSearchResultSnapshot] = []
+    reserved: list[KnowledgeSearchResultSnapshot] = []
     fillable: list[KnowledgeSearchResultSnapshot] = []
     for c in ranked:
-        (guaranteed if c.item_id in guaranteed_ids else fillable).append(c)
+        if c.item_id in guaranteed_ids:
+            guaranteed.append(c)
+        elif c.item_id in reserved_ids and c.item_id not in guaranteed_ids:
+            reserved.append(c)
+        else:
+            fillable.append(c)
 
     seen_text: set[tuple[str, str]] = set()
     out: list[KnowledgeSearchResultSnapshot] = []
 
-    for c in guaranteed:
-        seen_text.add((c.category, _normalise(c.matched_chunk)))
-        out.append(c)
-
-    slots_left = max(0, _MAX_CARDS - len(out))
-    budget = _TOKEN_CAP
-    for c in fillable[:slots_left]:
-        cost = len(c.matched_chunk)
+    def _try_add(c: KnowledgeSearchResultSnapshot) -> bool:
         key = (c.category, _normalise(c.matched_chunk))
-        if key in seen_text or (out and budget - cost < 0):
-            continue
+        if key in seen_text:
+            return False
         seen_text.add(key)
         out.append(c)
-        budget -= cost
+        return True
+
+    for c in guaranteed:
+        _try_add(c)
+
+    budget = _TOKEN_CAP
+    slots_left = max(0, _MAX_CARDS - len(out))
+
+    for c in reserved[:reserved_slots]:
+        if not slots_left:
+            break
+        if _try_add(c):
+            budget -= len(c.matched_chunk)
+            slots_left -= 1
+
+    for c in fillable:
+        if not slots_left:
+            break
+        cost = len(c.matched_chunk)
+        if out and budget - cost < 0:
+            continue
+        if _try_add(c):
+            budget -= cost
+            slots_left -= 1
     return out
 
 
@@ -498,7 +527,13 @@ class AIAgentCycleJob:
             )
             combined = [*standing, *dynamic]
             combined = [c for c in combined if not (_EXCLUDED_TAGS & set(c.tags))]
-            return _merge_dedup_boost(combined, guaranteed_ids=guaranteed_ids)
+            reserved_ids = {c.item_id for c in dynamic} - guaranteed_ids
+            return _merge_dedup_boost(
+                combined,
+                guaranteed_ids=guaranteed_ids,
+                reserved_ids=reserved_ids,
+                reserved_slots=_RESERVED_DYNAMIC_SLOTS,
+            )
         except Exception:
             logger.warning(
                 "clay.knowledge: advisory retrieval failed (fail-open)",
