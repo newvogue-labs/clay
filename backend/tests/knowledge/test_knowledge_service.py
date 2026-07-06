@@ -64,6 +64,28 @@ def test_knowledge_service_delete_missing_raises(db_session, tmp_path: Path) -> 
         service.delete_item(db_session, 99999)
 
 
+def test_knowledge_service_overview_count_above_limit(
+    db_session, tmp_path: Path
+) -> None:
+    service = build_knowledge_service(tmp_path)
+    for i in range(22):
+        service.create_item(
+            db_session,
+            KnowledgeCreateCommand(
+                title=f"Item {i}",
+                category="note",
+                priority="low",
+                tags=["test"],
+                content=f"This is test item number {i} with enough content for chunking.",
+            ),
+        )
+
+    snapshot = service.build_snapshot(db_session)
+    assert snapshot.summary.total_items == 22
+    assert snapshot.summary.total_chunks >= 22
+    assert len(snapshot.recent_items) == 20
+
+
 def test_knowledge_service_searches_with_keyword_and_priority(
     db_session, tmp_path: Path
 ) -> None:
