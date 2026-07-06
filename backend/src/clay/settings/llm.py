@@ -22,6 +22,8 @@ class LLMSettings(BaseSettings):
       Env: ``CLAY_LLM_MASTER_KEY``.
     * ``timeout_seconds`` — per-request timeout in seconds.
       Env: ``CLAY_LLM_TIMEOUT_SECONDS``.
+    * ``num_predict`` — default max_tokens for cloud LLM calls.
+      Env: ``CLAY_LLM_NUM_PREDICT``.
     """
 
     model_config = SettingsConfigDict(
@@ -32,3 +34,4 @@ class LLMSettings(BaseSettings):
     base_url: str = "http://127.0.0.1:4000"
     master_key: str | None = None
     timeout_seconds: float = 30.0
+    num_predict: int = 1536
