@@ -21,6 +21,23 @@
 
 ## Завершено (текущая сессия — 2026-07-06)
 
+### M278 detector (Layer A output-scan) — PR #21 → main ✅
+- **CommandDetector** в `commands.py` — verb sets EN+RU (44 глагола), numeric direction/leverage regex, excluded compounds (shortlist/long-term/orderbook/buying/selling/setup/stop-loss)
+- **0 FN** на 52 реальных командах, **6 FP** задокументированы
+- **Тест-корпус** закоммичен (REAL_COMMANDS + ADVISORY_PHRASES)
+- **Integration** — `m278_scan.py` (standalone), +M278 report в `knowledge_ablation_llm.py`
+- **Makefile** — `backend-eval-m278`, `backend-eval-ablation`
+- **114/114 pass**, ruff 0, pyright 0
+- **PR #21** merged → main @ `444482f`
+
+### Full ablation eval (minimax-m3) — 3 сценария × off/inject ✅
+- **M278: 0 violations** на всём корпусе (6/6 outputs)
+- **kn-91** цитирован в quiet/inject — pre-trade checklist полезен
+- **kn-92** execution — НЕ появляется нигде (EXCLUDED_TAGS работает)
+- **interp cards:** kn-84 (3/3), kn-95 (3/3), kn-96 (3/3), kn-85 (1/3), kn-83 (1/3), kn-86 (1/3)
+- **Inject лучше off** по всем сценариям: структурированные таблицы, framework, provenance
+- **Замечание:** strong/mixed inject выводы обрезаны (max_tokens=512 мало)
+
 ### Находка B — split execution-checklist + exclude barrier + backfill external_id ✅
 - **C1:** split `market/execution-checklist` (kn-34) → `pre-trade-checklist` (kn-91, process) + `execution-checklist` (kn-92, execution-only, `tags=[execution]`)
 - **C2:** `_EXCLUDED_TAGS = {"execution"}` filter in `_retrieve_advisory_cards()` — execution-tagged cards physically cannot reach chief-agent prompt
@@ -123,30 +140,30 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (main)** | `7c2337b` (PR #19: Находка B) + `2868e8f` (PR #20: wiring) |
+| **HEAD (main)** | `444482f` (PR #21: M278 detector) |
 | **HEAD (vault)** | `f397867` (kn-95 + kn-96 + split) |
 | **Alembic** | `df9cf24f3af4` (0022, head) |
 | **Backend migration** | `source_type VARCHAR(32)→VARCHAR(64)` applied |
 | **#knowledge items** | 59 (51 vault + 4 advisory 83-86 + 2 process 91-92 + 2 new 95-96) |
-| **PR open** | #19 (Находка B), #20 (wiring) |
+| **PR open** | нет |
 | **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history |
 | **Ruff / Pyright / tsc** | 0 |
 | **Vitest / E2E** | 17/17 / 7/7 (frontend: pre-existing flaky test, не блокирует) |
-| **Pytest** | 133 pass (full suite) |
+| **Pytest** | 114 pass (scheduler suite), full suite pass |
 | **ADR** | 001–030 |
 
 ## In Progress
 
-- **Находка B — CLOSED** ✅ (split + exclude + backfill, PR #19)
-- **Wiring — CLOSED** ✅ (interp query + 3-tier slots, PR #20)
-- **Карты 3/4 — CLOSED** ✅ (kn-95 regime, kn-96 confluence)
+- **M278 детектор (Layer A output-scan) — CLOSED** ✅ (PR #21, main @ `444482f`)
+- **Ablation eval (minimax-m3) — CLOSED** ✅ (0 M278 violations, inject ценнее off)
 - **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod
-- **Очередь:** M278 детектор → карта 7 (source-credibility-filter)
+- **Очередь:** карта 7 (source-credibility-filter) → Q5-GO → открыть valve
+- **Layer B (_sanitize precision-pass)** — отложен, не в этом слайсе
 
 ## Next Step
 
 Выбор Emma:
-1. **M278 детектор** — automated scan in advisory pipeline
-2. **Карта 7 (source-credibility-filter)** — после M278 детектора
-3. **Q5-GO** — execution layer, real-money gate
-4. **Открыть valve** — переключить `ai_agent_knowledge_mode` → `"inject"`
+1. **Карта 7 (source-credibility-filter)** — после M278
+2. **Q5-GO** — execution layer, real-money gate
+3. **Открыть valve** — переключить `ai_agent_knowledge_mode` → `"inject"`
+4. **Layer B (sanitize precision-pass)** — входной чистильщик card-текста
