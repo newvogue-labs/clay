@@ -187,6 +187,24 @@ async def _run_eval() -> None:
         f.write(inject.content)
     print("\nSaved to /tmp/summary_off.txt and /tmp/summary_inject.txt")
 
+    # --- M278 report ---------------------------------------------------------
+    def _m278_report(label: str, text: str) -> None:
+        from clay.scheduler.commands import CommandDetector
+
+        flags = CommandDetector().scan(text)
+        if not flags:
+            print(f"\n  M278 [{label}]: 0 flags ✅")
+            return
+        print(f"\n  M278 [{label}]: {len(flags)} flag(s)")
+        for f in flags:
+            ctx_start = max(0, f.span_start - 20)
+            ctx_end = min(len(text), f.span_end + 20)
+            ctx = text[ctx_start:ctx_end].replace("\n", "↵")
+            print(f"    {f.category:22s} {f.match!r:20s} ...{ctx}...")
+
+    _m278_report("off", off.content)
+    _m278_report("inject", inject.content)
+
 
 def main() -> None:
     asyncio.run(_run_eval())
