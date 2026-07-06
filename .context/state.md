@@ -21,6 +21,16 @@
 
 ## Завершено (текущая сессия)
 
+### E-KNOW S4 — peer review всего корпуса clay-knowledge ✅
+- 4 домена, 49 карточек: signals (3) + risk (13) + market (18) + strategy (15)
+- Все `draft → peer_reviewed`
+- Найдено и исправлено 2 ошибки: Chandelier Exit (2 файла), Kelly comparison (1 файл)
+
+### E-KNOW S5 — первый --apply vault→#knowledge ✅
+- 49/49 items synced, 0 ошибок
+- Найден backend bug (VARCHAR overflow) → миграция `df9cf24f3af4`
+- Манифест закоммичен, vault @ `f10e217`
+
 ### Batch F (F19+F20) verification + landing
 - F24 (Vitest scope src/) — PR #8 → `d2364ce`
 - Batch F rebase + squash-merge PR #7 → `59119c8`
@@ -74,24 +84,27 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (main)** | `a02bc78` |
-| **HEAD (vault)** | `0bf4cb1` |
-| **PR open** | #12 — E-KNOW S3 vault→KB sync |
+| **HEAD (main)** | `d994844` |
+| **HEAD (vault)** | `f10e217` |
+| **Alembic** | `df9cf24f3af4` (0022, head) |
+| **Backend migration** | `source_type VARCHAR(32)→VARCHAR(64)` applied |
+| **#knowledge items** | 49 |
+| **PR open** | — |
 | **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history |
 | **Ruff / Pyright / tsc** | 0 |
 | **Vitest / E2E** | 17/17 / 7/7 |
 | **Pytest CI** | success |
-| **Alembic** | 0021 |
 | **ADR** | 001–029 |
 
 ## In Progress
 
-- **E-KNOW S3** — PR #12 open, ждёт код-верификацию + merge
-- **Q5-GO** — параллельно
+- **E-KNOW S4+S5** — peer review и sync завершены
+- **Ждёт выбора Emma** — следующий приоритет
 
 ## Next Step
 
-1. **S3 код-верификация + merge** — Emma проверяет PR #12
-2. **Наполнение market/strategy/risk доменов** — первый настоящий Wolf-контент в vault
-3. **Q5-GO** — execution layer, real-money gate (параллельно)
-4. **Sampler `--noproxy`** — deferred до следующего soak-прогона
+Выбор Emma (из возможного):
+1. **Новый контент** — наполнение vault следующими доменами/карточками
+2. **Q5-GO** — execution layer, real-money gate
+3. **#knowledge overview bug** — pre-existing, не блокирует, но стоит исправить
+4. **Sampler `--noproxy`** — deferred

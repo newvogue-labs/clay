@@ -1,30 +1,29 @@
 ---
-date: 2026-07-04
+date: 2026-07-05
 from: Emma
-session: E-KNOW S1–S3 bootstrap
+session: E-KNOW S4+S5 — peer review + первый --apply
 ---
 
 ## Что сделано
 
-- **E-KNOW S1** — vault bootstrap `~/Projects/clay-knowledge/` @ `9127736` (OKF-скелет, 5 donor, 5 concept)
-- **E-KNOW S1-доп** — master→main, 8 MOC-заглушек, доменная таксономия, backfill frontmatter @ `4d22bc7`
-- **E-KNOW S1-доп-2** — kb_category в конвенциях @ `0bf4cb1`
-- **E-KNOW S3** — PR #12 open, sync pipeline vault→KB (dry-run/apply, manifest, 8 tests, 762/762 pass)
-- **Recon #knowledge** — модель, API, интеграция, находки (FK, индексы, пагинация)
+- **E-KNOW S4** — peer review 49 карточек (signals 3 + risk 13 + market 18 + strategy 15) → все `peer_reviewed`
+  - Найдено 2 factual ошибки: Chandelier Exit (2 файла), Kelly comparison (1 файл)
+- **E-KNOW S5** — первый `--apply` vault→#knowledge: 49/49 items, 0 ошибок
+  - Найден backend bug (VARCHAR overflow) → alembic миграция `df9cf24f3af4`
 
 ## Следующий шаг
 
-1. **S3 код-верификация + merge** — Emma проверяет PR #12
-2. **Наполнение market/strategy/risk** — первый Wolf-контент в vault
-3. **Q5-GO** — real-money gate (параллельно)
+Ждёт выбора Emma. Возможные направления:
+1. Новый контент в vault
+2. Q5-GO (execution layer)
+3. #knowledge overview bugfix
+4. Sampler --noproxy
 
 ## Текущий дрифт
 
-- **HEAD (clay main):** `a02bc78` (чисто)
-- **HEAD (vault):** `0bf4cb1`
-- **PR open:** #12 — E-KNOW S3 (feature/E-KNOW-S3-vault-sync @ `140240c`)
-- **CI:** success, ruff/pyright 0, 762/762 pass
-
-## Что следующему агенту
-
-После код-верификации S3 (Emma) — merge PR #12, затем наполнение market/strategy/risk доменов. Q5-GO параллельно.
+- **HEAD (clay main):** `d994844` (чисто)
+- **HEAD (vault):** `f10e217` (чисто, manifest закоммичен)
+- **Alembic head:** `df9cf24f3af4` (0022, source_type VARCHAR(64))
+- **#knowledge:** 49 items
+- **PR open:** нет
+- **CI:** success
