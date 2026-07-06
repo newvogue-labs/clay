@@ -78,6 +78,7 @@ from clay.llm import LLMAdapter
 from clay.settings.llm import LLMSettings
 from clay.scheduler.ai_agent_job import AIAgentCycleJob
 from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
+from clay.scheduler.prompts import CHIEF_AGENT_SYSTEM_PROMPT
 from clay.scheduler.service import ClayScheduler
 from clay.settings.ollama import OllamaSettings
 
@@ -155,6 +156,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                         "(positive/neutral/negative + одна строка обоснования), "
                         "отметь расхождения news vs sentiment-показателей. ≤150 слов."
                     ),
+                    "chief-agent": CHIEF_AGENT_SYSTEM_PROMPT,
                 },
             )
             ai_agent_cycle_job = AIAgentCycleJob(
