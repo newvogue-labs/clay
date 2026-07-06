@@ -32,6 +32,15 @@ async def create_knowledge_item(
     return service.create_item(session, command).model_dump(mode="json")
 
 
+@router.post("/items/upsert")
+async def upsert_knowledge_item(
+    command: KnowledgeCreateCommand,
+    session: Annotated[Session, Depends(get_db_session)],
+    service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+) -> dict[str, object]:
+    return service.upsert_item(session, command).model_dump(mode="json")
+
+
 @router.delete("/items/{item_id}")
 async def delete_knowledge_item(
     item_id: int,

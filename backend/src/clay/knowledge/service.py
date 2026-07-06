@@ -59,6 +59,54 @@ class KnowledgeService:
             search_results=search_results,
         )
 
+    def upsert_item(
+        self,
+        session: Session,
+        command: KnowledgeCreateCommand,
+    ) -> KnowledgeSnapshot:
+        repository = KnowledgeRepository(session)
+        chunks = self._chunk_content(command.content)
+        chunk_models = [
+            {
+                "chunk_index": index,
+                "chunk_text": chunk_text,
+                "chunk_type": chunk_type,
+                "token_estimate": self._token_estimate(chunk_text),
+            }
+            for index, (chunk_type, chunk_text) in enumerate(chunks)
+        ]
+        item = repository.upsert_item_by_external_id(
+            {
+                "title": command.title,
+                "category": command.category,
+                "priority": command.priority,
+                "tags_csv": ",".join(command.tags),
+                "source_type": command.source_type,
+                "content": command.content,
+                "external_id": command.external_id,
+            }
+        )
+        repository.replace_chunks(item_id=item.id, chunks=chunk_models)
+        session.commit()
+        self.audit_writer.write(
+            "knowledge.item.upserted",
+            {
+                "item_id": item.id,
+                "external_id": command.external_id,
+                "title": item.title,
+                "category": item.category,
+            },
+        )
+        self.event_bus.publish(
+            "knowledge.updated",
+            {
+                "event_type": "knowledge.item.upserted",
+                "item_id": item.id,
+                "external_id": command.external_id,
+            },
+        )
+        return self.build_snapshot(session)
+
     def create_item(
         self,
         session: Session,

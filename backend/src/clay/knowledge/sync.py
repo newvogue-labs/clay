@@ -211,29 +211,17 @@ class VaultKnowledgeSync:
     ) -> None:
         if action.action == "skip":
             return
-        if action.action == "create":
+        if action.action in ("create", "update"):
             assert action.file is not None
             cmd = self._to_command(action.file)
-            r = await client.post("/knowledge/items", json=cmd.model_dump(mode="json"))
-            r.raise_for_status()
-            data = r.json()
-            new_id = data["recent_items"][0]["item_id"]
-            self.manifest.files[action.id] = ManifestEntry(
-                id=action.id, item_id=new_id, content_hash=action.file.content_hash
+            r = await client.post(
+                "/knowledge/items/upsert", json=cmd.model_dump(mode="json")
             )
-        elif action.action == "update":
-            assert action.file is not None
-            assert action.item_id is not None
-            r = await client.delete(f"/knowledge/items/{action.item_id}")
-            if r.status_code != 404:
-                r.raise_for_status()
-            cmd = self._to_command(action.file)
-            r = await client.post("/knowledge/items", json=cmd.model_dump(mode="json"))
             r.raise_for_status()
             data = r.json()
-            new_id = data["recent_items"][0]["item_id"]
+            item_id = data["recent_items"][0]["item_id"]
             self.manifest.files[action.id] = ManifestEntry(
-                id=action.id, item_id=new_id, content_hash=action.file.content_hash
+                id=action.id, item_id=item_id, content_hash=action.file.content_hash
             )
         elif action.action == "delete":
             assert action.item_id is not None
@@ -250,6 +238,7 @@ class VaultKnowledgeSync:
             tags=vf.tags,
             content=vf.content,
             source_type=vf.source_type,
+            external_id=f"vault:{vf.id}",
         )
 
     # ------------------------------------------------------------------

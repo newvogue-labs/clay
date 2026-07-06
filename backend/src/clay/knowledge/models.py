@@ -53,6 +53,7 @@ class KnowledgeCreateCommand(BaseModel):
     tags: list[str]
     content: str
     source_type: str = "manual"
+    external_id: str | None = None
 
 
 class KnowledgeSearchCommand(BaseModel):
