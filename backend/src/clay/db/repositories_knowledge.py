@@ -1,4 +1,7 @@
+from datetime import datetime, UTC
+
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from clay.db.models_knowledge import KnowledgeChunk, KnowledgeItem
@@ -13,6 +16,36 @@ class KnowledgeRepository:
         self.session.add(item)
         self.session.flush()
         return item
+
+    def upsert_item_by_external_id(self, payload: dict[str, object]) -> KnowledgeItem:
+        now = datetime.now(UTC)
+        stmt = pg_insert(KnowledgeItem).values(
+            **payload,
+            external_id=payload.get("external_id"),
+            created_at=now,
+            updated_at=now,
+        )
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_knowledge_items_external_id",
+            set_={
+                "title": stmt.excluded.title,
+                "category": stmt.excluded.category,
+                "priority": stmt.excluded.priority,
+                "tags_csv": stmt.excluded.tags_csv,
+                "source_type": stmt.excluded.source_type,
+                "content": stmt.excluded.content,
+                "updated_at": now,
+            },
+        )
+        stmt = stmt.returning(KnowledgeItem)
+        item = self.session.scalar(stmt)
+        assert item is not None, "ON CONFLICT upsert must return item"
+        return item
+
+    def get_item_by_external_id(self, external_id: str) -> KnowledgeItem | None:
+        return self.session.scalar(
+            select(KnowledgeItem).where(KnowledgeItem.external_id == external_id)
+        )
 
     def replace_chunks(
         self, *, item_id: int, chunks: list[dict[str, object]]

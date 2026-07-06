@@ -230,9 +230,11 @@ class TestApply:
             await sync.apply([create_actions[0]])
 
         assert mock_client.post.call_count == 1
+        assert mock_client.post.call_args[0][0] == "/knowledge/items/upsert"
         call_kwargs = mock_client.post.call_args[1]
         assert call_kwargs["json"]["title"] == "SMA Crossover"
         assert call_kwargs["json"]["source_type"] == "vault:market/sma-crossover"
+        assert call_kwargs["json"]["external_id"] == "vault:market/sma-crossover"
         assert sync.manifest.files["market/sma-crossover"].item_id == 100
 
     @pytest.mark.asyncio
@@ -260,10 +262,14 @@ class TestApply:
         with patch("httpx.AsyncClient", return_value=mock_client):
             await sync.apply(update_actions)
 
-        assert mock_client.delete.call_count == 1
-        assert mock_client.delete.call_args[0][0] == "/knowledge/items/42"
+        assert mock_client.delete.call_count == 0
         assert mock_client.post.call_count == 1
+        assert mock_client.post.call_args[0][0] == "/knowledge/items/upsert"
         assert mock_client.post.call_args[1]["json"]["title"] == "SMA Crossover"
+        assert (
+            mock_client.post.call_args[1]["json"]["external_id"]
+            == "vault:market/sma-crossover"
+        )
         assert sync.manifest.files["market/sma-crossover"].item_id == 100
 
     @pytest.mark.asyncio

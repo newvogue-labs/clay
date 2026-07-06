@@ -16,6 +16,7 @@ class KnowledgeItem(Base):
     priority: Mapped[str] = mapped_column(String(16), index=True)
     tags_csv: Mapped[str] = mapped_column(Text)
     source_type: Mapped[str] = mapped_column(String(32), index=True)
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
