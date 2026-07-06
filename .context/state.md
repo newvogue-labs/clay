@@ -19,7 +19,31 @@
 - **dev-DX:** `make backend-run` --env-file, 3 logs DEBUG
 - **F6 refetch-loop:** 11 mount-эффектов исправлены
 
-## Завершено (текущая сессия)
+## Завершено (текущая сессия — 2026-07-06)
+
+### Находка B — split execution-checklist + exclude barrier + backfill external_id ✅
+- **C1:** split `market/execution-checklist` (kn-34) → `pre-trade-checklist` (kn-91, process) + `execution-checklist` (kn-92, execution-only, `tags=[execution]`)
+- **C2:** `_EXCLUDED_TAGS = {"execution"}` filter in `_retrieve_advisory_cards()` — execution-tagged cards physically cannot reach chief-agent prompt
+- **C3:** sync vault → knowledge: 57 items, 0 duplicates
+- **C4:** ADR-030 updated — split + exclude barrier documented
+- **C5:** unit test + 133/133 pass, ruff 0, pyright 0
+- **C6:** backfill `external_id` on 48 vault-sourced cards (were NULL → ghost on any edit). Verified: edit `risk/atr-stop` → UPDATE in place at id=52, no ghost
+- **PR #19:** `feature/nakhodka-b-split-checklist` на main
+
+### Карты 3/4 — signal-confluence + regime-market-health ✅
+- kn-95 `signals/regime-market-health` (observation, high)
+- kn-96 `signals/signal-confluence` (observation, medium)
+- Advisory voice (M278-safe), funding two-stage (soft ±0.1%/8h, hard ±0.3%/8h), VPIN contested
+- Sync: count=59, idempotent
+
+### Wiring — expand interp query + 3-tier slot alloc ✅
+- `_STANDING_INTERP_QUERY` expanded with regime/confluence/funding/liquidity/microstructure/correlation/volatility
+- kn-95 score: 0.3 → 2.3
+- 3-tier slot alloc: guaranteed (6 interp) → reserved (dynamic, up to 2) → fillable (risk/checklist)
+- `_MAX_CARDS=15` as upper bound, char-cap=2000 is binding
+- 30/30 tests, ruff 0, pyright 0
+- Multi-snapshot: all 6 interp in every snapshot
+- **PR #20:** `feature/wiring-interp-retrieval` на main
 
 ### E-KNOW S4 — peer review всего корпуса clay-knowledge ✅
 - 4 домена, 49 карточек: signals (3) + risk (13) + market (18) + strategy (15)
@@ -99,28 +123,30 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (main)** | `3651185` |
-| **HEAD (vault)** | `f10e217` |
+| **HEAD (main)** | `7c2337b` (PR #19: Находка B) + `2868e8f` (PR #20: wiring) |
+| **HEAD (vault)** | `f397867` (kn-95 + kn-96 + split) |
 | **Alembic** | `df9cf24f3af4` (0022, head) |
 | **Backend migration** | `source_type VARCHAR(32)→VARCHAR(64)` applied |
-| **#knowledge items** | 49 (чистка: удалены id=4/27/31, каноничная id=34) |
-| **PR open** | — |
+| **#knowledge items** | 59 (51 vault + 4 advisory 83-86 + 2 process 91-92 + 2 new 95-96) |
+| **PR open** | #19 (Находка B), #20 (wiring) |
 | **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history |
 | **Ruff / Pyright / tsc** | 0 |
 | **Vitest / E2E** | 17/17 / 7/7 (frontend: pre-existing flaky test, не блокирует) |
-| **Pytest CI** | success |
+| **Pytest** | 133 pass (full suite) |
 | **ADR** | 001–030 |
 
 ## In Progress
 
-- **Ablation eval DONE** — результаты показывают пользу всех 4 карт (83-86), M278 0 violations
-- **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod, eval пройден → можно обсуждать открытие
-- **Рекомендовано** добавить 2 карты: regime classification + stale data escalation protocol
+- **Находка B — CLOSED** ✅ (split + exclude + backfill, PR #19)
+- **Wiring — CLOSED** ✅ (interp query + 3-tier slots, PR #20)
+- **Карты 3/4 — CLOSED** ✅ (kn-95 regime, kn-96 confluence)
+- **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod
+- **Очередь:** M278 детектор → карта 7 (source-credibility-filter)
 
 ## Next Step
 
 Выбор Emma:
-1. **Создать spec для карт 3/4** (regime + stale escalation) на основе eval findings
-2. **Q5-GO** — execution layer, real-money gate
-3. **Открыть valve** — переключить `ai_agent_knowledge_mode` → `"inject"`
-4. **#knowledge overview bug** — pre-existing, не блокирует
+1. **M278 детектор** — automated scan in advisory pipeline
+2. **Карта 7 (source-credibility-filter)** — после M278 детектора
+3. **Q5-GO** — execution layer, real-money gate
+4. **Открыть valve** — переключить `ai_agent_knowledge_mode` → `"inject"`

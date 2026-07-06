@@ -1,36 +1,30 @@
-# Отчёт: сессия 2026-07-06 — E-KNOW S4 phase 2 (advisory cards) + ablation eval
+# Отчёт: сессия 2026-07-06 — Находка B + карты 3/4 + wiring
 
 ## Что сделано
 
-### E-KNOW S4 phase 2 — 4 advisory карты (83-86)
-- Созданы 4 карты в vault: signals/noise-vs-signal, rank-confidence-kelly, data-freshness-discount, posture-flag-triggers
-- Все карты используют голос strict advisory (рекомендуют/флагят, без императивов)
-- Карты скопированы из `chief-agent-interpretive-cards.md` (6 оригинальных → выбраны 4 под архитектора)
+### Находка B — split execution-checklist + exclude barrier + backfill
+- **C1:** split `market/execution-checklist` → `pre-trade-checklist` (kn-91, process) + `execution-checklist` (kn-92, execution-only, `tags=[execution]`)
+- **C2:** `_EXCLUDED_TAGS = {"execution"}` — execution-tagged cards physically blocked from chief-agent
+- **C3:** sync vault → knowledge: 57 items, 0 duplicates. Призрак kn-34 удалён
+- **C4:** ADR-030 updated (split + exclude barrier)
+- **C5:** unit test `test_excludes_execution_tagged_cards` + 133/133 pass
+- **C6:** backfill `external_id` on 48 vault-sourced cards (were NULL → ghosts on edit)
+- **PR #19** на main
 
-### Idempotent vault sync (PR #17 → #18)
-- `external_id` колонка + UNIQUE CONSTRAINT + upsert API в knowledge backend
-- Sync больше не delete+recreate — атомарный INSERT ON CONFLICT DO UPDATE
-- 56 items, 0 дублей (верифицировано двойным прогоном)
-- 2 бага пофикшено post-PR#17: migration constraint vs index, duplicated external_id в .values()
+### Карты 3/4
+- kn-95 `signals/regime-market-health` (observation, high) — regime/health чтение
+- kn-96 `signals/signal-confluence` (observation, medium) — независимость подтверждений
+- Advisory-голос, funding двухступенчато, VPIN contested, r>0.7/VIF≥5-10 пороги
+- Sync: count=59, idempotent
 
-### Guaranteed retrieval slots (PR #18)
-- Новый `_STANDING_INTERP_QUERY` с `category=None` для observation/note карт
-- `guaranteed_ids` параметр — force-include curated карт в inject
-- `_MAX_CARDS` 10→14: 4 curated + 9 risk + 1 checklist
-- Multi-snapshot verification: 3/3 снапшота — все 4 карты present
-
-### Knowledge Ablation Eval (minimax-m3)
-- 3 сценария × off vs inject = 6 LLM-прогонов
-- **M278: 0 violations** в inject-режиме (advisory-only holds)
-- Все 4 карты (83-86) использованы LLM: карта 84 (rank-confidence-kelly) — самая impactful
-- INJECT-ответы структурированнее, с конкретными порогами (rank ≥ ~0.5, conf ≥ ~0.5)
-- OFF → generic, INJECT → decisive ("нет позиции" через Kelly≈0)
-- Рекомендовано добавить 2 карты: regime classification + stale data escalation protocol
-
-### Общее
-- 129 тестов pass (scheduler + knowledge), ruff 0, pyright 0
-- Eval результаты сохранены в `/tmp/eval_*.txt`
+### Wiring — retrieval 3-tier
+- `_STANDING_INTERP_QUERY` expanded — kn-95 score 0.3 → 2.3
+- 3-tier slot alloc: guaranteed (6 interp) → reserved (dynamic, up to 2) → fillable (risk/checklist)
+- `_MAX_CARDS=15` as upper bound, char-cap=2000 binding
+- Multi-snapshot: all 6 interp всегда, chars=1192 < 2000
+- 30/30 tests, ruff 0, pyright 0
+- **PR #20** на main
 
 ## Следующий шаг
 
-Выбор Emma: создание карт 3/4 (regime + stale escalation), Q5-GO, или открытие valve.
+Очередь: M278 детектор → карта 7 (source-credibility-filter). Жду выбора Emma.
