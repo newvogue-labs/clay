@@ -60,6 +60,7 @@ from clay.bootstrap import (
     health_monitor as _health_monitor,
     ingestion_cycle_service as _ingestion_cycle_service,
     ingestion_settings as _ingestion_settings,
+    knowledge_service as _knowledge_service,
     market_ingestion_service as _market_ingestion_service,
     registry as _registry,
     reliability_service as _reliability_service,
@@ -161,6 +162,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 session_factory=_session_factory,
                 role_ids=scheduler_settings.ai_agent_role_ids,
                 ai_control_service=_ai_control_service,
+                knowledge_service=_knowledge_service,
+                knowledge_mode=scheduler_settings.ai_agent_knowledge_mode,
             )
         if scheduler_settings.enabled:
             scheduler = ClayScheduler(

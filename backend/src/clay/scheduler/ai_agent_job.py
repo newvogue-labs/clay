@@ -7,7 +7,8 @@ DEPLOY-5 / 5b-ii.2b-ii: periodic async job that:
 3. Calls ``AgentRunner.run_agent(role_id, context)`` (fail-loud).
 4. Persists the result (content/thinking/error) to ``ops.ai_agent_runs``.
 
-Flag-gated by ``SchedulerSettings.ai_agent_enabled`` (default ``False``).
+S3b-i: optionally retrieves advisory #knowledge cards in chief-agent
+branch. Dark-launch by default — logs would-inject, never touches context.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 import logging
+import re
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -23,8 +25,88 @@ from clay.ai_control.runner import AgentRunner, ModelUnavailableError
 from clay.ai_control.service import AIControlService
 from clay.db.models_ops import AIAgentRun
 from clay.db.repositories_ops import OpsRepository
+from clay.knowledge.models import KnowledgeSearchResultSnapshot
+from clay.knowledge.service import KnowledgeService
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# S3b-i: #knowledge advisory retrieval constants + pure helpers
+# ---------------------------------------------------------------------------
+
+_STANDING_RISK_QUERY = "risk stop-loss sizing drawdown exposure"
+_STANDING_CHECKLIST_QUERY = "checklist review pre-trade"
+_CATEGORY_BOOST = {
+    "strategy_rule": 1.15,
+    "checklist": 1.10,
+    "observation": 1.05,
+    "note": 1.0,
+}
+_TOKEN_CAP = 2000
+_MAX_CARDS = 10
+_MAX_TERMS = 5
+_ALIAS_MAP = {
+    "sl": "stop-loss",
+    "hard stop": "stop-loss",
+    "tp": "take-profit",
+    "dd": "drawdown",
+    "oi": "open-interest",
+    "cvd": "cumulative-volume-delta",
+}
+_TICKER_RE = re.compile(r"\b[A-Z]{2,10}(?:-[A-Z]{2,6})?\b")
+
+
+def _extract_terms(context: str) -> list[str]:
+    """Symbols/themes from rendered context. Dedup, cap at ``_MAX_TERMS``."""
+    terms: list[str] = []
+    seen: set[str] = set()
+    for m in _TICKER_RE.findall(context):
+        t = _ALIAS_MAP.get(m.lower()) or m
+        if t not in seen:
+            seen.add(t)
+            terms.append(t)
+        if len(terms) >= _MAX_TERMS:
+            break
+    return terms
+
+
+def _merge_dedup_boost(
+    cards: list[KnowledgeSearchResultSnapshot],
+) -> list[KnowledgeSearchResultSnapshot]:
+    """Category-boost + dedup + top-10 + token-cap ~2000."""
+    best: dict[int, tuple[float, KnowledgeSearchResultSnapshot]] = {}
+    for c in cards:
+        boosted = c.score * _CATEGORY_BOOST.get(c.category, 1.0)
+        if c.item_id not in best or boosted > best[c.item_id][0]:
+            best[c.item_id] = (boosted, c)
+    ranked = [c for _, c in sorted(best.values(), key=lambda t: t[0], reverse=True)]
+    out: list[KnowledgeSearchResultSnapshot] = []
+    budget = _TOKEN_CAP
+    for c in ranked[:_MAX_CARDS]:
+        cost = len(c.matched_chunk)
+        if out and budget - cost < 0:
+            break
+        out.append(c)
+        budget -= cost
+    return out
+
+
+def _log_would_inject(
+    cards: list[KnowledgeSearchResultSnapshot],
+    *,
+    query_terms: list[str],
+) -> None:
+    if not cards:
+        logger.info("clay.knowledge.darklaunch: 0 cards (terms=%s)", query_terms)
+        return
+    est_tokens = sum(len(c.matched_chunk) for c in cards) // 4
+    logger.info(
+        "clay.knowledge.darklaunch: would inject %d cards (~%d tok) terms=%s items=%s",
+        len(cards),
+        est_tokens,
+        query_terms,
+        [f"[kn-{c.item_id}] {c.category}/{c.priority} s={c.score:.3f}" for c in cards],
+    )
 
 
 def _render_context(
@@ -163,11 +245,15 @@ class AIAgentCycleJob:
         session_factory: sessionmaker,
         role_ids: list[str],
         ai_control_service: AIControlService,
+        knowledge_service: KnowledgeService | None = None,
+        knowledge_mode: str = "off",
     ) -> None:
         self._runner = runner
         self._session_factory = session_factory
         self._role_ids = role_ids
         self._ai_control_service = ai_control_service
+        self._knowledge_service = knowledge_service
+        self._knowledge_mode = knowledge_mode
         self._lock = asyncio.Lock()
 
     async def run_once(self) -> None:
@@ -189,6 +275,7 @@ class AIAgentCycleJob:
                 if role_id == "chief-agent":
                     with self._session_factory() as s:
                         context = _render_context(snapshot, role_id, session=s)
+                        self._maybe_darklaunch_knowledge(s, context)
                 else:
                     context = _render_context(snapshot, role_id)
                 try:
@@ -274,3 +361,38 @@ class AIAgentCycleJob:
             session.commit()
         finally:
             session.close()
+
+    def _retrieve_advisory_cards(
+        self,
+        session: Session,
+        context: str,
+    ) -> list[KnowledgeSearchResultSnapshot]:
+        ks = self._knowledge_service
+        if ks is None:
+            return []
+        try:
+            standing = ks.search(
+                session, query=_STANDING_RISK_QUERY, category="strategy_rule"
+            ) + ks.search(
+                session, query=_STANDING_CHECKLIST_QUERY, category="checklist"
+            )
+            terms = _extract_terms(context)
+            dynamic = (
+                ks.search(session, query=" ".join(terms), category=None)
+                if terms
+                else []
+            )
+            return _merge_dedup_boost([*standing, *dynamic])
+        except Exception:
+            logger.warning(
+                "clay.knowledge: advisory retrieval failed (fail-open)",
+                exc_info=True,
+            )
+            return []
+
+    def _maybe_darklaunch_knowledge(self, session: Session, context: str) -> None:
+        if self._knowledge_service is None or self._knowledge_mode == "off":
+            return
+        cards = self._retrieve_advisory_cards(session, context)
+        if self._knowledge_mode == "darklaunch":
+            _log_would_inject(cards, query_terms=_extract_terms(context))

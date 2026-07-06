@@ -73,6 +73,10 @@ class SchedulerSettings(BaseSettings):
     # live-smoke (5b-iii) will flip it to ``True`` temporarily.
     ai_agent_enabled: bool = False
 
+    # E-KNOW S3b: advisory #knowledge in chief-agent LLM context.
+    # off=no-op, darklaunch=log-only, inject=S3b-ii (real injection).
+    ai_agent_knowledge_mode: str = "off"
+
     # 5b-ii.2b-ii: interval for the ``ai-agent-cycle`` job. Default 300s
     # (5 minutes) is appropriate for a config-review agent; the live-smoke
     # will override to a shorter value for quick feedback.
