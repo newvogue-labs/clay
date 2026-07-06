@@ -21,12 +21,11 @@ class KnowledgeRepository:
         now = datetime.now(UTC)
         stmt = pg_insert(KnowledgeItem).values(
             **payload,
-            external_id=payload.get("external_id"),
             created_at=now,
             updated_at=now,
         )
         stmt = stmt.on_conflict_do_update(
-            constraint="uq_knowledge_items_external_id",
+            index_elements=["external_id"],
             set_={
                 "title": stmt.excluded.title,
                 "category": stmt.excluded.category,

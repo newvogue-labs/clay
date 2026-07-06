@@ -23,19 +23,18 @@ def upgrade() -> None:
         sa.Column("external_id", sa.String(255), nullable=True),
         schema="knowledge",
     )
-    op.create_index(
+    op.create_unique_constraint(
         "uq_knowledge_items_external_id",
         "knowledge_items",
         ["external_id"],
-        unique=True,
         schema="knowledge",
     )
 
 
 def downgrade() -> None:
-    op.drop_index(
+    op.drop_constraint(
         "uq_knowledge_items_external_id",
-        table_name="knowledge_items",
+        "knowledge_items",
         schema="knowledge",
     )
     op.drop_column("knowledge_items", "external_id", schema="knowledge")

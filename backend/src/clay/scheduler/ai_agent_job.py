@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 _STANDING_RISK_QUERY = "risk stop-loss sizing drawdown exposure"
 _STANDING_CHECKLIST_QUERY = "checklist review pre-trade"
+_STANDING_INTERP_QUERY = "signal quality noise confidence freshness drawdown posture"
 _CATEGORY_BOOST = {
     "strategy_rule": 1.15,
     "checklist": 1.10,
@@ -46,7 +47,7 @@ _CATEGORY_BOOST = {
     "note": 1.0,
 }
 _TOKEN_CAP = 2000
-_MAX_CARDS = 10
+_MAX_CARDS = 14
 _MAX_TERMS = 5
 _ALIAS_MAP = {
     "sl": "stop-loss",
@@ -82,26 +83,39 @@ def _normalise(text: str) -> str:
 
 def _merge_dedup_boost(
     cards: list[KnowledgeSearchResultSnapshot],
+    guaranteed_ids: set[int] | None = None,
 ) -> list[KnowledgeSearchResultSnapshot]:
-    """Category-boost + dedup-by-id + near-dedup-by-text + top-10 + token-cap ~2000."""
-    seen_text: set[tuple[str, str]] = set()
+    """Category-boost + dedup-by-id + guaranteed curated slots
+    + near-dedup-by-text + top-_MAX_CARDS + token-cap ~2000."""
+    if guaranteed_ids is None:
+        guaranteed_ids = set()
     best: dict[int, tuple[float, KnowledgeSearchResultSnapshot]] = {}
     for c in cards:
         boosted = c.score * _CATEGORY_BOOST.get(c.category, 1.0)
         if c.item_id not in best or boosted > best[c.item_id][0]:
             best[c.item_id] = (boosted, c)
     ranked = [c for _, c in sorted(best.values(), key=lambda t: t[0], reverse=True)]
+
+    guaranteed: list[KnowledgeSearchResultSnapshot] = []
+    fillable: list[KnowledgeSearchResultSnapshot] = []
+    for c in ranked:
+        (guaranteed if c.item_id in guaranteed_ids else fillable).append(c)
+
+    seen_text: set[tuple[str, str]] = set()
     out: list[KnowledgeSearchResultSnapshot] = []
+
+    for c in guaranteed:
+        seen_text.add((c.category, _normalise(c.matched_chunk)))
+        out.append(c)
+
+    slots_left = max(0, _MAX_CARDS - len(out))
     budget = _TOKEN_CAP
-    for c in ranked[:_MAX_CARDS]:
-        normalised = _normalise(c.matched_chunk)
-        key = (c.category, normalised)
-        if key in seen_text:
+    for c in fillable[:slots_left]:
+        cost = len(c.matched_chunk)
+        key = (c.category, _normalise(c.matched_chunk))
+        if key in seen_text or (out and budget - cost < 0):
             continue
         seen_text.add(key)
-        cost = len(c.matched_chunk)
-        if out and budget - cost < 0:
-            break
         out.append(c)
         budget -= cost
     return out
@@ -464,10 +478,16 @@ class AIAgentCycleJob:
         if ks is None:
             return []
         try:
-            standing = ks.search(
-                session, query=_STANDING_RISK_QUERY, category="strategy_rule"
-            ) + ks.search(
-                session, query=_STANDING_CHECKLIST_QUERY, category="checklist"
+            interp = ks.search(session, query=_STANDING_INTERP_QUERY, category=None)
+            guaranteed_ids = {
+                c.item_id for c in interp if c.category in ("observation", "note")
+            }
+            standing = (
+                ks.search(session, query=_STANDING_RISK_QUERY, category="strategy_rule")
+                + ks.search(
+                    session, query=_STANDING_CHECKLIST_QUERY, category="checklist"
+                )
+                + interp
             )
             terms = _extract_terms(context)
             dynamic = (
@@ -475,7 +495,9 @@ class AIAgentCycleJob:
                 if terms
                 else []
             )
-            return _merge_dedup_boost([*standing, *dynamic])
+            return _merge_dedup_boost(
+                [*standing, *dynamic], guaranteed_ids=guaranteed_ids
+            )
         except Exception:
             logger.warning(
                 "clay.knowledge: advisory retrieval failed (fail-open)",
