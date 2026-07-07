@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 _STANDING_RISK_QUERY = "risk stop-loss sizing drawdown exposure"
 _STANDING_CHECKLIST_QUERY = "checklist review pre-trade"
-_STANDING_INTERP_QUERY = "signal quality noise confidence freshness drawdown posture regime confluence funding liquidity microstructure correlation volatility"
+_STANDING_INTERP_QUERY = "signal quality noise confidence freshness drawdown posture regime confluence funding liquidity microstructure correlation volatility credibility source provenance trust methodology"
 _CATEGORY_BOOST = {
     "strategy_rule": 1.15,
     "checklist": 1.10,
