@@ -239,7 +239,7 @@ class LiteLLMModelClient:
         request = ChatCompletionRequest(
             model=model,
             messages=messages,
-            max_tokens=num_predict or 512,
+            max_tokens=num_predict or self._adapter._settings.num_predict,
         )
         try:
             response: _ChatCompletionResponse = await self._adapter.chat_completion(

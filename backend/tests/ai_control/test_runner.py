@@ -310,6 +310,8 @@ def test_litellm_client_reasoning_content_fallback() -> None:
     from clay.llm import LLMAdapter
 
     adapter = MagicMock(spec=LLMAdapter)
+    adapter._settings = MagicMock()
+    adapter._settings.num_predict = 1536
 
     async def _mock_chat(content: str | None, reasoning: str | None):
         msg = LLMChatMessage(
