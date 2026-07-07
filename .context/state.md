@@ -140,30 +140,49 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (main)** | `444482f` (PR #21: M278 detector) |
-| **HEAD (vault)** | `f397867` (kn-95 + kn-96 + split) |
+| **HEAD (main)** | `56af5ad` (PR #23: kn-97 source-credibility-filter) |
+| **HEAD (vault)** | `3cc1e59` (kn-97 source-credibility-filter) |
 | **Alembic** | `df9cf24f3af4` (0022, head) |
 | **Backend migration** | `source_type VARCHAR(32)→VARCHAR(64)` applied |
-| **#knowledge items** | 59 (51 vault + 4 advisory 83-86 + 2 process 91-92 + 2 new 95-96) |
+| **#knowledge items** | 60 (59 + kn-97 source-credibility-filter) |
 | **PR open** | нет |
-| **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history |
+| **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history, `required_approving_review_count=0` |
 | **Ruff / Pyright / tsc** | 0 |
 | **Vitest / E2E** | 17/17 / 7/7 (frontend: pre-existing flaky test, не блокирует) |
-| **Pytest** | 114 pass (scheduler suite), full suite pass |
+| **Pytest** | 810 pass (full suite minus soak/e2e/frontend) |
 | **ADR** | 001–030 |
+
+## Завершено (текущая сессия — 2026-07-07)
+
+### PR #22 — max_tokens configurable (closes eval=prod gap) ✅
+- `LLMSettings.num_predict` (env `CLAY_LLM_NUM_PREDICT`, default 1536)
+- Hardcoded 512 removed from `LiteLLMModelClient.chat()` — reads from settings
+- Eval harness uses same config source as prod (no independent `num_predict`)
+- Off-mode не пострадал (~300 tok), inject завершается (strong 525 tok)
+- Branch-protection: `required_approving_review_count=0` (solo-repo fix)
+- PR #22 merged → main @ `45d6594`
+
+### PR #20 — wiring interp retrieval landed ✅
+- `_STANDING_INTERP_QUERY` expanded, 3-tier slot alloc (guaranteed→reserved→fillable)
+- `_MAX_CARDS=15`, `_RESERVED_DYNAMIC_SLOTS=2`
+- Merge main→branch (0 conflicts, #21+#22), full gate green, CI pass
+- PR #20 merged → main @ `f4c2fd9`
+
+### Карта 7 (kn-97 source-credibility-filter) — PR #23 ✅
+- observation card: 4 criteria (pedigree, track record, base-rate honesty, methodology shelf-life)
+- Advisory-only: discount by judgment, not formula; пол ~0.2, compound prohibition impossible
+- `_STANDING_INTERP_QUERY` extended with `credibility source provenance trust methodology`
+- #knowledge sync: 60 items, kn-97 item_id=97
+- Retrieval: kn-97 #1/15 score=3.01 guaranteed, 6 interp present, kn-92 excluded
+- PR #23 merged → main @ `56af5ad`
+
+### S4-набор знаний ЗАКРЫТ ✅
 
 ## In Progress
 
-- **M278 детектор (Layer A output-scan) — CLOSED** ✅ (PR #21, main @ `444482f`)
-- **Ablation eval (minimax-m3) — CLOSED** ✅ (0 M278 violations, inject ценнее off)
 - **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod
-- **Очередь:** карта 7 (source-credibility-filter) → Q5-GO → открыть valve
-- **Layer B (_sanitize precision-pass)** — отложен, не в этом слайсе
+- **Layer B (_sanitize precision-pass)** — отложен
 
 ## Next Step
 
-Выбор Emma:
-1. **Карта 7 (source-credibility-filter)** — после M278
-2. **Q5-GO** — execution layer, real-money gate
-3. **Открыть valve** — переключить `ai_agent_knowledge_mode` → `"inject"`
-4. **Layer B (sanitize precision-pass)** — входной чистильщик card-текста
+Кран на живом рынке (там же дообкатать живой kn-86 posture-flag-triggers и reserved-dynamic слоты).
