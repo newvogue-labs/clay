@@ -178,11 +178,40 @@
 
 ### S4-набор знаний ЗАКРЫТ ✅
 
+## Завершено (текущая сессия — 2026-07-07)
+
+### D4: terms noise filter ✅
+- `_extract_terms()` переписан: читает только `=== signals ===` секцию, а не весь контекст (summary/models/assignments/subagent_reports игнорируются)
+- `_NOISE_TERMS` (43 акронима: IT, AI, QAT, API, HTTP, CI/CD и т.д.) — второй пояс
+- Тесты: 33/33, ruff 0, pyright 0
+
+### D4: systemd автозапуск ✅
+- `clay-backend.service` (User=clay, Wants=clay-litellm.service)
+- `.env` → `640 root:clay`, ACL на `/home/emma` для clay
+- `StartLimitIntervalSec=0` (бесконечные ретраи пока БД не встанет)
+- Linger=yes у emma (podman-restart → timescaledb на boot)
+- Цепочка: timescaledb → clay-litellm → clay-backend, все active под systemd
+- Симуляция reboot: `clay.api.lifespan: scheduler started` + живой darklaunch-тик
+
+### D4: inject flip (darklaunch → inject) 🚡 ✅
+- `.env`: `CLAY_SCHEDULER_AI_AGENT_KNOWLEDGE_MODE=inject`
+- Первый живой inject-цикл (gemma-4-31b, 21:05 MSK): контекст расширен +1986 chars, M278=0
+- kn-86 в списке, kn-92 исключён, terms чистые
+
+### S4-1: MkDocs Material scaffold + curated nav ✅
+- `mkdocs.yml` — Material theme, awesome-nav, curated `exclude_docs` (frozen ADRs, planning, backlog, incident-log, prompts, deploy5)
+- `docs/index.md` — лендинг на русском
+- `docs/requirements.txt` — pinned deps
+- Build: `--strict` зелёный, 24 публичных страницы + 404
+- `site/` в `.gitignore`
+- HEAD main: `4d57675`
+
 ## In Progress
 
-- **Valve NOT opened** — `ai_agent_knowledge_mode` = `"off"` in prod
+- **S4-2: GitHub Pages workflow** — на старте
 - **Layer B (_sanitize precision-pass)** — отложен
+- **Hy3** — зарегистрирован в реестре (activation_status=standby), ModelScope relay, не назначен. Еval-leg недействителен (empty content)
 
 ## Next Step
 
-Кран на живом рынке (там же дообкатать живой kn-86 posture-flag-triggers и reserved-dynamic слоты).
+S4-2 — workflow деплоя на GitHub Pages.
