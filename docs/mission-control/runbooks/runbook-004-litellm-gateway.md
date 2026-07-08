@@ -1,8 +1,8 @@
 # Runbook-004 — LiteLLM Gateway (внешний LLM egress-boundary Clay)
 
 > **Статус:** ✅ host-native установка под uid 945 (clay), DEPLOY-3.5e.
-> **ADR:** [ADR-009 — External LLM Egress Gateway](../adrs/adr-009-external-llm-egress-gateway.md)
-> **Связанные:** [ADR-010 (Gemini free-tier)](../adrs/adr-010-chief-agent-gemini-free-tier.md), runbook-003 (kill-switch).
+> **ADR:** ADR-009 — External LLM Egress Gateway (frozen)
+> **Связанные:** ADR-010 — Gemini free-tier (frozen), runbook-003 (kill-switch).
 
 ## 1. Назначение
 
