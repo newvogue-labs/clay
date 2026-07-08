@@ -44,12 +44,18 @@
 - ruff 0, pyright 0
 - Squash SHA: `c359b32`
 
-### S2-3b: reconcile-by-Clay-ID — PR #31 🔄
+### S2-3b: reconcile-by-Clay-ID — PR #31 → main ✅
 - `find_page_by_clay_id` → `client.request(databases/{id}/query)` with rich_text filter
 - Create-path reconcile: found → RECONCILED→UPDATE, not found → normal CREATE
 - 3 new tests (reconcile-found, reconcile-empty, archived-not-adopted) → 15/15 notion_publish
 - ruff 0, pyright 0
-- **STOP-gate:** `notion-client` 3.1.0 не имеет `databases.query` — использует `client.request()` raw. **PASSED** ✅
+- Squash SHA: `9032bbe`
+
+### S2-3c: net-hardening — PR #32 🔄
+- IPv4 via env `CLAY_NOTION_FORCE_IPV4` (not hardcoded)
+- Coherent version: `_QUERY_API_VERSION=2022-06-28` default, `_MARKDOWN_API_VERSION=2025-09-03` per-endpoint via `_api_version()` / `_VersionRestorer`
+- 2 offline tests (env parsing) → 17/17 notion_publish
+- ruff 0, pyright 0
 
 ## Caveats
 
@@ -57,4 +63,4 @@
 
 ## Следующий шаг
 
-Emma: настройка Notion integration → первый `--apply` vault→Notion (dry-run → 1-2 карты → полный).
+G5: Emma byte-verifies PR #32 → full `--apply` vault→Notion (57 карт).

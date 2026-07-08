@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +14,7 @@ from clay.tools.notion_publish import (
     NotionManifestEntry,
     NotionPlanAction,
     NotionPublisherConfig,
+    RealNotionUpsertClient,
 )
 from clay.knowledge.vault_core import VaultFile
 
@@ -485,3 +487,21 @@ class TestApply:
         assert "create:market/sma-crossover" in client.calls
         assert "find:market/sma-crossover" in client.calls
         assert publisher.manifest.files["market/sma-crossover"].page_id == "page-100"
+
+
+class TestRealClientConfig:
+    def test_should_force_ipv4_returns_true_when_env_set(self) -> None:
+        with patch.dict(os.environ, {"CLAY_NOTION_FORCE_IPV4": "true"}):
+            assert RealNotionUpsertClient._should_force_ipv4() is True
+        with patch.dict(os.environ, {"CLAY_NOTION_FORCE_IPV4": "1"}):
+            assert RealNotionUpsertClient._should_force_ipv4() is True
+        with patch.dict(os.environ, {"CLAY_NOTION_FORCE_IPV4": "yes"}):
+            assert RealNotionUpsertClient._should_force_ipv4() is True
+
+    def test_should_force_ipv4_returns_false_when_not_set(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            assert RealNotionUpsertClient._should_force_ipv4() is False
+        with patch.dict(os.environ, {"CLAY_NOTION_FORCE_IPV4": "false"}):
+            assert RealNotionUpsertClient._should_force_ipv4() is False
+        with patch.dict(os.environ, {"CLAY_NOTION_FORCE_IPV4": "0"}):
+            assert RealNotionUpsertClient._should_force_ipv4() is False

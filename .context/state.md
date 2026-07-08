@@ -248,6 +248,14 @@
 - Ruff 0, pyright 0
 - **STOP-gate passed:** `notion-client` 3.1.0 has no built-in `databases.query` — uses `client.request()` raw
 
+### S2-3c: net-hardening — PR #32 ⏳
+- IPv4 enforced via `CLAY_NOTION_FORCE_IPV4` env var (not hardcoded `0.0.0.0`)
+- Coherent Notion-Version: `_QUERY_API_VERSION=2022-06-28` (default), `_MARKDOWN_API_VERSION=2025-09-03` (markdown endpoints), managed via `_api_version()` context manager / `_VersionRestorer`
+- `archive_page`, `find_page_by_clay_id` use default (query version)
+- `create_page`, `update_page` override to markdown version (where `markdown=` / `update_markdown` needed)
+- 2 offline tests for `_should_force_ipv4()` env parsing
+- 17/17 tests, ruff 0, pyright 0
+
 ## In Progress
 
 - **First controlled `--apply` vault→Notion** — Emma настраивает Notion integration + S2-3b даёт зелёный
