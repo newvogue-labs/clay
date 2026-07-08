@@ -1,0 +1,72 @@
+site_name: Clay — Reference Docs
+site_description: Architecture, decisions and runbooks for the Clay trading system
+site_url: https://newvogue-labs.github.io/clay/
+repo_url: https://github.com/newvogue-labs/clay
+repo_name: newvogue-labs/clay
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+        - content.code.copy
+    - content.action.edit
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/weather-night, name: Switch to dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/weather-sunny, name: Switch to light mode }
+
+plugins:
+  - search:
+      lang: [en, ru]
+  - awesome-nav
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc: { permalink: true }
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.highlight: { anchor_linenums: true }
+  - pymdownx.tabbed: { alternate_style: true }
+
+exclude_docs: |
+  README.md
+  adr/README.md
+  development/
+  architecture/
+  ui-references/
+  mission-control/index.md
+  mission-control/adrs/
+  mission-control/build_specs/
+  mission-control/implementation_plans/
+  mission-control/egress-recon/
+  mission-control/session-summary-*.md
+  mission-control/handoff-*.md
+  mission-control/execution-backlog-v1.md
+  mission-control/next-chat-prompt.md
+  mission-control/master-planning-review-v1.md
+  mission-control/incident-log.md
+  mission-control/skills-strategy-v1.md
+  mission-control/ev-gate-proof.md
+  *deploy5*
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn

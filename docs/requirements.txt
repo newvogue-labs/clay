@@ -1,0 +1,2 @@
+mkdocs-material==9.7.6
+mkdocs-awesome-nav==3.3.0
