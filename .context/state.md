@@ -140,7 +140,7 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (main)** | `56af5ad` (PR #23: kn-97 source-credibility-filter) |
+| **HEAD (main)** | `5578ace` (S2-3: real notion apply with notion-client) |
 | **HEAD (vault)** | `3cc1e59` (kn-97 source-credibility-filter) |
 | **Alembic** | `df9cf24f3af4` (0022, head) |
 | **Backend migration** | `source_type VARCHAR(32)→VARCHAR(64)` applied |
@@ -149,7 +149,7 @@
 | **Branch-protection** | `enforce_admins=true`, strict checks `backend`/`frontend`, required PR, linear history, `required_approving_review_count=0` |
 | **Ruff / Pyright / tsc** | 0 |
 | **Vitest / E2E** | 17/17 / 7/7 (frontend: pre-existing flaky test, не блокирует) |
-| **Pytest** | 810 pass (full suite minus soak/e2e/frontend) |
+| **Pytest** | 823 pass (full suite minus soak/e2e/frontend) |
 | **ADR** | 001–030 |
 
 ## Завершено (текущая сессия — 2026-07-07)
@@ -206,12 +206,46 @@
 - `site/` в `.gitignore`
 - HEAD main: `4d57675`
 
+### S4-2: GitHub Pages deploy workflow — PR #25 → main ✅
+- Deploy workflow (`build` on PR, `deploy` on push main)
+- runbook-004 link fix (frozen ADR → bare text)
+- Pages live at `https://newvogue-labs.github.io/clay/`
+
+### S4-3a/3b: llms.txt + Copy-as-MD + revision dates — PR #26 → main ✅
+- mkdocs-llmstxt-md: `llms.txt`/`llms-full.txt` + per-page .md
+- git-revision-date-localized: last-updated dates
+- Leak-gate clean (24 curated files)
+
+### S2-1: vault_core extraction — PR #27 → main ✅
+- `vault_core.py`: dataclasses (VaultFile, PlanAction без item_id), reader, build_plan
+- `sync.py`: thin wrapper with Manifest/item_id
+
+### S2-2: NotionKnowledgePublisher skeleton — PR #28 → main ✅
+- `notion_publish.py`: NotionManifest, NotionPlanAction (page_id), NotionUpsertClient Protocol
+- Dry-run only, apply → NotImplementedError
+
+### S2-3: Real Notion apply with notion-client — PR #29 → main ✅
+- RealNotionUpsertClient (notion-client==3.1.0), create/update via markdown API
+- _build_properties mapping (Domain filtered from Tags)
+- apply() with crash-safe manifest, delete deferred to S2-4
+- pytest 823/823
+
+### S2-4: archive_page realisation + full Notion apply — PR #30 → main ✅
+- `RealNotionUpsertClient.archive_page`: `self._client.pages.update(page_id=page_id, archived=True)` (notion-client 3.1.0)
+- `apply` delete: `DEFERRED` print → `_execute_archive` with crash-safe order (archive → pop → save)
+- Guard `page_id is None`: pop-only, no client call (crash-recovery for entries without confirmed page_id)
+- `_execute_archive` extracted for symmetry with `_execute_upsert`
+- Tests: `test_delete_archives_and_pops_manifest` (archive+zpop) + `test_delete_without_page_id_pops_without_client` (guard)
+- 12/12 notion_publish tests, ruff 0, pyright 0
+- **Sequencing:** real orphan-archive run gated behind S2-3b (reconcile-by-Clay-ID) + Emma sets up Notion integration
+
 ## In Progress
 
-- **S4-2: GitHub Pages workflow** — на старте
+- **S2-3b: reconcile-by-Clay-ID** — пререквизит для прод-`--apply`
 - **Layer B (_sanitize precision-pass)** — отложен
-- **Hy3** — зарегистрирован в реестре (activation_status=standby), ModelScope relay, не назначен. Еval-leg недействителен (empty content)
+- **Hy3** — зарегистрирован в реестре (activation_status=standby), ModelScope relay, не назначен
+- **Frontend flaky** (`App.test.tsx`: session lifecycle flaky) — новый симптом, не блокер
 
 ## Next Step
 
-S4-2 — workflow деплоя на GitHub Pages.
+S2-3b: reconcile по Clay-ID (close crash-окно дубля) → Emma настраивает Notion integration → контролируемый `--apply` vault→Notion.

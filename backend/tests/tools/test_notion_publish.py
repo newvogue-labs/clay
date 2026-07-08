@@ -342,7 +342,7 @@ class TestApply:
         assert client.calls == []
 
     @pytest.mark.asyncio
-    async def test_delete_deferred_manifest_unchanged(self, tmp_path: Path) -> None:
+    async def test_delete_archives_and_pops_manifest(self, tmp_path: Path) -> None:
         vault = make_vault(tmp_path)
         config = NotionPublisherConfig(vault_path=vault)
         publisher = NotionKnowledgePublisher(config)
@@ -365,8 +365,38 @@ class TestApply:
         client = FakeNotionClient()
         await publisher.apply(deletes, client)
 
+        assert client.calls == ["archive:page-orphan"]
+        assert "orphan/note" not in publisher.manifest.files
+
+    @pytest.mark.asyncio
+    async def test_delete_without_page_id_pops_without_client(
+        self, tmp_path: Path
+    ) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+
+        make_manifest(
+            publisher.manifest_path,
+            {
+                "orphan/no-page-id": {
+                    "id": "orphan/no-page-id",
+                    "page_id": None,
+                    "content_hash": "x" * 64,
+                },
+            },
+        )
+        publisher.manifest = NotionManifest.load(publisher.manifest_path)
+        plan = publisher.build_plan()
+        deletes = [a for a in plan if a.action == "delete"]
+        assert len(deletes) == 1
+        assert deletes[0].page_id is None
+
+        client = FakeNotionClient()
+        await publisher.apply(deletes, client)
+
         assert client.calls == []
-        assert "orphan/note" in publisher.manifest.files
+        assert "orphan/no-page-id" not in publisher.manifest.files
 
     @pytest.mark.asyncio
     async def test_crash_safe_manifest_saved_after_each_action(
