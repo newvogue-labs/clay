@@ -2,36 +2,19 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
 
 import httpx
-from ruamel.yaml import YAML
 
 from clay.knowledge.models import KnowledgeCreateCommand
-
-
-_yaml = YAML(typ="safe")
-
-_EXCLUDED_FILES = frozenset({"index.md", "log.md", "AGENTS.md", "sync-manifest.json"})
-_SYNCABLE_STATUSES = frozenset({"peer_reviewed", "backtested", "live"})
-
-ActionKind = Literal["create", "update", "delete", "skip"]
-
-
-@dataclass
-class VaultFile:
-    id: str
-    title: str
-    category: str
-    priority: str
-    tags: list[str]
-    content: str
-    content_hash: str
-    source_type: str
+from clay.knowledge.vault_core import (
+    VaultFile,
+    build_plan as core_build_plan,
+    read_vault_files as core_read_vault_files,
+)
+from clay.knowledge.vault_core import PlanAction as CorePlanAction
 
 
 @dataclass
@@ -48,11 +31,8 @@ class Manifest:
 
 
 @dataclass
-class PlanAction:
-    action: ActionKind
-    id: str
+class PlanAction(CorePlanAction):
     item_id: int | None = None
-    file: VaultFile | None = None
 
 
 class VaultKnowledgeSync:
@@ -99,65 +79,7 @@ class VaultKnowledgeSync:
     # ------------------------------------------------------------------
 
     def read_vault_files(self) -> list[VaultFile]:
-        md_files = sorted(self.vault_path.rglob("*.md"))
-        result: list[VaultFile] = []
-        for path in md_files:
-            rel = path.relative_to(self.vault_path)
-            if rel.name in _EXCLUDED_FILES:
-                continue
-            parsed = self._parse_file(path, rel)
-            if parsed is not None:
-                result.append(parsed)
-        return result
-
-    def _parse_file(self, path: Path, rel: Path) -> VaultFile | None:
-        text = path.read_text(encoding="utf-8")
-        fm, body = self._split_frontmatter(text)
-        if fm is None:
-            return None
-        if fm.get("runtime_eligible") is not True:
-            return None
-        if fm.get("status") not in _SYNCABLE_STATUSES:
-            return None
-        title = fm.get("title", rel.stem)
-        category = str(fm.get("kb_category", "note"))
-        priority = str(fm.get("priority", "medium"))
-        raw_tags: list[str] = list(fm.get("tags", []))
-        domain = fm.get("domain")
-        if domain:
-            raw_tags.append(str(domain))
-        content = body.strip()
-        vid = rel.with_suffix("").as_posix()
-        tags_csv = ",".join(raw_tags)
-        payload = f"{title}|{category}|{priority}|{tags_csv}|{content}"
-        content_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-        return VaultFile(
-            id=vid,
-            title=title,
-            category=category,
-            priority=priority,
-            tags=raw_tags,
-            content=content,
-            content_hash=content_hash,
-            source_type=f"vault:{vid}",
-        )
-
-    @staticmethod
-    def _split_frontmatter(text: str) -> tuple[dict | None, str]:
-        if not text.startswith("---"):
-            return None, text
-        parts = text.split("---", 2)
-        if len(parts) < 3:
-            return None, text
-        fm_block = parts[1].strip()
-        body = parts[2]
-        try:
-            fm = _yaml.load(fm_block)
-        except Exception:
-            return None, body
-        if not isinstance(fm, dict):
-            return None, body
-        return fm, body
+        return core_read_vault_files(self.vault_path)
 
     # ------------------------------------------------------------------
     # Plan
@@ -166,34 +88,24 @@ class VaultKnowledgeSync:
     def build_plan(self, files: list[VaultFile] | None = None) -> list[PlanAction]:
         if files is None:
             files = self.read_vault_files()
-        by_id = {f.id: f for f in files}
+
+        known_hashes = {k: v.content_hash for k, v in self.manifest.files.items()}
+        known_ids = set(self.manifest.files.keys())
+
+        core_plan = core_build_plan(files, known_hashes, known_ids)
+
         plan: list[PlanAction] = []
-
-        for vf in files:
-            entry = self.manifest.files.get(vf.id)
-            if entry is None:
-                plan.append(PlanAction(action="create", id=vf.id, file=vf))
-            elif entry.content_hash == vf.content_hash:
-                plan.append(
-                    PlanAction(action="skip", id=vf.id, item_id=entry.item_id, file=vf)
+        for a in core_plan:
+            entry = self.manifest.files.get(a.id)
+            plan.append(
+                PlanAction(
+                    action=a.action,
+                    id=a.id,
+                    file=a.file,
+                    item_id=entry.item_id if entry else None,
                 )
-            else:
-                plan.append(
-                    PlanAction(
-                        action="update", id=vf.id, item_id=entry.item_id, file=vf
-                    )
-                )
-
-        for eid, entry in self.manifest.files.items():
-            if eid not in by_id:
-                plan.append(PlanAction(action="delete", id=eid, item_id=entry.item_id))
-
-        plan.sort(
-            key=lambda a: (
-                {"delete": 0, "create": 1, "update": 2, "skip": 3}[a.action],
-                a.id,
             )
-        )
+
         return plan
 
     # ------------------------------------------------------------------
