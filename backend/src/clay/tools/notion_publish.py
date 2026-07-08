@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -84,6 +86,52 @@ class NotionUpsertClient(Protocol):
     async def archive_page(self, page_id: str) -> None: ...
 
 
+def _build_properties(file: VaultFile) -> dict:
+    domain = file.id.split("/")[0] if "/" in file.id else ""
+    tags = [t for t in file.tags if t != domain]
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "Title": {"title": [{"type": "text", "text": {"content": file.title}}]},
+        "Clay ID": {"rich_text": [{"type": "text", "text": {"content": file.id}}]},
+        "Content Hash": {
+            "rich_text": [{"type": "text", "text": {"content": file.content_hash}}]
+        },
+        "Category": {"select": {"name": file.category}},
+        "Priority": {"select": {"name": file.priority}},
+        "Domain": {"select": {"name": domain}},
+        "Tags": {"multi_select": [{"name": t} for t in tags]},
+        "Source": {
+            "rich_text": [{"type": "text", "text": {"content": file.source_type}}]
+        },
+        "Synced At": {"date": {"start": now}},
+    }
+
+
+class RealNotionUpsertClient:
+    def __init__(self, token: str) -> None:
+        from notion_client import Client
+
+        self._client = Client(auth=token)
+
+    async def create_page(self, database_id: str, file: VaultFile) -> str:
+        r = self._client.pages.create(
+            parent={"database_id": database_id, "type": "database_id"},
+            properties=_build_properties(file),
+            markdown=file.content or "\u22ee",
+        )
+        assert isinstance(r, dict)
+        return r["id"]
+
+    async def update_page(self, page_id: str, file: VaultFile) -> None:
+        self._client.pages.update(page_id=page_id, properties=_build_properties(file))
+        self._client.pages.update_markdown(
+            page_id=page_id, replace_content=file.content or "\u22ee"
+        )
+
+    async def archive_page(self, page_id: str) -> None:
+        raise NotImplementedError("archive_page lands in S2-4")
+
+
 class NotionKnowledgePublisher:
     def __init__(self, config: NotionPublisherConfig) -> None:
         self.config = config
@@ -119,10 +167,39 @@ class NotionKnowledgePublisher:
 
         return plan
 
+    # ------------------------------------------------------------------
+    # Apply
+    # ------------------------------------------------------------------
+
     async def apply(
-        self, plan: list[NotionPlanAction], client: NotionUpsertClient | None = None
+        self, plan: list[NotionPlanAction], client: NotionUpsertClient
     ) -> None:
-        raise NotImplementedError("apply lands in S2-3")
+        for action in plan:
+            if action.action == "skip":
+                continue
+            if action.action in ("create", "update"):
+                await self._execute_upsert(client, action)
+            elif action.action == "delete":
+                print(f"  DEFERRED  {action.id}  (page_id={action.page_id}) — S2-4")
+            self.manifest.save(self.manifest_path)
+
+    async def _execute_upsert(
+        self, client: NotionUpsertClient, action: NotionPlanAction
+    ) -> None:
+        assert action.file is not None
+        if action.action == "create":
+            page_id = await client.create_page(self.config.database_id, action.file)
+            self.manifest.files[action.id] = NotionManifestEntry(
+                id=action.id,
+                page_id=page_id,
+                content_hash=action.file.content_hash,
+            )
+            print(f"  CREATED  {action.id}  (page_id={page_id})")
+        elif action.action == "update":
+            assert action.page_id is not None
+            await client.update_page(action.page_id, action.file)
+            self.manifest.files[action.id].content_hash = action.file.content_hash
+            print(f"  UPDATED  {action.id}  (page_id={action.page_id})")
 
     @staticmethod
     def print_plan(plan: list[NotionPlanAction]) -> None:
@@ -143,7 +220,7 @@ class NotionKnowledgePublisher:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Vault → Notion knowledge sync (dry-run by default)"
+        description="Vault \u2192 Notion knowledge sync (dry-run by default)"
     )
     parser.add_argument(
         "--vault", required=True, type=Path, help="Path to vault directory"
@@ -151,7 +228,7 @@ def main() -> None:
     parser.add_argument(
         "--apply",
         action="store_true",
-        help="Execute plan against Notion API (stubbed until S2-3)",
+        help="Execute plan against Notion API",
     )
     args = parser.parse_args()
 
@@ -161,8 +238,12 @@ def main() -> None:
     NotionKnowledgePublisher.print_plan(plan)
 
     if args.apply:
-        print("apply not yet implemented — S2-3")
-        print("  (use --apply only after notion-client is pinned and wired)")
+        if not config.database_id or not config.token:
+            print("error: CLAY_NOTION_KB_DB and CLAY_NOTION_TOKEN must be set")
+            raise SystemExit(1)
+        client = RealNotionUpsertClient(token=config.token)
+        asyncio.run(publisher.apply(plan, client))
+        print("Done \u2014 notion manifest updated.")
 
 
 if __name__ == "__main__":
