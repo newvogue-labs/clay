@@ -17,6 +17,26 @@ from clay.knowledge.vault_core import (
 from clay.knowledge.vault_core import PlanAction as CorePlanAction
 
 
+from collections.abc import MutableMapping
+
+
+class _VersionRestorer:
+    def __init__(
+        self, headers: MutableMapping[str, str], old_version: str | None
+    ) -> None:
+        self._headers = headers
+        self._old = old_version
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, *args: object) -> None:
+        if self._old is not None:
+            self._headers["notion-version"] = self._old
+        else:
+            self._headers.pop("notion-version", None)
+
+
 @dataclass(frozen=True)
 class NotionPublisherConfig:
     vault_path: Path
@@ -112,25 +132,52 @@ def _build_properties(file: VaultFile) -> dict:
 
 
 class RealNotionUpsertClient:
+    _QUERY_API_VERSION = "2022-06-28"
+    _MARKDOWN_API_VERSION = "2025-09-03"
+
+    @staticmethod
+    def _should_force_ipv4() -> bool:
+        return os.environ.get("CLAY_NOTION_FORCE_IPV4", "").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+
     def __init__(self, token: str) -> None:
+        import httpx
         from notion_client import Client
 
-        self._client = Client(auth=token)
+        if self._should_force_ipv4():
+            transport = httpx.HTTPTransport(local_address="0.0.0.0")
+            httpx_client = httpx.Client(transport=transport)
+        else:
+            httpx_client = httpx.Client()
+        self._client = Client(auth=token, client=httpx_client)
+        self._client.client.headers["notion-version"] = self._QUERY_API_VERSION
+
+    def _api_version(self, version: str):
+        old = self._client.client.headers.get("notion-version")
+        self._client.client.headers["notion-version"] = version
+        return _VersionRestorer(self._client.client.headers, old)
 
     async def create_page(self, database_id: str, file: VaultFile) -> str:
-        r = self._client.pages.create(
-            parent={"database_id": database_id, "type": "database_id"},
-            properties=_build_properties(file),
-            markdown=file.content or "\u22ee",
-        )
+        with self._api_version(self._MARKDOWN_API_VERSION):
+            r = self._client.pages.create(
+                parent={"database_id": database_id, "type": "database_id"},
+                properties=_build_properties(file),
+                markdown=file.content or "\u22ee",
+            )
         assert isinstance(r, dict)
         return r["id"]
 
     async def update_page(self, page_id: str, file: VaultFile) -> None:
-        self._client.pages.update(page_id=page_id, properties=_build_properties(file))
-        self._client.pages.update_markdown(
-            page_id=page_id, replace_content=file.content or "\u22ee"
-        )
+        with self._api_version(self._MARKDOWN_API_VERSION):
+            self._client.pages.update(
+                page_id=page_id, properties=_build_properties(file)
+            )
+            self._client.pages.update_markdown(
+                page_id=page_id, replace_content=file.content or "\u22ee"
+            )
 
     async def archive_page(self, page_id: str) -> None:
         self._client.pages.update(page_id=page_id, archived=True)
