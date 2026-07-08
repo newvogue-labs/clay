@@ -129,7 +129,7 @@ class RealNotionUpsertClient:
         )
 
     async def archive_page(self, page_id: str) -> None:
-        raise NotImplementedError("archive_page lands in S2-4")
+        self._client.pages.update(page_id=page_id, archived=True)
 
 
 class NotionKnowledgePublisher:
@@ -180,7 +180,7 @@ class NotionKnowledgePublisher:
             if action.action in ("create", "update"):
                 await self._execute_upsert(client, action)
             elif action.action == "delete":
-                print(f"  DEFERRED  {action.id}  (page_id={action.page_id}) — S2-4")
+                await self._execute_archive(client, action)
             self.manifest.save(self.manifest_path)
 
     async def _execute_upsert(
@@ -200,6 +200,17 @@ class NotionKnowledgePublisher:
             await client.update_page(action.page_id, action.file)
             self.manifest.files[action.id].content_hash = action.file.content_hash
             print(f"  UPDATED  {action.id}  (page_id={action.page_id})")
+
+    async def _execute_archive(
+        self, client: NotionUpsertClient, action: NotionPlanAction
+    ) -> None:
+        if action.page_id is None:
+            self.manifest.files.pop(action.id, None)
+            print(f"  ARCHIVED  {action.id}  (page_id=None, manifest-only)")
+            return
+        await client.archive_page(action.page_id)
+        self.manifest.files.pop(action.id, None)
+        print(f"  ARCHIVED  {action.id}  (page_id={action.page_id})")
 
     @staticmethod
     def print_plan(plan: list[NotionPlanAction]) -> None:
