@@ -3,19 +3,19 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from clay.tools.notion_publish import (
     NotionKnowledgePublisher,
     NotionManifest,
     NotionManifestEntry,
+    NotionPlanAction,
     NotionPublisherConfig,
 )
 from clay.knowledge.vault_core import VaultFile
 
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
 
 SMA_CROSSOVER_FM = """\
 ---
@@ -33,7 +33,7 @@ Use SMA crossover on H1 for trend confirmation.
 """
 
 ENTRY_RULE_FM = """\
---- 
+---
 title: Entry Rule
 kb_category: checklist
 priority: medium
@@ -110,11 +110,6 @@ def make_vf(id: str, content_hash: str) -> VaultFile:
     )
 
 
-# ------------------------------------------------------------------
-# Tests: NotionManifest load/save round-trip
-# ------------------------------------------------------------------
-
-
 class TestNotionManifestRoundTrip:
     def test_empty_manifest(self, tmp_path: Path) -> None:
         path = tmp_path / "notion-sync-manifest.json"
@@ -156,11 +151,6 @@ class TestNotionManifestRoundTrip:
         m = NotionManifest.load(path)
         assert m.version == 1
         assert m.files == {}
-
-
-# ------------------------------------------------------------------
-# Tests: build_plan wrapper (page_id resolution)
-# ------------------------------------------------------------------
 
 
 class TestNotionBuildPlan:
@@ -247,3 +237,154 @@ class TestNotionBuildPlan:
         orphans = [a for a in plan if a.action == "delete"]
         assert len(orphans) == 1
         assert orphans[0].page_id == "page-orphan"
+
+
+class FakeNotionClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.next_page_id = 100
+
+    async def create_page(self, database_id: str, file: VaultFile) -> str:
+        pid = f"page-{self.next_page_id}"
+        self.next_page_id += 1
+        self.calls.append(f"create:{file.id}")
+        return pid
+
+    async def update_page(self, page_id: str, file: VaultFile) -> None:
+        self.calls.append(f"update:{file.id}")
+
+    async def archive_page(self, page_id: str) -> None:
+        self.calls.append(f"archive:{page_id}")
+
+
+class TestApply:
+    @pytest.mark.asyncio
+    async def test_create_saves_page_id_and_hash(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+        plan = publisher.build_plan()
+        creates = [a for a in plan if a.action == "create"]
+        assert len(creates) == 3
+
+        client = FakeNotionClient()
+        await publisher.apply([creates[0]], client)
+
+        assert client.calls == ["create:market/sma-crossover"]
+        assert publisher.manifest.files["market/sma-crossover"].page_id == "page-100"
+        assert publisher.manifest.files["market/sma-crossover"].content_hash != ""
+
+    @pytest.mark.asyncio
+    async def test_update_calls_client_and_refreshes_hash(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+
+        sma_hash = hash_for(
+            title="SMA Crossover",
+            category="strategy_rule",
+            priority="high",
+            tags=["momentum", "trend", "trading"],
+            content="Use SMA crossover on H1 for trend confirmation.",
+        )
+        make_manifest(
+            publisher.manifest_path,
+            {
+                "market/sma-crossover": {
+                    "id": "market/sma-crossover",
+                    "page_id": "page-old",
+                    "content_hash": "stale_hash",
+                },
+            },
+        )
+        publisher.manifest = NotionManifest.load(publisher.manifest_path)
+        plan = publisher.build_plan()
+        updates = [a for a in plan if a.action == "update"]
+        assert len(updates) == 1
+
+        client = FakeNotionClient()
+        await publisher.apply(updates, client)
+
+        assert client.calls == ["update:market/sma-crossover"]
+        assert publisher.manifest.files["market/sma-crossover"].content_hash == sma_hash
+
+    @pytest.mark.asyncio
+    async def test_skip_does_not_call_client(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+
+        strat_hash = hash_for(
+            title="Entry Rule",
+            category="checklist",
+            priority="medium",
+            tags=["entry", "trading"],
+            content="Check volume before entry.",
+        )
+        make_manifest(
+            publisher.manifest_path,
+            {
+                "strategy/entry-rule": {
+                    "id": "strategy/entry-rule",
+                    "page_id": "page-skip",
+                    "content_hash": strat_hash,
+                },
+            },
+        )
+        publisher.manifest = NotionManifest.load(publisher.manifest_path)
+        plan = publisher.build_plan()
+        skips = [a for a in plan if a.action == "skip"]
+        assert len(skips) >= 1
+
+        client = FakeNotionClient()
+        await publisher.apply([skips[0]], client)
+
+        assert client.calls == []
+
+    @pytest.mark.asyncio
+    async def test_delete_deferred_manifest_unchanged(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+
+        make_manifest(
+            publisher.manifest_path,
+            {
+                "orphan/note": {
+                    "id": "orphan/note",
+                    "page_id": "page-orphan",
+                    "content_hash": "x" * 64,
+                },
+            },
+        )
+        publisher.manifest = NotionManifest.load(publisher.manifest_path)
+        plan = publisher.build_plan()
+        deletes = [a for a in plan if a.action == "delete"]
+        assert len(deletes) == 1
+
+        client = FakeNotionClient()
+        await publisher.apply(deletes, client)
+
+        assert client.calls == []
+        assert "orphan/note" in publisher.manifest.files
+
+    @pytest.mark.asyncio
+    async def test_crash_safe_manifest_saved_after_each_action(
+        self, tmp_path: Path
+    ) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+
+        create = NotionPlanAction(
+            action="create", id="test/crash", file=make_vf("test/crash", "h1")
+        )
+        create2 = NotionPlanAction(
+            action="create", id="test/safe", file=make_vf("test/safe", "h2")
+        )
+
+        client = FakeNotionClient()
+        with patch("clay.tools.notion_publish.NotionManifest.save") as mock_save:
+            await publisher.apply([create, create2], client)
+
+        assert mock_save.call_count == 2
