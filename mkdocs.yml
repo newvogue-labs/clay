@@ -31,6 +31,25 @@ plugins:
   - search:
       lang: [en, ru]
   - awesome-nav
+  - git-revision-date-localized:
+      type: date
+      enable_creation_date: true
+      fallback_to_build_date: true
+  - llmstxt-md:
+      sections:
+        Overview:
+          - index.md
+          - mission-control/blueprint-v1.md
+          - mission-control/approved-stack-v1.md
+          - mission-control/tech-stack-v1.md
+          - mission-control/project-overview-report-v1.md
+          - mission-control/roles-taxonomy.md
+          - mission-control/release-gates.md
+        "Decisions (ADR)":
+          - adr/0*.md
+        Runbooks:
+          - mission-control/deploy-runbook.md
+          - mission-control/runbooks/*.md
 
 markdown_extensions:
   - admonition
