@@ -239,13 +239,22 @@
 - 12/12 notion_publish tests, ruff 0, pyright 0
 - **Sequencing:** real orphan-archive run gated behind S2-3b (reconcile-by-Clay-ID) + Emma sets up Notion integration
 
+### S2-3b: reconcile-by-Clay-ID — PR #31 → main ✅
+- `NotionUpsertClient` protocol: `find_page_by_clay_id(database_id, clay_id) → str | None`
+- `RealNotionUpsertClient.find_page_by_clay_id`: `client.request(databases/{id}/query)` with `rich_text` filter, filters archived pages
+- `_execute_upsert` create: reconcile before `create_page` → found = RECONCILED→UPDATE, not found = normal CREATE
+- Crash-safe: `find` + `update_page` + manifest save all before `manifest.save()`
+- Tests: reconcile-found (update), reconcile-empty (create), archived-not-adopted, regression (15/15)
+- Ruff 0, pyright 0
+- **STOP-gate passed:** `notion-client` 3.1.0 has no built-in `databases.query` — uses `client.request()` raw
+
 ## In Progress
 
-- **S2-3b: reconcile-by-Clay-ID** — пререквизит для прод-`--apply`
+- **First controlled `--apply` vault→Notion** — Emma настраивает Notion integration + S2-3b даёт зелёный
 - **Layer B (_sanitize precision-pass)** — отложен
 - **Hy3** — зарегистрирован в реестре (activation_status=standby), ModelScope relay, не назначен
 - **Frontend flaky** (`App.test.tsx`: session lifecycle flaky) — новый симптом, не блокер
 
 ## Next Step
 
-S2-3b: reconcile по Clay-ID (close crash-окно дубля) → Emma настраивает Notion integration → контролируемый `--apply` vault→Notion.
+Emma: настройка Notion internal integration → `CLAY_NOTION_TOKEN` + `CLAY_NOTION_KB_DB` → первый `--apply` (dry-run → 1-2 карты → полный).

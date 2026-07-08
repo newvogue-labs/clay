@@ -85,6 +85,10 @@ class NotionUpsertClient(Protocol):
 
     async def archive_page(self, page_id: str) -> None: ...
 
+    async def find_page_by_clay_id(
+        self, database_id: str, clay_id: str
+    ) -> str | None: ...
+
 
 def _build_properties(file: VaultFile) -> dict:
     domain = file.id.split("/")[0] if "/" in file.id else ""
@@ -130,6 +134,24 @@ class RealNotionUpsertClient:
 
     async def archive_page(self, page_id: str) -> None:
         self._client.pages.update(page_id=page_id, archived=True)
+
+    async def find_page_by_clay_id(self, database_id: str, clay_id: str) -> str | None:
+        r = self._client.request(
+            path=f"databases/{database_id}/query",
+            method="POST",
+            body={
+                "filter": {
+                    "property": "Clay ID",
+                    "rich_text": {"equals": clay_id},
+                },
+                "page_size": 10,
+            },
+        )
+        assert isinstance(r, dict)
+        for page in r.get("results", []):
+            if not page.get("archived", False):
+                return page["id"]
+        return None
 
 
 class NotionKnowledgePublisher:
@@ -188,13 +210,25 @@ class NotionKnowledgePublisher:
     ) -> None:
         assert action.file is not None
         if action.action == "create":
-            page_id = await client.create_page(self.config.database_id, action.file)
-            self.manifest.files[action.id] = NotionManifestEntry(
-                id=action.id,
-                page_id=page_id,
-                content_hash=action.file.content_hash,
+            existing_page_id = await client.find_page_by_clay_id(
+                self.config.database_id, action.id
             )
-            print(f"  CREATED  {action.id}  (page_id={page_id})")
+            if existing_page_id is not None:
+                await client.update_page(existing_page_id, action.file)
+                self.manifest.files[action.id] = NotionManifestEntry(
+                    id=action.id,
+                    page_id=existing_page_id,
+                    content_hash=action.file.content_hash,
+                )
+                print(f"  RECONCILED→UPDATE  {action.id}  (page_id={existing_page_id})")
+            else:
+                page_id = await client.create_page(self.config.database_id, action.file)
+                self.manifest.files[action.id] = NotionManifestEntry(
+                    id=action.id,
+                    page_id=page_id,
+                    content_hash=action.file.content_hash,
+                )
+                print(f"  CREATED  {action.id}  (page_id={page_id})")
         elif action.action == "update":
             assert action.page_id is not None
             await client.update_page(action.page_id, action.file)
