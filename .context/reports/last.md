@@ -37,12 +37,19 @@
 - 5 new apply tests (FakeNotionClient) → pytest 823/823
 - PR #29 → merge
 
-### S2-4: archive_page — PR #30 🔄
+### S2-4: archive_page — PR #30 → main ✅
 - `RealNotionUpsertClient.archive_page`: real notion-client call (`archived=True`)
 - `apply` delete: `DEFERRED` → `_execute_archive` with guard (`page_id is None` → pop-only)
 - 2 new tests (archive guard + no-page-id guard) → 12/12 notion_publish tests
 - ruff 0, pyright 0
-- ⚠️ Sequencing: prod apply gated behind S2-3b (reconcile-by-Clay-ID)
+- Squash SHA: `c359b32`
+
+### S2-3b: reconcile-by-Clay-ID — PR #31 🔄
+- `find_page_by_clay_id` → `client.request(databases/{id}/query)` with rich_text filter
+- Create-path reconcile: found → RECONCILED→UPDATE, not found → normal CREATE
+- 3 new tests (reconcile-found, reconcile-empty, archived-not-adopted) → 15/15 notion_publish
+- ruff 0, pyright 0
+- **STOP-gate:** `notion-client` 3.1.0 не имеет `databases.query` — использует `client.request()` raw. **PASSED** ✅
 
 ## Caveats
 
@@ -50,4 +57,4 @@
 
 ## Следующий шаг
 
-S2-3b: reconcile по Clay-ID → Emma настраивает Notion integration → контролируемый `--apply` vault→Notion.
+Emma: настройка Notion integration → первый `--apply` vault→Notion (dry-run → 1-2 карты → полный).

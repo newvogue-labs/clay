@@ -243,6 +243,10 @@ class FakeNotionClient:
     def __init__(self) -> None:
         self.calls: list[str] = []
         self.next_page_id = 100
+        self._find_page_map: dict[str, str | None] = {}
+
+    def set_find_page(self, clay_id: str, page_id: str | None) -> None:
+        self._find_page_map[clay_id] = page_id
 
     async def create_page(self, database_id: str, file: VaultFile) -> str:
         pid = f"page-{self.next_page_id}"
@@ -255,6 +259,10 @@ class FakeNotionClient:
 
     async def archive_page(self, page_id: str) -> None:
         self.calls.append(f"archive:{page_id}")
+
+    async def find_page_by_clay_id(self, database_id: str, clay_id: str) -> str | None:
+        self.calls.append(f"find:{clay_id}")
+        return self._find_page_map.get(clay_id)
 
 
 class TestApply:
@@ -270,7 +278,10 @@ class TestApply:
         client = FakeNotionClient()
         await publisher.apply([creates[0]], client)
 
-        assert client.calls == ["create:market/sma-crossover"]
+        assert client.calls == [
+            "find:market/sma-crossover",
+            "create:market/sma-crossover",
+        ]
         assert publisher.manifest.files["market/sma-crossover"].page_id == "page-100"
         assert publisher.manifest.files["market/sma-crossover"].content_hash != ""
 
@@ -418,3 +429,59 @@ class TestApply:
             await publisher.apply([create, create2], client)
 
         assert mock_save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_create_reconcile_found_updates_instead(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+        plan = publisher.build_plan()
+        creates = [a for a in plan if a.action == "create"]
+        assert len(creates) >= 1
+
+        client = FakeNotionClient()
+        client.set_find_page(creates[0].id, "page-existing")
+        await publisher.apply([creates[0]], client)
+
+        assert "create:" not in " ".join(client.calls)
+        assert "find:market/sma-crossover" in client.calls
+        assert "update:market/sma-crossover" in client.calls
+        assert (
+            publisher.manifest.files["market/sma-crossover"].page_id == "page-existing"
+        )
+        assert publisher.manifest.files["market/sma-crossover"].content_hash != ""
+
+    @pytest.mark.asyncio
+    async def test_create_reconcile_empty_creates_normally(
+        self, tmp_path: Path
+    ) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+        plan = publisher.build_plan()
+        creates = [a for a in plan if a.action == "create"]
+        assert len(creates) >= 1
+
+        client = FakeNotionClient()
+        await publisher.apply([creates[0]], client)
+
+        assert "create:market/sma-crossover" in client.calls
+        assert "find:market/sma-crossover" in client.calls
+        assert publisher.manifest.files["market/sma-crossover"].page_id == "page-100"
+
+    @pytest.mark.asyncio
+    async def test_create_reconcile_archived_not_adopted(self, tmp_path: Path) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+        plan = publisher.build_plan()
+        creates = [a for a in plan if a.action == "create"]
+        assert len(creates) >= 1
+
+        client = FakeNotionClient()
+        client.set_find_page(creates[0].id, None)
+        await publisher.apply([creates[0]], client)
+
+        assert "create:market/sma-crossover" in client.calls
+        assert "find:market/sma-crossover" in client.calls
+        assert publisher.manifest.files["market/sma-crossover"].page_id == "page-100"
