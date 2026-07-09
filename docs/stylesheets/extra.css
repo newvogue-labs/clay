@@ -1,0 +1,19 @@
+[data-md-color-scheme="slate"][data-md-color-primary="black"] {
+  --md-primary-fg-color: #1E2129;
+  --md-primary-fg-color--light: #1E2129;
+  --md-primary-fg-color--dark: #1E2129;
+  --md-footer-bg-color: #1E2129;
+  --md-footer-bg-color--dark: #1E2129;
+}
+
+[data-md-color-scheme="slate"][data-md-color-primary="black"] .md-header {
+  background-color: #1E2129;
+}
+
+[data-md-color-scheme="slate"][data-md-color-primary="black"] .md-tabs {
+  background-color: #1E2129;
+}
+
+[data-md-color-scheme="slate"][data-md-color-primary="black"] .md-nav__source {
+  background-color: #1E2129;
+}
