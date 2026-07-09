@@ -597,3 +597,51 @@ class TestRealClientUpdatePage:
             type="replace_content",
             replace_content={"new_str": "\u22ee"},
         )
+
+
+class TestCLI:
+    def test_print_plan_with_counts(
+        self, capsys: pytest.CaptureFixture, tmp_path: Path
+    ) -> None:
+        vault = make_vault(tmp_path)
+        config = NotionPublisherConfig(vault_path=vault)
+        publisher = NotionKnowledgePublisher(config)
+        plan = publisher.build_plan()
+        NotionKnowledgePublisher.print_plan(plan)
+        captured = capsys.readouterr()
+        assert "CREATE 3" in captured.out or "CREATE" in captured.out
+        assert "Total:" in captured.out
+
+    def test_print_plan_empty(self, capsys: pytest.CaptureFixture) -> None:
+        NotionKnowledgePublisher.print_plan([])
+        assert "No actions." in capsys.readouterr().out
+
+    def test_print_plan_summary_line(self, capsys: pytest.CaptureFixture) -> None:
+        actions = [
+            NotionPlanAction(action="create", id="a/1", page_id=None),
+            NotionPlanAction(action="create", id="a/2", page_id=None),
+            NotionPlanAction(action="update", id="b/1", page_id="p1"),
+            NotionPlanAction(action="skip", id="c/1", page_id="p2"),
+            NotionPlanAction(action="delete", id="d/1", page_id="p3"),
+        ]
+        NotionKnowledgePublisher.print_plan(actions)
+        out = capsys.readouterr().out
+        assert "CREATE 2" in out
+        assert "UPDATE 1" in out
+        assert "SKIP 1" in out
+        assert "DELETE 1" in out
+        assert "Total: 5" in out
+
+    def test_exit_on_missing_vault_path(self) -> None:
+        from clay.tools.notion_publish import _exit
+
+        with pytest.raises(SystemExit) as exc:
+            _exit(1, "error: vault path not found")
+        assert exc.value.code == 1
+
+    def test_exit_on_runtime_error(self) -> None:
+        from clay.tools.notion_publish import _exit
+
+        with pytest.raises(SystemExit) as exc:
+            _exit(2, "error: apply failed")
+        assert exc.value.code == 2

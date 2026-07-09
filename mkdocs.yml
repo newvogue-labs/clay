@@ -50,6 +50,8 @@ plugins:
         Runbooks:
           - mission-control/deploy-runbook.md
           - mission-control/runbooks/*.md
+        Tooling:
+          - tooling/notion-mirror.md
 
 markdown_extensions:
   - admonition

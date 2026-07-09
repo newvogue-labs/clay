@@ -1,4 +1,4 @@
-.PHONY: backend-install backend-test backend-run backend-lint backend-format backend-format-check backend-typecheck backend-typecheck-src backend-sync frontend-install frontend-test frontend-build frontend-run lint format format-check typecheck check frontend-typecheck
+.PHONY: backend-install backend-test backend-run backend-lint backend-format backend-format-check backend-typecheck backend-typecheck-src backend-sync backend-notion-publish backend-notion-publish-apply frontend-install frontend-test frontend-build frontend-run lint format format-check typecheck check frontend-typecheck
 
 backend-install:
 	cd backend && uv sync
@@ -37,6 +37,21 @@ check: lint format-check backend-test frontend-typecheck frontend-test
 
 backend-sync:
 	cd backend && uv run python -m clay.knowledge.sync
+
+# Vault → Notion mirror: dry-run
+backend-notion-publish:
+	cd backend && uv run python -m clay.tools.notion_publish --vault ../clay-knowledge
+
+# Vault → Notion mirror: apply with pre-flight network check.
+# Notion API доступен только с машин вне DPI; 401 = API жив (неаутентифицирован).
+backend-notion-publish-apply:
+	@echo "Checking Notion API reachability..."
+	@status=$$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 https://api.notion.com/v1/users/me 2>/dev/null || echo "000"); \
+	if [ "$$status" != "401" ]; then \
+		echo "error: Notion API unreachable (HTTP $$status) — run from off-host machine"; \
+		exit 2; \
+	fi
+	cd backend && uv run python -m clay.tools.notion_publish --vault ../clay-knowledge --apply
 
 backend-eval-m278:
 	cd backend && uv run python scripts/eval/m278_scan.py /tmp/summary_inject.txt /tmp/summary_off.txt

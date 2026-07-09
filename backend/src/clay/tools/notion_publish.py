@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -300,7 +301,9 @@ class NotionKnowledgePublisher:
         if not plan:
             print("No actions.")
             return
+        counts: dict[str, int] = {}
         for a in plan:
+            counts[a.action] = counts.get(a.action, 0) + 1
             if a.action == "create":
                 print(f"  CREATE  {a.id}")
             elif a.action == "update":
@@ -309,7 +312,15 @@ class NotionKnowledgePublisher:
                 print(f"  DELETE  {a.id}  (page_id={a.page_id})")
             elif a.action == "skip":
                 print(f"  SKIP    {a.id}")
-        print(f"\nTotal: {len(plan)} actions")
+        parts = [f"{k.upper()} {v}" for k, v in sorted(counts.items())]
+        print(f"\n  {' · '.join(parts)}")
+        print(f"  Total: {len(plan)} actions")
+
+
+def _exit(code: int, msg: str = "") -> None:
+    if msg:
+        print(msg)
+    sys.exit(code)
 
 
 def main() -> None:
@@ -322,22 +333,37 @@ def main() -> None:
     parser.add_argument(
         "--apply",
         action="store_true",
-        help="Execute plan against Notion API",
+        help="Execute plan against Notion API (exit: 0=ok, 1=config/usage, 2=runtime)",
     )
     args = parser.parse_args()
 
-    config = NotionPublisherConfig.from_env(vault_path=args.vault)
+    vault_path: Path = args.vault
+    if not vault_path.is_dir():
+        _exit(1, f"error: vault path not found or not a directory: {vault_path}")
+
+    config = NotionPublisherConfig.from_env(vault_path=vault_path)
     publisher = NotionKnowledgePublisher(config)
-    plan = publisher.build_plan()
+    plan: list[NotionPlanAction] = []
+    try:
+        plan = publisher.build_plan()
+    except Exception as exc:
+        _exit(1, f"error: failed to read vault: {exc}")
+
     NotionKnowledgePublisher.print_plan(plan)
 
-    if args.apply:
-        if not config.database_id or not config.token:
-            print("error: CLAY_NOTION_KB_DB and CLAY_NOTION_TOKEN must be set")
-            raise SystemExit(1)
+    if not args.apply:
+        return
+
+    if not config.database_id or not config.token:
+        _exit(1, "error: CLAY_NOTION_KB_DB and CLAY_NOTION_TOKEN must be set")
+
+    try:
         client = RealNotionUpsertClient(token=config.token)
         asyncio.run(publisher.apply(plan, client))
-        print("Done \u2014 notion manifest updated.")
+    except Exception as exc:
+        _exit(2, f"error: apply failed: {exc}")
+
+    print("Done \u2014 notion manifest updated.")
 
 
 if __name__ == "__main__":
