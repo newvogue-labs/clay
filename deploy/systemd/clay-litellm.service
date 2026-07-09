@@ -1,0 +1,17 @@
+# Deployed host unit (source: /etc/systemd/system/clay-litellm.service)
+# AS-IS copy — no secrets inline.
+[Unit]
+Description=Clay LiteLLM gateway (OpenAI-compat, local-only)
+After=network-online.target
+
+[Service]
+Type=simple
+User=clay
+Group=clay
+EnvironmentFile=/etc/clay/litellm/litellm.env
+ExecStart=/var/lib/clay/.local/bin/litellm --config /etc/clay/litellm/config.yaml --host 127.0.0.1 --port 4000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
