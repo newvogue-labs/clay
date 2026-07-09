@@ -505,3 +505,95 @@ class TestRealClientConfig:
             assert RealNotionUpsertClient._should_force_ipv4() is False
         with patch.dict(os.environ, {"CLAY_NOTION_FORCE_IPV4": "0"}):
             assert RealNotionUpsertClient._should_force_ipv4() is False
+
+
+class TestRealClientUpdatePage:
+    @pytest.mark.asyncio
+    async def test_update_markdown_sends_correct_body(self) -> None:
+        from unittest.mock import MagicMock
+
+        client = RealNotionUpsertClient(token="test-token")
+        client._client = MagicMock()
+
+        file = VaultFile(
+            id="test/card",
+            title="Test Card",
+            category="note",
+            priority="medium",
+            tags=[],
+            content="## Updated content\n\nHello!",
+            content_hash="abc",
+            source_type="vault:test/card",
+        )
+
+        await client.update_page("page-123", file)
+
+        client._client.pages.update_markdown.assert_called_once_with(
+            page_id="page-123",
+            type="replace_content",
+            replace_content={"new_str": "## Updated content\n\nHello!"},
+        )
+        client._client.pages.update.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_markdown_body_properties_updated(self) -> None:
+        from unittest.mock import MagicMock
+
+        client = RealNotionUpsertClient(token="test-token")
+        client._client = MagicMock()
+
+        file = VaultFile(
+            id="market/sma-crossover",
+            title="SMA Crossover",
+            category="strategy_rule",
+            priority="high",
+            tags=["momentum", "trend"],
+            content="Use SMA crossover on H1.",
+            content_hash="h1",
+            source_type="vault:market/sma-crossover",
+        )
+
+        await client.update_page("page-456", file)
+
+        # verify properties were sent
+        sent_properties = client._client.pages.update.call_args[1]["properties"]
+        assert (
+            sent_properties["Title"]["title"][0]["text"]["content"] == "SMA Crossover"
+        )
+        assert (
+            sent_properties["Content Hash"]["rich_text"][0]["text"]["content"] == "h1"
+        )
+        assert sent_properties["Category"]["select"]["name"] == "strategy_rule"
+        assert sent_properties["Domain"]["select"]["name"] == "market"
+        assert sent_properties["Tags"]["multi_select"] == [
+            {"name": "momentum"},
+            {"name": "trend"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_update_markdown_sends_placeholder_on_empty_content(
+        self,
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        client = RealNotionUpsertClient(token="test-token")
+        client._client = MagicMock()
+
+        file = VaultFile(
+            id="test/empty",
+            title="Empty",
+            category="note",
+            priority="low",
+            tags=[],
+            content="",
+            content_hash="def",
+            source_type="vault:test/empty",
+        )
+
+        await client.update_page("page-789", file)
+
+        client._client.pages.update_markdown.assert_called_once_with(
+            page_id="page-789",
+            type="replace_content",
+            replace_content={"new_str": "\u22ee"},
+        )
