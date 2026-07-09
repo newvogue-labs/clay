@@ -1,0 +1,21 @@
+# Deployed host unit (source: /etc/systemd/system/clay-backend.service)
+# AS-IS copy — no secrets inline.
+[Unit]
+Description=Clay Backend API (FastAPI/Uvicorn + AI Agent scheduler)
+After=network-online.target clay-litellm.service
+Wants=clay-litellm.service
+StartLimitIntervalSec=0
+Documentation=https://github.com/newvogue-labs/clay
+
+[Service]
+Type=simple
+User=clay
+Group=clay
+WorkingDirectory=/home/emma/Projects/clay/backend
+EnvironmentFile=/home/emma/Projects/clay/backend/.env
+ExecStart=/home/emma/Projects/clay/backend/.venv/bin/uvicorn clay.api.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
