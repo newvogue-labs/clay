@@ -176,7 +176,9 @@ class RealNotionUpsertClient:
                 page_id=page_id, properties=_build_properties(file)
             )
             self._client.pages.update_markdown(
-                page_id=page_id, replace_content=file.content or "\u22ee"
+                page_id=page_id,
+                type="replace_content",
+                replace_content={"new_str": file.content or "\u22ee"},
             )
 
     async def archive_page(self, page_id: str) -> None:
