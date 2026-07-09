@@ -44,7 +44,7 @@ theme:
         name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: black
+      primary: white
       accent: teal
       toggle:
         icon: material/weather-sunny
@@ -73,6 +73,8 @@ plugins:
         Runbooks:
           - mission-control/deploy-runbook.md
           - mission-control/runbooks/*.md
+        "Architecture Maps":
+          - architecture-maps/*.md
         Tooling:
           - tooling/notion-mirror.md
 

@@ -18,18 +18,26 @@
   background-color: #1E2129;
 }
 
-/* Copy Markdown button (llmstxt-md plugin) — инлайн вверху-справа контента */
-.md-content__inner {
-  position: relative;
+/* Copy Markdown (llmstxt-md) — FAB внизу-справа */
+#llms-copy-button {
+  position: fixed !important;
+  top: auto !important;
+  bottom: 1.5rem !important;
+  right: 1.5rem !important;
+  left: auto !important;
+  z-index: 100 !important;
 }
 
-#llms-copy-button {
-  position: absolute !important;
-  top: 0.3rem !important;
-  right: 2.2rem !important;
-  left: auto !important;
-  bottom: auto !important;
-  z-index: 1 !important;
+/* Light — бесшовный белый футер */
+[data-md-color-scheme="default"] {
+  --md-footer-bg-color: #ffffff;
+  --md-footer-bg-color--dark: #ffffff;
+  --md-footer-fg-color: rgba(0,0,0,.87);
+  --md-footer-fg-color--light: rgba(0,0,0,.54);
+  --md-footer-fg-color--lighter: rgba(0,0,0,.34);
+}
+[data-md-color-scheme="default"] .md-footer {
+  border-top: 1px solid rgba(0,0,0,.07);
 }
 
 #llms-copy-button button {
