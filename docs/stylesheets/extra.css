@@ -18,9 +18,18 @@
   background-color: #1E2129;
 }
 
-/* Copy Markdown button (llmstxt-md plugin) — перекрас + выравнивание */
+/* Copy Markdown button (llmstxt-md plugin) — инлайн вверху-справа контента */
+.md-content__inner {
+  position: relative;
+}
+
 #llms-copy-button {
-  top: 100px !important;
+  position: absolute !important;
+  top: 0.3rem !important;
+  right: 2.2rem !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 1 !important;
 }
 
 #llms-copy-button button {
