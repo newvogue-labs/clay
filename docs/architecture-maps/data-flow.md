@@ -15,16 +15,16 @@ flowchart LR
 
     V -->|read_md| VC
     VC -->|VaultFile| S
-    S -->|HTTP POST /knowledge/items/upsert| KS
+    S -->|"HTTP POST /knowledge/items/upsert"| KS
     KS -->|upsert_item_by_external_id| DB
 
-    S -.->|separate run, dry‑run default| NP
-    NP -->|Notion API create/update/archive| NI
+    S -.->|"separate run, dry‑run default"| NP
+    NP -->|"Notion API create/update/archive"| NI
 
-    DB -->|KnowledgeService.search<br/>(token scoring → ranked chunks)| AJ
-    AJ -->|3‑tier slot: guaranteed → reserved → fillable<br/>MAX_CARDS=15, TOKEN_CAP=2000| AG
+    DB -->|"KnowledgeService.search<br/>(token scoring → ranked chunks)"| AJ
+    AJ -->|"3‑tier slot: guaranteed → reserved → fillable<br/>MAX_CARDS=15, TOKEN_CAP=2000"| AG
 
-    AG -.->|M278 RED LINE<br/>advisory data ONLY,<br/>NOT control instructions| AJ
+    AG -.->|"M278 RED LINE<br/>advisory data ONLY,<br/>NOT control instructions"| AJ
     AJ -.->|_EXCLUDED_TAGS filter| EX
 
     style AG stroke:#f44,stroke-width:3

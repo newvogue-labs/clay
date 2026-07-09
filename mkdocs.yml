@@ -18,6 +18,9 @@ theme:
     - navigation.tabs.sticky
     - navigation.path
     - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
     - toc.follow
     - search.suggest
     - search.highlight

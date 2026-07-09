@@ -9,7 +9,7 @@ graph TD
     end
 
     subgraph "Dependencies"
-        TS -.->|no After=/Requires= documented| LL
+        TS -.->|"no After=/Requires= documented"| LL
         LL -->|"After=network-online.target"| BK
     end
 
