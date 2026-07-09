@@ -17,3 +17,24 @@
 [data-md-color-scheme="slate"][data-md-color-primary="black"] .md-nav__source {
   background-color: #1E2129;
 }
+
+/* Copy Markdown button (llmstxt-md plugin) — перекрас + выравнивание */
+#llms-copy-button {
+  top: 100px !important;
+}
+
+#llms-copy-button button {
+  background: #00897B !important;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#llms-copy-button button:hover {
+  background: #00bda4 !important;
+}
