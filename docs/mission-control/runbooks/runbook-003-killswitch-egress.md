@@ -1,3 +1,9 @@
+---
+tags:
+  - ops
+  - infra
+---
+
 # Runbook-003 — Kill-switch и egress (DEPLOY-3.5e)
 
 Дата: 2026-06-12 (переписан под модель 3.5e; версии 3.5b–3.5d superseded)

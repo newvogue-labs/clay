@@ -1,3 +1,8 @@
+---
+tags:
+  - risk
+---
+
 # ADR-021: Session-Level Risk Limits (Admission Gate)
 
 - **Status:** Accepted (2026-07-01)

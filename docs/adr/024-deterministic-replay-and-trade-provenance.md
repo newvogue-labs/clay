@@ -1,3 +1,8 @@
+---
+tags:
+  - execution
+---
+
 # ADR-024: Deterministic Replay Harness + Trade Provenance
 
 - **Status:** Accepted

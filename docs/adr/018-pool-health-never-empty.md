@@ -1,3 +1,8 @@
+---
+tags:
+  - infra
+---
+
 # ADR-018: Pool-Health Degraded Mode (never-empty invariant)
 
 - **Status:** Accepted

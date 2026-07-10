@@ -1,3 +1,9 @@
+---
+tags:
+  - architecture
+  - infra
+---
+
 # D5 — Systemd boot-chain (as-deployed)
 
 ```mermaid

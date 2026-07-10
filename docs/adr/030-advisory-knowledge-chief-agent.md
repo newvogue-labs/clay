@@ -1,3 +1,10 @@
+---
+tags:
+  - knowledge
+  - llm
+---
+
+
 # ADR-030: Advisory #knowledge → chief-agent (advisory-only)
 
 - **Status:** Accepted — ablation-eval пройден (minimax-m3, 0 M278 violations). Valve НЕ открыт (ожидание Emma).

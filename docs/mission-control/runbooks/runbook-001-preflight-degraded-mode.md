@@ -1,3 +1,9 @@
+---
+tags:
+  - ops
+  - infra
+---
+
 # Runbook-001 — Preflight And Degraded Mode
 
 Дата: 2026-03-30

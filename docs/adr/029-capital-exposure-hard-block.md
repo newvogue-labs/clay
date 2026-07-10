@@ -1,3 +1,8 @@
+---
+tags:
+  - risk
+---
+
 # ADR-029: Capital Exposure Hard-Block (dual-tier off-by-default)
 
 - **Status:** Accepted (2026-07-01)

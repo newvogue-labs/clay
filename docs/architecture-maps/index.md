@@ -1,3 +1,8 @@
+---
+tags:
+  - architecture
+---
+
 # Architecture Maps
 
 ## D1 — System Context (C4)

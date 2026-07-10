@@ -1,3 +1,8 @@
+---
+tags:
+  - knowledge
+---
+
 # ADR-031: Notion-mirror publisher — односторонний sync vault → Notion
 
 - **Status:** Accepted — live в production (57 карт, S2-APPLY-1)

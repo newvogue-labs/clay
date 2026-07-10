@@ -1,3 +1,9 @@
+---
+tags:
+  - ops
+  - infra
+---
+
 # Clay — Deploy Runbook
 
 > Status: MVP-ready (MVP-polish closed 2026-06-04). Companion to ADR-007

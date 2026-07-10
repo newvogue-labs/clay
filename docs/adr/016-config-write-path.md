@@ -1,3 +1,8 @@
+---
+tags:
+  - infra
+---
+
 # ADR-016: Config write-path под автономный reconcile
 
 - **Status:** Accepted (2026-06-18)

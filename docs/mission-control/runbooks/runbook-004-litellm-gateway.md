@@ -1,3 +1,9 @@
+---
+tags:
+  - ops
+  - llm
+---
+
 # Runbook-004 — LiteLLM Gateway (внешний LLM egress-boundary Clay)
 
 > **Статус:** ✅ host-native установка под uid 945 (clay), DEPLOY-3.5e.
