@@ -53,6 +53,7 @@ theme:
 plugins:
   - search:
       lang: [en, ru]
+  - social:
   - tags:
   - awesome-nav
   - git-revision-date-localized:
