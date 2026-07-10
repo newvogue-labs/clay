@@ -1,3 +1,8 @@
+---
+tags:
+  - risk
+---
+
 # ADR-020: Position Sizing — Fractional Kelly + EV-Gate
 
 - **Status:** Accepted

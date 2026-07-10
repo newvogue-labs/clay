@@ -1,3 +1,10 @@
+---
+tags:
+  - risk
+  - signals
+---
+
+
 # ADR-026: Freshness Dual-Policy (per-pair worst-of + focused-pair gate)
 
 - **Status:** Accepted (2026-06-29)

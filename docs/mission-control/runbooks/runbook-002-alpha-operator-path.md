@@ -1,3 +1,9 @@
+---
+tags:
+  - ops
+  - execution
+---
+
 # Runbook-002 - Alpha Operator Path
 
 Дата: 2026-05-31

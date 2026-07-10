@@ -1,3 +1,8 @@
+---
+tags:
+  - llm
+---
+
 # ADR-017: Homogeneous role registry (gemma-4-31b as chief-eligible)
 
 - **Status:** Proposed (2026-06-21)

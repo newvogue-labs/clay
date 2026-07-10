@@ -1,3 +1,8 @@
+---
+tags:
+  - ops
+---
+
 # ADR-023: ops.ai_agent_runs — Indexes + Retention Policy
 
 - **Status:** Accepted

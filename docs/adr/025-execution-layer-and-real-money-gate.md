@@ -1,3 +1,8 @@
+---
+tags:
+  - execution
+---
+
 # ADR-025: Execution Layer + Real-Money Gate (RV8)
 
 - **Status:** Accepted

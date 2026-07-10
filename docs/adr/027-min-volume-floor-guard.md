@@ -1,3 +1,10 @@
+---
+tags:
+  - risk
+  - signals
+---
+
+
 # ADR-027: Min-Volume Floor Guard (anti-slippage signal gate)
 
 - **Status:** Accepted (2026-06-29)

@@ -1,3 +1,10 @@
+---
+tags:
+  - architecture
+  - execution
+  - signals
+---
+
 # D3 — Trading Cycle (sequence)
 
 ```mermaid

@@ -1,3 +1,9 @@
+---
+tags:
+  - architecture
+  - knowledge
+---
+
 # D4 — Data-flow: vault → #knowledge → Notion → advisory (M278)
 
 ```mermaid
