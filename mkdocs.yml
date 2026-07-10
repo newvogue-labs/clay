@@ -77,6 +77,17 @@ plugins:
           - architecture-maps/*.md
         Tooling:
           - tooling/notion-mirror.md
+  - glightbox:
+      touchNavigation: true
+      zoomable: true
+      draggable: true
+      effect: zoom
+      auto_caption: false
+  - minify:
+      minify_html: true
+      cache_safe: true
+      htmlmin_opts:
+        remove_comments: true
 
 markdown_extensions:
   - admonition
