@@ -44,6 +44,14 @@ from clay.runtime.states import RuntimeState
 
 @dataclass(frozen=True)
 class RoleDefinition:
+    """Immutable definition of an AI role in the code-only registry.
+
+    Describes the role's responsibility, I/O contract, allowed actions,
+    and hard constraints. The ``explanation_owner`` and
+    ``synthesis_owner`` flags mark the Chief Agent's special
+    responsibilities for final output generation.
+    """
+
     role_id: str
     role_name: str
     responsibility: str
@@ -57,6 +65,15 @@ class RoleDefinition:
 
 @dataclass(frozen=True)
 class ModelVersion:
+    """Immutable model entry in the code-only registry.
+
+    Captures provider, source, transport routing hint (``"local"`` or
+    ``"cloud"``), activation status, and compatible roles. The
+    ``transport`` field drives ``RoutingModelClient``'s per-call
+    routing decision — ``"local"`` routes to Ollama, ``"cloud"`` to
+    the configured API provider.
+    """
+
     model_id: str
     display_name: str
     provider: str
@@ -73,6 +90,14 @@ class ModelVersion:
 
 @dataclass
 class PendingReview:
+    """Mutable state of an in-flight operator review.
+
+    Unlike RoleDefinition and ModelVersion, this dataclass is **not
+    frozen** — it is created and cleared during the review/apply
+    workflow. Persisted to the ``ops`` runtime-state table (write-through)
+    so a restart between review and apply still sees it.
+    """
+
     review_id: str
     role_id: str
     model_id: str

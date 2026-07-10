@@ -6,6 +6,13 @@
     options:
       members:
         - AIControlService
+        - RoleDefinition
+        - ModelVersion
+        - PendingReview
+
+## Snapshot Models
+
+::: clay.ai_control.models
 
 ## Runner (Transport)
 
