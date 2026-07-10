@@ -1,316 +1,192 @@
+<!-- PLACEHOLDER: logo — S4-4a2 deferred -->
+
 # Clay
 
-Your own trading workspace. Signals, review, and control.
+**Your own trading workspace. Signals, review, and control.**
 
-## Current Status
+[![CI](https://github.com/newvogue-labs/clay/actions/workflows/ci.yml/badge.svg)](https://github.com/newvogue-labs/clay/actions/workflows/ci.yml)
+[![Docs](https://github.com/newvogue-labs/clay/actions/workflows/docs.yml/badge.svg)](https://newvogue-labs.github.io/clay/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-This repository is the implementation workspace for `Clay`.
+> [!IMPORTANT]
+> **Clay is an advisory workspace, not an autonomous trading bot.**
+> Every signal, recommendation, and AI-generated insight is meant for **human review only**.
+> Real-money execution requires an explicit, operator-gated approval step — there is no silent auto-trading path.
+> The `#knowledge` base provides advisory context; it is **never** injected into the execution or control path (ADR-030, M278).
 
-At the moment:
+## What is Clay
 
-- the architecture and planning phase are complete;
-- implementation starts here;
-- the first delivery target is `Wave 1`:
-- `E1` runtime foundation
-- `E2` data ingestion and local historical store
-- `E3` trading workspace and live signal surface
-- `E4` control center and runtime operations
-- `E5` AI roles, orchestration, and model assignment
-- `E6` signal lifecycle, ranking, and risk-control
-- `E7` session lifecycle, briefing, pause, and pair replacement
-- `E8` demo trading integration and result tracking
-- `E9` audit trail, feedback, and session review
-- `E10` knowledge base and research layer
-- `E11` backtesting, replay, and model/strategy activation
-- `E12` reliability, degraded mode, and release readiness
+Clay is a local-first trading workspace built around one principle: **you see everything, you approve everything**.
 
-## E1 Progress
+It combines market data ingestion, AI-assisted signal generation, structured session control, and a knowledge base — all surfaced through a web UI where an operator reviews and confirms every action before it takes effect.
 
-The current implementation already includes:
+**Key properties:**
 
-- runtime states and controlled transitions;
-- XDG-aware config loading with validation and rollback;
-- service registry and safe lifecycle actions;
-- preflight checks and audit trail scaffolding;
-- backend control API for runtime, services, configs, and health;
-- minimal React shell wired to live backend data.
+- **Backend = Source of Truth.** The frontend is a read-oriented shell; all state, decisions, and transitions live in the backend.
+- **Advisory AI.** LLM-generated signals, knowledge retrieval, and session briefings are information layers — they never bypass the operator.
+- **Operator-first control flow.** Model assignments, session transitions, and strategy activation all require explicit review-and-apply steps.
+- **Local-first.** Runs on your machine with PostgreSQL/TimescaleDB. No cloud dependency for core functionality.
 
-## E2 Progress
+**Out of Scope:**
 
-The current `E2` backend slice already includes:
+- Automated order execution (Clay does not place trades)
+- Portfolio-level risk management or accounting
+- Multi-exchange aggregation (Binance Spot is the current target)
+- Real-time low-latency market making
 
-- ingestion settings and DB bootstrap contracts;
-- ORM schema baseline for `market`, `context`, and `ops`;
-- Alembic migration skeleton for the first ingestion baseline;
-- market normalization contracts for Binance Spot klines;
-- pluggable demo connectors for news and sentiment;
-- freshness and retention helpers;
-- storage-backed repositories for market/context/ops domains;
-- orchestration flow for a full ingest cycle;
-- downstream backend routes backed by persisted data instead of demo payloads.
+## Status
 
-## E4 Progress
+| Area | Status | Notes |
+|------|--------|-------|
+| Runtime & lifecycle | Working | States, transitions, config management |
+| Data ingestion | Working | Binance Spot klines, news, sentiment connectors |
+| Trading workspace | Working | Signal ranking, pair focus, live refresh via SSE |
+| AI control | Working | Role registry, model assignment review/apply |
+| Signal engine | Working | Lifecycle, confidence, risk triggers |
+| Session control | Working | Preflight, briefing, pause/resume, pair replacement |
+| Demo trading | Working | Manual trade logging, outcome tracking |
+| Session review | Working | Audit, feedback, AI-assisted review |
+| Knowledge base | Working | Advisory vault, sync pipeline, retrieval |
+| Validation lab | Working | Replay runs, staged activation review |
+| Reliability center | Working | Degraded mode, readiness checks, release gates |
+| Notion mirror | Working | Vault → Notion publish pipeline (dry-run) |
+| MkDocs documentation | Live | [newvogue-labs.github.io/clay](https://newvogue-labs.github.io/clay/) |
+| Real-money execution | Roadmap | Operator-gated, requires replay evidence |
+| Multi-exchange | Out of scope | — |
+| Automated trading | Out of scope | — |
 
-The current `E4` slice already includes:
+## Architecture at a glance
 
-- a backend `Control Center` aggregator over runtime, services, ingest health, incidents, audit, and configs;
-- `GET /control-center/overview` for operator snapshots;
-- `GET /control-center/stream` for live UI refresh triggers over `SSE`;
-- audit and live event publishing for manual ingestion runs;
-- a frontend `Control Center` shell with runtime transitions, manual ingest trigger, service actions, incident/audit view, and config restore actions.
-
-## E3 Progress
-
-The current `E3` slice already includes:
-
-- a storage-backed backend workspace service built on top of `E1 + E2 + E4`;
-- `GET /workspace/trading` for the main trading workspace snapshot;
-- `GET /workspace/trading/focus` and `POST /workspace/trading/focus` for pair and signal focus control;
-- `GET /workspace/trading/stream` for live refresh triggers over `SSE`;
-- a frontend `Trading Workspace` with focused pair context, active signals, monitoring pool, reasoning, risk, and news/sentiment panels;
-- live focus switching between ranked signals and monitoring candidates without direct browser access to provider data.
-
-## E5 Progress
-
-The current `E5` slice already includes:
-
-- a backend `AI Control` registry for roles, model versions, assignments, conflicts, and fallback posture;
-- `GET /ai-control/overview` for the current orchestration snapshot;
-- `POST /ai-control/assignments/review` and `POST /ai-control/assignments/apply` for operator-reviewed assignment changes;
-- `GET /ai-control/stream` for live refresh triggers over `SSE`;
-- a frontend `AI Control` surface with assignment review, conflict visibility, fallback status, and explicit apply flow;
-- audit/event publication for reviewed model assignment changes instead of silent switching.
-
-## E6 Progress
-
-The current `E6` slice already includes:
-
-- a backend `signal_engine` domain for lifecycle, ranking, confidence penalties, response actions, and strategy-mode proposals;
-- `GET /signals/overview` for the current evaluated signal bundle;
-- risk triggers for stale data, thin context, AI conflicts, runtime degradation, and expired decision windows;
-- `Trading Workspace` wired to signal-engine truth instead of inline heuristic ranking;
-- frontend risk/signal panels that now expose confidence penalties, response actions, strategy mode, and visible triggers.
-
-## E7 Progress
-
-The current `E7` slice already includes:
-
-- a backend `session_control` domain for hard preflight, briefing, lifecycle actions, and pair replacement review;
-- `GET /session/overview` plus lifecycle routes for `start`, `pause`, `resume`, and `complete`;
-- pair replacement review/apply flow with audit/event publication instead of silent focus switching;
-- `GET /session/stream` for live session refresh events over `SSE`;
-- a frontend `Session Control` surface with preflight, briefing, lifecycle actions, and pair replacement review/apply.
-
-## E8 Progress
-
-The current `E8` slice already includes:
-
-- a backend `demo_trading` domain for manual demo action logging, result ingest, and readiness evaluation;
-- persisted `demo.demo_trade_records` storage with Alembic migration support;
-- `GET /demo-trading/overview`, `POST /demo-trading/log-current`, and `POST /demo-trading/results/ingest`;
-- `GET /demo-trading/stream` for live refresh events over `SSE`;
-- a frontend `Demo Validation` surface with readiness gates, manual action logging, and result tracking;
-- explicit outcome classification for `matched`, `missed`, `late_matched`, `mismatched`, and `unresolved`.
-
-## E9 Progress
-
-The current `E9` slice already includes:
-
-- a backend `session_review` domain over audit history, demo outcomes, and operator feedback;
-- persisted `review.signal_feedback` storage with Alembic migration support;
-- `GET /session-review/overview` and `POST /session-review/feedback`;
-- `GET /session-review/stream` for live refresh events over `SSE`;
-- a frontend `Session Review` surface with review summary, filters, reviewed signals, feedback capture, and AI-assisted review cards.
-
-## E10 Progress
-
-The current `E10` slice already includes:
-
-- a backend `knowledge` domain for light-mode storage, semantic-ish chunking, and advisory retrieval;
-- persisted `knowledge.knowledge_items` and `knowledge.knowledge_chunks` storage with Alembic migration support;
-- `GET /knowledge/overview` and `POST /knowledge/items`;
-- `GET /knowledge/stream` for live refresh events over `SSE`;
-- a frontend `Knowledge Base` surface with quick-ingest, research search, recent items, and retrieval results;
-- an explicit policy that knowledge retrieval is advisory only and not part of the realtime signal hot path.
-
-## E11 Progress
-
-The current `E11` slice already includes:
-
-- a backend `validation_lab` domain for replay runs, validation summaries, staged activation review, and explicit apply flow;
-- persisted `validation.validation_runs` and `validation.activation_reviews` storage with Alembic migration support;
-- `GET /validation-lab/overview`, `POST /validation-lab/runs`, `POST /validation-lab/activation/review`, and `POST /validation-lab/activation/apply`;
-- `GET /validation-lab/stream` for live refresh events over `SSE`;
-- a frontend `Validation Lab` surface with replay actions, run history, review cards, and operator-confirmed activation apply;
-- an explicit policy that strategy/model activation must pass through replay evidence instead of silent switching.
-
-## E12 Progress
-
-The current `E12` slice already includes:
-
-- a backend `reliability` domain that aggregates runtime, ingest, AI fallback, demo readiness, review evidence, and validation posture;
-- `GET /reliability/overview` and `POST /reliability/recheck`;
-- `GET /reliability/stream` for live refresh events over `SSE`;
-- a frontend `Reliability Center` with degraded triggers, fallback posture, readiness checks, release gates, and incident review;
-- explicit release-readiness statuses of `blocked`, `needs_attention`, and `ready_for_demo`;
-- visible reliability gates instead of silent “looks fine to me” assumptions.
-
-## Repository Layout
-
-- `backend/` — future backend application and runtime services
-- `frontend/` — future web UI application
-- `docs/planning/` — imported planning source documents needed during implementation
-- `scripts/` — helper scripts for local development and repo automation
-
-## Planning Source
-
-The most important planning references live in `docs/planning/`:
-
-- `blueprint-v1.md`
-- `tech-stack-v1.md`
-- `execution-backlog-v1.md`
-- `master-planning-review-v1.md`
-
-Implementation should follow those documents rather than reinvent system boundaries during coding.
-
-## Bootstrap Commands
-
-Backend:
-
-```bash
-make backend-install
-cd backend && uv run alembic upgrade head
-make backend-test
-make backend-run
+```
+┌─────────────────────────────────────────────────────┐
+│                   Frontend (React)                   │
+│  Trading Workspace · AI Control · Session · Review   │
+└──────────────────────┬──────────────────────────────┘
+                       │ REST + SSE
+┌──────────────────────▼──────────────────────────────┐
+│                  Backend (FastAPI)                   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │
+│  │ Market   │ │ Signal   │ │ Session  │ │ Knowl- │ │
+│  │ Ingest   │ │ Engine   │ │ Control  │ │ edge   │ │
+│  └──────────┘ └──────────┘ └──────────┘ └────────┘ │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐            │
+│  │ Demo     │ │ Session  │ │ Validat- │            │
+│  │ Trading  │ │ Review   │ │ ion Lab  │            │
+│  └──────────┘ └──────────┘ └──────────┘            │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│           PostgreSQL / TimescaleDB                   │
+└─────────────────────────────────────────────────────┘
 ```
 
-Frontend:
+Full architecture diagrams (C4 System Context, Module Map, Trading Cycle, Data Flow, systemd Boot Chain) are in the [Architecture Maps](https://newvogue-labs.github.io/clay/architecture-maps/) section of the docs.
+
+## Quickstart
+
+> **Prerequisites:** [mise](https://mise.jdx.dev/) (or manual Python 3.14 + Node 22 + pnpm), Docker or Podman for TimescaleDB.
+
+**1. Clone and install dependencies:**
 
 ```bash
-make frontend-install
-make frontend-test
-make frontend-build
-make frontend-run
+git clone https://github.com/newvogue-labs/clay.git
+cd clay
+mise install          # or install Python 3.14 + Node 22 + pnpm manually
+make backend-install  # uv sync
+make frontend-install # pnpm install
 ```
 
-Default local URLs:
+**2. Start the database:**
 
-- frontend: `http://127.0.0.1:5173`
-- backend: `http://127.0.0.1:8000`
-- backend health: `http://127.0.0.1:8000/health`
+```bash
+cp .env.example .env
+# Set CLAY_DB_PASSWORD in .env, then:
+podman volume create clay_pgdata
+podman compose up -d
+```
 
-## Local Environment
+**3. Run migrations and start the backend:**
 
-Copy `.env.example` if you want to override defaults for local development.
+```bash
+cd backend && uv run alembic upgrade head && cd ..
+make backend-run      # http://127.0.0.1:8000
+```
 
-- `CLAY_API_HOST` and `CLAY_API_PORT` define the backend bind address.
-- `CLAY_DATABASE_URL` defines the PostgreSQL/TimescaleDB connection used by `E2`.
-- `VITE_CLAY_API_BASE_URL` defines which backend URL the frontend shell calls.
+**4. Start the frontend dev server:**
 
-## E2 Notes
+```bash
+make frontend-run     # http://127.0.0.1:5173
+```
 
-- `E2` expects PostgreSQL with TimescaleDB available before running real migrations.
-- test coverage uses SQLite with schema translation, while runtime remains targeted at PostgreSQL/TimescaleDB.
-- Current `E2` routes:
-  - `GET /ingestion/health`
-  - `POST /ingestion/run`
-  - `GET /market-data/bars/latest`
-  - `GET /context-data/summary`
-  - `GET /shortlist/metrics`
+**5. Run the full test suite (sanity check):**
 
-## E4 Notes
+```bash
+make check            # lint + format-check + backend-test + frontend-typecheck + frontend-test
+```
 
-- `Control Center` is intentionally operator-facing and not a substitute for the future `Trading Workspace`.
-- Current `E4` routes:
-  - `GET /control-center/overview`
-  - `GET /control-center/stream`
-- operator commands still flow through the existing runtime, services, configs, and ingestion endpoints.
+### Safe demo mode
 
-## E3 Notes
+Clay ships with demo connectors for news and sentiment data, and a demo trading surface for manual trade logging. No API keys or live market connections are required to explore the workspace — set `CLAY_BINANCE_SPOT_ENABLED=false` in `.env` to skip live market fetches.
 
-- `Trading Workspace` is the analyst-facing layer and intentionally separate from `Control Center`.
-- Current `E3` routes:
-  - `GET /workspace/trading`
-  - `GET /workspace/trading/focus`
-  - `POST /workspace/trading/focus`
-  - `GET /workspace/trading/stream`
-- current focus logic is derived from persisted `E2` data and current control-plane state; no browser-side market/provider calls are used.
+## Documentation
 
-## E5 Notes
+| Resource | Link |
+|----------|------|
+| **Live docs** | [newvogue-labs.github.io/clay](https://newvogue-labs.github.io/clay/) |
+| **Architecture Decisions (ADR)** | [ADR index](https://newvogue-labs.github.io/clay/adr/) — 14 decisions (016–031) |
+| **Runbooks** | [Runbooks](https://newvogue-labs.github.io/clay/mission-control/deploy-runbook/) — deploy, preflight, degraded mode, kill-switch, LiteLLM gateway |
+| **Architecture Maps** | [D1–D4](https://newvogue-labs.github.io/clay/architecture-maps/) — system context, module map, trading cycle, data flow |
+| **Tags** | [Tag index](https://newvogue-labs.github.io/clay/tags/) — 8 domain tags across all public pages |
+| **LLM-friendly** | [`llms.txt`](https://newvogue-labs.github.io/clay/llms.txt) and per-page `.md` variants for AI consumption |
 
-- `AI Control` is the operator-facing orchestration layer for roles and model assignments, not a hidden auto-router.
-- Current `E5` routes:
-  - `GET /ai-control/overview`
-  - `POST /ai-control/assignments/review`
-  - `POST /ai-control/assignments/apply`
-  - `GET /ai-control/stream`
-- assignment changes require an explicit review/apply flow; silent switching is intentionally blocked by design.
+## Repo layout
 
-## E6 Notes
+```
+clay/
+├── backend/          # FastAPI application, domain logic, tests
+│   ├── src/clay/     # Source package
+│   ├── tests/        # Pytest suite
+│   └── alembic/      # Database migrations
+├── frontend/         # React + Vite + Tailwind application
+│   ├── src/          # Source
+│   └── tests/        # Vitest suite
+├── docs/             # MkDocs Material source
+│   ├── adr/          # Architecture Decision Records
+│   ├── architecture-maps/  # Mermaid diagrams
+│   └── mission-control/    # Runbooks, blueprints, planning
+├── deploy/
+│   ├── systemd/      # Service units (as-deployed)
+│   └── litellm/      # LiteLLM gateway config
+├── compose.yaml      # TimescaleDB container
+├── Makefile          # Dev workflow targets
+└── mkdocs.yml        # Documentation site config
+```
 
-- `signal_engine` is the source of truth for signal state, ranking, and risk semantics.
-- Current `E6` routes:
-  - `GET /signals/overview`
-- `Trading Workspace` consumes evaluated signal truth from the backend instead of inventing ranking/risk behavior in the UI layer.
+## Invariants & Safety Model
 
-## E7 Notes
+These properties are structurally enforced, not just documented:
 
-- `session_control` is the discipline layer for starting, pausing, resuming, reviewing, and completing a session.
-- Current `E7` routes:
-  - `GET /session/overview`
-  - `POST /session/start`
-  - `POST /session/pause`
-  - `POST /session/resume`
-  - `POST /session/complete`
-  - `POST /session/replacement/review`
-  - `POST /session/replacement/apply`
-  - `GET /session/stream`
-- session transitions stay explicit and operator-confirmed; pair replacement cannot happen silently.
+| Invariant | Enforcement |
+|-----------|-------------|
+| **M278: knowledge is advisory-only** | `EXCLUDED_TAGS` barrier prevents execution-tagged cards from reaching chief-agent prompt; 0 violations across ablation eval |
+| **Signal ≠ Execution** | `signal_engine` produces ranked signals with risk metadata; order placement does not exist in the codebase |
+| **Human-in-the-loop** | Session transitions, model assignment changes, and strategy activation all require explicit review → apply flow |
+| **Backend = Source of Truth** | Frontend is a read-oriented shell; all state transitions, audit events, and decisions live in backend services |
+| **Release gates are visible** | Reliability Center exposes `blocked` / `needs_attention` / `ready_for_demo` instead of silent assumptions |
+| **Vault sync is idempotent** | `external_id` + UNIQUE constraint + upsert prevents ghost records on re-sync |
 
-## E8 Notes
+See [ADR-025 (Execution Layer & Real-Money Gate)](https://newvogue-labs.github.io/clay/adr/025-execution-layer-and-real-money-gate/) and [ADR-030 (Advisory Knowledge)](https://newvogue-labs.github.io/clay/adr/030-advisory-knowledge-chief-agent/) for the full safety rationale.
 
-- `Demo Validation` is still manual-first: the operator executes trades externally and `Clay` records the intent/result relationship.
-- Current `E8` routes:
-  - `GET /demo-trading/overview`
-  - `POST /demo-trading/log-current`
-  - `POST /demo-trading/results/ingest`
-  - `GET /demo-trading/stream`
-- the readiness gate stays conservative: fewer than five sessions keeps the stage in `collecting`, while unresolved or mismatched records keep it `at_risk`.
+## Contributing
 
-## E9 Notes
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and PR workflow.
 
-- `Session Review` turns demo evidence into an operator-facing review loop instead of leaving it as raw logs.
-- Current `E9` routes:
-  - `GET /session-review/overview`
-  - `POST /session-review/feedback`
-  - `GET /session-review/stream`
-- AI-assisted review stays advisory only; strategy/model changes still require explicit confirmation.
+## License
 
-## E10 Notes
+This project is licensed under the [MIT License](LICENSE).
 
-- `Knowledge Base` in `v1` is a light mode for notes, strategy rules, checklists, and observations.
-- Current `E10` routes:
-  - `GET /knowledge/overview`
-  - `POST /knowledge/items`
-  - `GET /knowledge/stream`
-- retrieval is intentionally advisory and must not block signal ranking, session start, or demo validation flows.
+## Disclaimer
 
-## E11 Notes
-
-- `Validation Lab` is the staged validation layer between observed behavior and any strategy/model activation.
-- Current `E11` routes:
-  - `GET /validation-lab/overview`
-  - `POST /validation-lab/runs`
-  - `POST /validation-lab/activation/review`
-  - `POST /validation-lab/activation/apply`
-  - `GET /validation-lab/stream`
-- activation remains explicit and operator-confirmed; replay evidence can return `ready`, `staged`, or `blocked` posture before apply.
-
-## E12 Notes
-
-- `Reliability Center` is the final Wave 1 discipline layer for degraded mode visibility, readiness checks, and release gates.
-- Current `E12` routes:
-  - `GET /reliability/overview`
-  - `POST /reliability/recheck`
-  - `GET /reliability/stream`
-- release gates remain operator-facing and explicit; a visible warning is better than a silent “probably stable” fairy tale.
+Clay is experimental software for educational and research purposes. It does not provide financial advice. Trading cryptocurrencies involves significant risk. The authors and contributors are not responsible for any financial losses incurred through the use of this software.
