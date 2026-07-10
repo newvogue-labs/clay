@@ -2,6 +2,14 @@ from pydantic import BaseModel, Field
 
 
 class RiskTriggerSnapshot(BaseModel):
+    """A single risk trigger detected during signal evaluation.
+
+    Triggers are raised when market freshness, context quality, AI health,
+    runtime posture, or volume thresholds violate safety constraints.
+    Each trigger carries a severity and a prescribed response action
+    (e.g. ``block_signal``, ``lower_confidence``, ``switch_to_defensive``).
+    """
+
     trigger_id: str
     severity: str
     title: str
@@ -10,12 +18,26 @@ class RiskTriggerSnapshot(BaseModel):
 
 
 class AppliedPenalty(BaseModel):
+    """A ranking penalty applied to a signal during evaluation.
+
+    Records the trigger that caused the penalty, the score delta, and
+    a human-readable note explaining the adjustment.
+    """
+
     trigger: str
     delta: float
     note: str
 
 
 class EvaluatedSignalSnapshot(BaseModel):
+    """A single evaluated signal with ranking, risk metadata, and advisory sizing.
+
+    Contains the full decision-support context for one trading pair:
+    direction, state lifecycle, confidence, risk triggers, Kelly sizing
+    estimates, and human-readable guidance.  Advisory-only — never an
+    execution instruction.
+    """
+
     signal_id: str
     symbol: str
     display_name: str
@@ -52,6 +74,13 @@ class EvaluatedSignalSnapshot(BaseModel):
 
 
 class SignalEngineSnapshot(BaseModel):
+    """Top-level snapshot produced by :class:`SignalEngineService.build_snapshot`.
+
+    Aggregates runtime posture, market/context freshness, strategy-mode
+    proposal, and the ranked list of evaluated signals for the current
+    cycle.
+    """
+
     runtime_state: str
     workspace_posture: str
     market_status: str

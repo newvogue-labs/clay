@@ -60,6 +60,17 @@ class SignalCandidate:
 
 
 class SignalEngineService:
+    """Build an :class:`SignalEngineSnapshot` from market, context, AI, and runtime inputs.
+
+    Evaluates each shortlisted symbol against freshness, context quality, AI
+    orchestration health, runtime posture, and volume floors.  Attaches
+    risk-triggers, ranking penalties, and **advisory** Kelly position sizing.
+
+    Advisory-only: this service never executes orders or places trades.
+    All sizing recommendations are informational and require human-in-the-loop
+    approval before any real-money action (Q5 gate).
+    """
+
     def __init__(
         self,
         *,
@@ -70,6 +81,21 @@ class SignalEngineService:
         ingestion_settings: IngestionSettings | None = None,
         clock: Clock = SystemClock(),
     ) -> None:
+        """Initialize the signal engine service.
+
+        Args:
+            runtime_manager: Provides the current runtime state snapshot.
+            preflight_service: Runs preflight checks (degraded-mode detection).
+            config_loader: Loads risk and Kelly configuration scopes.
+            ai_control_service: Builds the AI-control snapshot for assignment
+                health and confidence penalties.
+            ingestion_settings: Override for ingestion settings. When ``None``
+                (the default), a new :class:`~clay.settings.ingestion.IngestionSettings`
+                is created — this reads ``CLAY_DATABASE_URL`` from the
+                environment (FOOTGUN A: ensure the env-var is set or pass an
+                explicit instance).
+            clock: Clock source for timestamping (default: system clock).
+        """
         self.runtime_manager = runtime_manager
         self.preflight_service = preflight_service
         self.config_loader = config_loader
@@ -80,6 +106,19 @@ class SignalEngineService:
     def build_snapshot(
         self, session: Session, source_scope: Collection[str] | None = None
     ) -> SignalEngineSnapshot:
+        """Build the complete signal-engine snapshot for the current cycle.
+
+        Args:
+            session: SQLAlchemy database session for market/context/ops reads.
+            source_scope: Optional collection of connector IDs to limit which
+                demo trade records are considered for Kelly sizing. When
+                ``None``, the default read scope is used.
+
+        Returns:
+            A fully populated :class:`SignalEngineSnapshot` containing evaluated
+            signals, risk triggers, workspace posture, and strategy-mode
+            proposal.
+        """
         runtime_snapshot = self.runtime_manager.snapshot()
         candidates = self._evaluate_candidates(session, source_scope=source_scope)
         signals = sorted(
