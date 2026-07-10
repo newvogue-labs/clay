@@ -79,6 +79,17 @@ plugins:
           - architecture-maps/*.md
         Tooling:
           - tooling/notion-mirror.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [backend/src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: false
+            members_order: source
+            separate_signature: true
+            show_if_no_docstring: false
   - glightbox:
       touchNavigation: true
       zoomable: true
