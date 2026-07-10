@@ -92,6 +92,26 @@ RPD_LIMITS: dict[str, int | None] = {
 
 
 class AIControlService:
+    """Orchestrator for AI-control: role/model registries, assignment state, and operator-review workflow.
+
+    Maintains code-only registries of AI roles (chief-agent, market-scanner,
+    news-sentiment-agent, forecast-model) and available model versions.
+    Tracks the current assignment of models to roles, detects provider-mix
+    conflicts, and manages the operator-review cycle:
+
+    1. ``review_assignment`` creates a pending review card.
+    2. ``apply_assignment`` commits the reviewed change (if not blocked by
+       preflight hard-fail).
+
+    When a ``session_factory`` is supplied, assignment state and pending
+    reviews are persisted to the ``ops`` runtime-state tables (write-through).
+    Without one, the service falls back to in-memory defaults for testing.
+
+    The ``set_assignment`` method provides a trusted internal path used by
+    ``validation_lab`` for activation promotions — it bypasses the review
+    workflow but writes through the same persistence layer.
+    """
+
     def __init__(
         self,
         *,
@@ -103,6 +123,22 @@ class AIControlService:
         session_factory: sessionmaker | None = None,
         clock: Clock = SystemClock(),
     ) -> None:
+        """Initialize the AI-control service.
+
+        Args:
+            runtime_manager: Provides runtime state for conflict/fallback
+                evaluation.
+            preflight_service: Runs preflight checks (blocks apply on
+                hard-fail).
+            config_loader: Loads risk configuration for confidence-penalty
+                thresholds.
+            audit_writer: Writes audit trail entries for assignment changes.
+            event_bus: Publishes ``ai.updated`` events for downstream refresh.
+            session_factory: Optional SQLAlchemy sessionmaker for persisting
+                assignment state. When ``None``, in-memory defaults are used
+                (legacy/testing path).
+            clock: Clock source for timestamping (default: system clock).
+        """
         self.runtime_manager = runtime_manager
         self.preflight_service = preflight_service
         self.config_loader = config_loader
@@ -153,6 +189,22 @@ class AIControlService:
                 session.commit()
 
     def build_snapshot(self, session: Session | None = None) -> AIControlSnapshot:
+        """Build the complete AI-control snapshot.
+
+        Reads in-memory assignment state restored at ``__init__``.  The
+        ``session`` parameter is accepted for API uniformity with other
+        ``build_snapshot`` services and is forwarded to ``apply_assignment``
+        internally — snapshot construction itself does not require it.
+
+        Args:
+            session: Optional database session.  When provided, run summaries
+                and RPD budgets are populated from the ``ai_agent_runs`` table.
+
+        Returns:
+            A fully populated AIControlSnapshot containing roles, models,
+            assignments, conflicts, fallback posture, pending review card,
+            run summaries, and RPD budgets.
+        """
         # ``session`` is accepted for API uniformity with the other
         # ``build_snapshot(session)`` services in the project and because
         # ``apply_assignment`` forwards it through. Snapshot construction
@@ -310,6 +362,24 @@ class AIControlService:
         *,
         session: Session,
     ) -> ReviewCardSnapshot:
+        """Create a pending review for assigning a model to a role.
+
+        Validates role/model compatibility, then persists the pending review
+        (write-through) so a restart between review and apply still sees it.
+
+        Args:
+            role_id: Target role (e.g. ``"chief-agent"``).
+            model_id: Proposed model (e.g. ``"minimax-m3"``).
+            session: Database session for write-through persistence.
+
+        Returns:
+            A ReviewCardSnapshot with severity, risks, expected effects, and
+            whether ``blocks_apply`` is active.
+
+        Raises:
+            ValueError: Unknown role, unknown model, or incompatible
+                role/model pair.
+        """
         self._validate_role_and_model(role_id, model_id)
         self._pending_review = PendingReview(
             review_id=str(uuid4()),
@@ -332,6 +402,24 @@ class AIControlService:
     def apply_assignment(
         self, review_id: str, *, session: Session
     ) -> AIControlSnapshot:
+        """Apply a previously reviewed assignment change.
+
+        Commits the pending review: writes the new assignment to the DB
+        (write-through), clears the pending review row, emits an audit
+        entry, and publishes an ``ai.updated`` event.
+
+        Args:
+            review_id: The review ID from the ReviewCardSnapshot returned
+                by ``review_assignment``.
+            session: Database session for write-through persistence.
+
+        Returns:
+            An updated AIControlSnapshot reflecting the new assignment.
+
+        Raises:
+            ValueError: Review card is missing, stale, or ``blocks_apply``
+                is ``True`` (preflight hard-fail).
+        """
         if self._pending_review is None or self._pending_review.review_id != review_id:
             raise ValueError("review card is missing or stale")
 
