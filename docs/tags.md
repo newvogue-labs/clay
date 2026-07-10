@@ -20,6 +20,6 @@ Domain taxonomy for Clay reference docs. Each tag groups pages by subject area.
 | **infra** | Systemd, pool health, config management |
 | **ops** | Retention, deploy runbooks, operations |
 
-:material-tags:
+<!-- material/tags -->
 
 Tags are assigned via YAML frontmatter on each page.
