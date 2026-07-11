@@ -55,8 +55,7 @@ class ModelVersionSnapshot(BaseModel):
     """Snapshot of a registered AI model version.
 
     Captures provider, source, activation status, compatible roles, and
-    fallback readiness. The ``transport`` field (local vs cloud) drives
-    RoutingModelClient's per-call routing decision.
+    fallback readiness for the operator dashboard's model registry view.
     """
 
     model_id: str
