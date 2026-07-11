@@ -143,7 +143,7 @@ Clay ships with demo connectors for news and sentiment data, and a demo trading 
 | **Live docs** | [newvogue-labs.github.io/clay](https://newvogue-labs.github.io/clay/) |
 | **Architecture Decisions (ADR)** | [ADR index](https://newvogue-labs.github.io/clay/adr/) — 14 decisions (016–031) |
 | **Runbooks** | [Runbooks](https://newvogue-labs.github.io/clay/mission-control/deploy-runbook/) — deploy, preflight, degraded mode, kill-switch, LiteLLM gateway |
-| **Architecture Maps** | [D1–D4](https://newvogue-labs.github.io/clay/architecture-maps/) — system context, module map, trading cycle, data flow |
+| **Architecture Maps** | [D1–D5](https://newvogue-labs.github.io/clay/architecture-maps/) — system context, module map, trading cycle, data flow, systemd boot chain |
 | **Tags** | [Tag index](https://newvogue-labs.github.io/clay/tags/) — 8 domain tags across all public pages |
 | **LLM-friendly** | [`llms.txt`](https://newvogue-labs.github.io/clay/llms.txt) and per-page `.md` variants for AI consumption |
 
