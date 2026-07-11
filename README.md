@@ -1,4 +1,10 @@
-<!-- PLACEHOLDER: logo — S4-4a2 deferred -->
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/banner-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="brand/banner-light.png">
+    <img alt="Clay" src="brand/banner-dark.png" width="640">
+  </picture>
+</p>
 
 # Clay
 
