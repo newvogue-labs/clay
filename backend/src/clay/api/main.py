@@ -37,6 +37,16 @@ from clay.api.routes.override import router as override_router
 
 
 def create_app() -> FastAPI:
+    """Create and configure the Clay API application.
+
+    Factory function that initialises logging, builds a FastAPI instance
+    (title ``"Clay API"``, version ``"0.1.0"``, summary ``"Local control
+    plane for Clay"``), configures CORS (dev origins 5173/4173), mounts
+    all route routers, and attaches the application lifespan.
+
+    Returns:
+        A fully configured FastAPI application ready to serve.
+    """
     configure_clay_logging()
     app = FastAPI(
         title="Clay API",
