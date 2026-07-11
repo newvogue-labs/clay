@@ -31,6 +31,15 @@ class ScoredChunk:
 
 
 class KnowledgeService:
+    """Keyword + metadata retrieval service for the knowledge layer.
+
+    Provides advisory context for operator review and research. The
+    knowledge layer is explicitly outside the realtime signal path
+    (M278, ``hot_path_dependency=False``). Mutations write audit trail
+    entries and publish ``knowledge.updated`` events for downstream
+    refresh.
+    """
+
     def __init__(
         self,
         *,
@@ -47,6 +56,18 @@ class KnowledgeService:
         query: str | None = None,
         category: str | None = None,
     ) -> KnowledgeSnapshot:
+        """Build the complete knowledge snapshot.
+
+        Args:
+            session: Database session for reading items and chunks.
+            query: Optional search query. When provided, search results
+                are included in the snapshot.
+            category: Optional category filter for search results.
+
+        Returns:
+            A KnowledgeSnapshot with summary, recent items (up to 20),
+            and search results (empty when no query).
+        """
         repository = KnowledgeRepository(session)
         items = repository.list_recent_items(limit=20)
         search_results: list[KnowledgeSearchResultSnapshot] = []
@@ -64,6 +85,21 @@ class KnowledgeService:
         session: Session,
         command: KnowledgeCreateCommand,
     ) -> KnowledgeSnapshot:
+        """Create or update a knowledge item by external ID.
+
+        When ``command.external_id`` matches an existing item, the item
+        and its chunks are replaced (idempotent). Otherwise a new item
+        is created. Writes an audit entry and publishes a
+        ``knowledge.updated`` event.
+
+        Args:
+            session: Database session for persistence.
+            command: The create/upsert command with title, category,
+                priority, tags, content, and optional external ID.
+
+        Returns:
+            An updated KnowledgeSnapshot reflecting the mutation.
+        """
         repository = KnowledgeRepository(session)
         chunks = self._chunk_content(command.content)
         chunk_models = [
@@ -112,6 +148,20 @@ class KnowledgeService:
         session: Session,
         command: KnowledgeCreateCommand,
     ) -> KnowledgeSnapshot:
+        """Create a new knowledge item (always inserts, never upserts).
+
+        Unlike ``upsert_item``, this method ignores ``external_id`` and
+        always creates a fresh item. Writes an audit entry and publishes
+        a ``knowledge.updated`` event.
+
+        Args:
+            session: Database session for persistence.
+            command: The create command with title, category, priority,
+                tags, and content.
+
+        Returns:
+            An updated KnowledgeSnapshot reflecting the new item.
+        """
         repository = KnowledgeRepository(session)
         now = datetime.now(UTC)
         item = repository.create_item(
@@ -164,6 +214,20 @@ class KnowledgeService:
         session: Session,
         item_id: int,
     ) -> KnowledgeSnapshot:
+        """Delete a knowledge item and its chunks.
+
+        Writes an audit entry and publishes a ``knowledge.updated`` event.
+
+        Args:
+            session: Database session for persistence.
+            item_id: The ID of the item to delete.
+
+        Returns:
+            An updated KnowledgeSnapshot reflecting the deletion.
+
+        Raises:
+            ValueError: If the item with the given ID does not exist.
+        """
         repository = KnowledgeRepository(session)
         if not repository.delete_item(item_id):
             raise ValueError(f"Knowledge item {item_id} not found")
@@ -188,6 +252,22 @@ class KnowledgeService:
         query: str,
         category: str | None = None,
     ) -> list[KnowledgeSearchResultSnapshot]:
+        """Search knowledge items by keyword with metadata scoring.
+
+        Tokenizes the query and matches against title, tags, and chunk
+        text. Results are ranked by a composite score (coverage, density,
+        priority bonus) and deduplicated by item ID. Retrieval is
+        advisory — scores do not affect live signal ranking.
+
+        Args:
+            session: Database session for reading candidates.
+            query: Search string to tokenize and match.
+            category: Optional category filter applied before scoring.
+
+        Returns:
+            Up to 10 deduplicated search results, ordered by score
+            descending. Empty list when the query tokenizes to nothing.
+        """
         repository = KnowledgeRepository(session)
         query_tokens = self._tokenize(query)
         if not query_tokens:
