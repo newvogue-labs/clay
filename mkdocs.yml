@@ -12,6 +12,8 @@ extra_css:
 theme:
   name: material
   language: en
+  logo: assets/brand/clay-icon.svg
+  favicon: assets/brand/favicon-32.png
   features:
     - navigation.sections
     - navigation.top
