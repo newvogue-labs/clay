@@ -59,18 +59,31 @@ def test_build_execution_client_testnet_missing_keys_raises(
         build_execution_client(mode="testnet")
 
 
-def test_build_execution_client_live_raises() -> None:
-    with pytest.raises(ExecutionConfigError, match="not implemented"):
+def test_build_execution_client_live_requires_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CLAY_BINANCE_LIVE_API_KEY", raising=False)
+    monkeypatch.delenv("CLAY_BINANCE_LIVE_API_SECRET", raising=False)
+    with pytest.raises(ExecutionConfigError, match="required"):
         build_execution_client(mode="live")
 
 
-def test_live_execution_client_raises_on_construction() -> None:
-    with pytest.raises(ExecutionConfigError, match="not implemented"):
-        LiveExecutionClient()
+def test_build_execution_client_live_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CLAY_BINANCE_LIVE_API_KEY", "lk")
+    monkeypatch.setenv("CLAY_BINANCE_LIVE_API_SECRET", "ls")
+    client = build_execution_client(mode="live")
+    assert client.source == "binance_live"
+
+
+def test_live_execution_client_requires_keys() -> None:
+    with pytest.raises(ExecutionConfigError, match="required"):
+        LiveExecutionClient(api_key="", api_secret="")
 
 
 def test_live_execution_client_source_label() -> None:
-    assert LiveExecutionClient.source == "live"
+    assert LiveExecutionClient.source == "binance_live"
 
 
 def test_dry_run_client_satisfies_execution_protocol() -> None:
