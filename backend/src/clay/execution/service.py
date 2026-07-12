@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -64,12 +65,14 @@ class OverrideService:
         audit_writer: AuditWriter | None = None,
         clock: Clock = SystemClock(),
         execution_config: ExecutionConfig | None = None,
+        degraded_probe: Callable[[], bool] | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._audit_writer = audit_writer
         self._clock = clock
         self._execution_config = execution_config
         self._state: _OverrideState = _OverrideState()
+        self._degraded_probe: Callable[[], bool] | None = degraded_probe
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
@@ -80,6 +83,14 @@ class OverrideService:
         Re-arm requires an explicit ``request`` → ``confirm`` cycle.
         """
         self._state = _OverrideState()
+
+    def set_degraded_probe(self, probe: Callable[[], bool]) -> None:
+        """Late-bind the degraded-probe callback (S-LIVE-3).
+
+        Called from bootstrap after ``ReliabilityService`` is constructed,
+        since ``OverrideService`` is built earlier in the dependency order.
+        """
+        self._degraded_probe = probe
 
     async def request_override(
         self,
@@ -296,9 +307,18 @@ class OverrideService:
         return True
 
     def _is_degraded(self) -> bool:
-        # Degraded = proactive killswitch engaged; live+pending → inert.
-        # Extended by 3b-3 / 3b-4 for session/connector degradation signals.
-        return False
+        # S-LIVE-3: delegate to injected probe (dependency-inversion).
+        # No probe → False (backward-compat pre-S-LIVE-3).
+        # Probe raises → True (fail-closed: error = degraded).
+        if self._degraded_probe is None:
+            return False
+        try:
+            return bool(self._degraded_probe())
+        except Exception:
+            logger.warning(
+                "degraded_probe raised; failing closed (degraded=True)", exc_info=True
+            )
+            return True
 
     async def _append_audit(
         self,
