@@ -212,6 +212,7 @@ def build_services(
         api_key=execution_config.api_key,
         api_secret=execution_config.api_secret,
         recv_window=execution_config.recv_window,
+        max_order_notional_usdt=execution_config.max_order_notional_usdt,
     )
     override_service = OverrideService(
         session_factory=session_factory,
