@@ -44,7 +44,9 @@
 | 028 | *(резерв)* | — | — | |
 | 029 | Capital Exposure Hard-Block (dual-tier off-by-default) | accepted | docs/adr | [`029-capital-exposure-hard-block.md`](029-capital-exposure-hard-block.md) |
 | 030 | Advisory #knowledge → chief-agent (advisory-only) | Accepted | docs/adr | [`030-advisory-knowledge-chief-agent.md`](030-advisory-knowledge-chief-agent.md) |
-| 031+ | свободны | — | — | |
+| 031 | Notion-mirror publisher — односторонний sync vault → Notion | Accepted | docs/adr | [`031-notion-mirror-publisher.md`](031-notion-mirror-publisher.md) |
+| 032 | Exchange Execution Adapter (Multi-Venue) | Proposed | docs/adr | [`032-exchange-execution-adapter-multi-venue.md`](032-exchange-execution-adapter-multi-venue.md) |
+| 033+ | свободны | — | — | |
 
 ## Карта номеров
 
