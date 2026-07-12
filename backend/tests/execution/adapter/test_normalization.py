@@ -194,3 +194,12 @@ class TestQuantizeOrder:
         result = quantize_order(req, rules)
         assert result is not req
         assert result.client_order_id == req.client_order_id
+
+    def test_significant_digits_not_implemented(self) -> None:
+        req = _make_request(quantity="0.015")
+        rules = _default_rules(
+            amount_step=Decimal("0.001"),
+            precision_mode=PrecisionMode.SIGNIFICANT_DIGITS,
+        )
+        with pytest.raises(NotImplementedError, match="SIGNIFICANT_DIGITS"):
+            quantize_order(req, rules)
