@@ -3,7 +3,7 @@
 No I/O, no network, no float — sync only.
 """
 
-from decimal import Decimal, ROUND_FLOOR
+from decimal import Decimal
 
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import OrderType
@@ -53,25 +53,54 @@ def validate_order(req: OrderRequest, rules: MarketRules) -> None:
             )
 
 
+def _floor_to_step(value: Decimal, step: Decimal) -> Decimal:
+    """Floor *value* to the nearest multiple of *step* (divide-floor-multiply)."""
+    if step <= 0:
+        return value
+    return (value // step) * step
+
+
+def _round_to_tick(value: Decimal, tick: Decimal) -> Decimal:
+    """Floor *value* to the nearest tick grid point.
+
+    Uses divide-floor-multiply — correct for non-power-of-10 ticks
+    (0.05, 0.25, 2.5) where ``Decimal.quantize`` silently misrounds.
+    """
+    if tick <= 0:
+        return value
+    return (value // tick) * tick
+
+
+def _round_to_sig_digits(value: Decimal, step: Decimal) -> Decimal:
+    """Floor *value* to the number of significant digits in *step*.
+
+    Not yet implemented — no current venue requires SIGNIFICANT_DIGITS.
+    Will be completed when a venue with this precision mode is added.
+    """
+    raise NotImplementedError(
+        "SIGNIFICANT_DIGITS precision mode is not yet implemented"
+    )
+
+
 def quantize_order(req: OrderRequest, rules: MarketRules) -> OrderRequest:
-    """Round *req* quantities to the venue grid (floor on quantity).
+    """Round *req* quantities to the venue grid.
 
     Returns a new frozen ``OrderRequest`` with quantized values.
     ``quantity`` is floored to avoid exceeding available balance;
-    ``price`` is rounded to the nearest tick.
+    ``price``/``stop_price`` are floored to the tick grid.
+
+    ``precision_mode`` controls quantity quantization:
+    - ``TICK_SIZE`` / ``DECIMAL_PLACES``: floor to ``amount_step``.
+    - ``SIGNIFICANT_DIGITS``: floor to N significant digits derived
+      from ``amount_step``.
     """
+    from clay.execution.adapter.enums import PrecisionMode
 
-    def _floor_to_step(value: Decimal, step: Decimal) -> Decimal:
-        if step == 0:
-            return value
-        return (value / step).to_integral_value(rounding=ROUND_FLOOR) * step
+    if rules.precision_mode == PrecisionMode.SIGNIFICANT_DIGITS:
+        quantized_qty = _round_to_sig_digits(req.quantity, rules.amount_step)
+    else:
+        quantized_qty = _floor_to_step(req.quantity, rules.amount_step)
 
-    def _round_to_tick(value: Decimal, tick: Decimal) -> Decimal:
-        if tick == 0:
-            return value
-        return value.quantize(tick, rounding=ROUND_FLOOR)
-
-    quantized_qty = _floor_to_step(req.quantity, rules.amount_step)
     quantized_price = (
         _round_to_tick(req.price, rules.price_tick) if req.price is not None else None
     )
