@@ -307,6 +307,21 @@ def build_services(
     if session_factory is not None:
         session_control_service.reconcile_runtime_state()
 
+    # S-LIVE-3: late-bind the degraded-probe into OverrideService.
+    # OverrideService is built early (before reliability); this wires
+    # the probe after ReliabilityService exists. session_factory=None
+    # (legacy/unit path) → probe stays None → _is_degraded() returns False.
+    if session_factory is not None:
+
+        def _degraded_probe() -> bool:
+            with session_factory() as session:
+                return (
+                    reliability_service.build_snapshot(session).summary.overall_status
+                    == "degraded"
+                )
+
+        override_service.set_degraded_probe(_degraded_probe)
+
     alpha_readiness_service = AlphaReadinessService(
         workspace_service=workspace_service,
         session_control_service=session_control_service,
