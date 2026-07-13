@@ -13,12 +13,15 @@ from clay.core.clock import Clock, SystemClock
 from clay.db.models_ops import ExecutionOverride
 from clay.db.repositories_ops import OverrideRepository
 from clay.execution.config import ExecutionConfig
-from clay.execution.exceptions import ExecutionConfigError
 
 
 logger = logging.getLogger(__name__)
 
 OVERRIDE_TTL = timedelta(hours=1)
+
+
+class ExecutionConfigError(Exception):
+    """Invalid execution configuration (missing keys, bad mode)."""
 
 
 @dataclass

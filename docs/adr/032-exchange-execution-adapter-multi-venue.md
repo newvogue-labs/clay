@@ -167,7 +167,16 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 | **S-ADAPT-4** | CircuitBreaker + read-only fallback-chain (Q1 решается тут). | S-ADAPT-2 |
 | **S-ADAPT-5** | Второй венью-подкласс (Bybit demo) через capability-overlay — доказать переносимость. | S-ADAPT-3, S-ADAPT-4 |
 
-**Порядок:** S-ADAPT-1 → S-ADAPT-2 → (S-ADAPT-3 + S-ADAPT-4) → S-ADAPT-5.
+## Errata 2026-07-13 (S-ADAPT-2C)
+
+- **S-ADAPT-2C completed.** `BinanceExecutionAdapter` — боевой путь для `POST /testnet-probe`. Legacy `ExecutionClient`/`*TestnetExecutionClient`/factory/protocol/models удалены.
+- **`validate`/`quantize` — sync (не async).** Doc fix: протокол объявляет `validate_order` и `quantize_order` как sync (в `ExchangeAdapter` port они sync). ADR-032 §(a) приводился с async-аннотацией — исправлено в имплементации.
+- **`OrderSnapshot` vs `OrderState`:** ADR-032 §(a) `get_order` возвращает `OrderState` — исправлено: возвращает `OrderSnapshot` (полные данные).
+- **`SIGNIFICANT_DIGITS`:** не реализован числово — `NotImplementedError` (долг для S-ADAPT-5+).
+- **`MIN_NOTIONAL`:** legacy filterType поддержан (fallback в `get_market_rules`).
+- **`price="0"` edge:** market-order `price` → `None` (не `Decimal("0")`).
+
+**Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → (S-ADAPT-3 + S-ADAPT-4) → S-ADAPT-5.
 
 ## Не-цели (out of scope)
 
