@@ -34,9 +34,7 @@ class TestCheckOrderNotional:
         )
 
     def test_on_over_cap_raises(self):
-        with pytest.raises(
-            OperationNotAllowedError, match="exceeds cap"
-        ):
+        with pytest.raises(OperationNotAllowedError, match="exceeds cap"):
             check_order_notional(
                 symbol="BTCUSDT",
                 quantity=Decimal("0.01"),
@@ -45,9 +43,7 @@ class TestCheckOrderNotional:
             )
 
     def test_on_missing_price_fails_closed(self):
-        with pytest.raises(
-            OperationNotAllowedError, match="price is unknown"
-        ):
+        with pytest.raises(OperationNotAllowedError, match="price is unknown"):
             check_order_notional(
                 symbol="BTCUSDT",
                 quantity=Decimal("0.01"),

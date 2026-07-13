@@ -316,9 +316,7 @@ class BinanceExecutionAdapter:
 
         price_raw = response.get("price")
         price = (
-            _dec(price_raw)
-            if price_raw is not None and _dec(price_raw) != 0
-            else None
+            _dec(price_raw) if price_raw is not None and _dec(price_raw) != 0 else None
         )
         return OrderAck(
             client_order_id=str(response.get("clientOrderId", client_order_id)),
@@ -341,9 +339,7 @@ class BinanceExecutionAdapter:
 
         price_raw = response.get("price")
         price = (
-            _dec(price_raw)
-            if price_raw is not None and _dec(price_raw) != 0
-            else None
+            _dec(price_raw) if price_raw is not None and _dec(price_raw) != 0 else None
         )
         return OrderSnapshot(
             client_order_id=str(response.get("clientOrderId", "")),

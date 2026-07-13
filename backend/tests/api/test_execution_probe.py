@@ -358,7 +358,9 @@ def test_notional_cap_over_returns_422(app, testnet_config: ExecutionConfig) -> 
     assert "exceeds cap" in resp.json()["detail"]
 
 
-def test_notional_cap_off_by_default_returns_200(app, testnet_config: ExecutionConfig) -> None:
+def test_notional_cap_off_by_default_returns_200(
+    app, testnet_config: ExecutionConfig
+) -> None:
     zero_cap_config = ExecutionConfig(
         mode="testnet",
         api_key="test-key",
@@ -384,7 +386,9 @@ def test_notional_cap_off_by_default_returns_200(app, testnet_config: ExecutionC
     assert resp.status_code == 200
 
 
-def test_notional_cap_fail_closed_market_no_price(app, testnet_config: ExecutionConfig) -> None:
+def test_notional_cap_fail_closed_market_no_price(
+    app, testnet_config: ExecutionConfig
+) -> None:
     """Cap active + market order without price → fail-closed 422."""
     cap_config = ExecutionConfig(
         mode="testnet",
