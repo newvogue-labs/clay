@@ -720,3 +720,26 @@ class TestMarketOrderPriceZero:
 
         assert ack.price is not None
         assert ack.price > Decimal("0")
+
+    @pytest.mark.anyio
+    async def test_price_zero_string_five_decimals(self) -> None:
+        """Real Binance returns '0.00000000' for market orders."""
+        client = FakeBinanceClient()
+        client._orders["test-001"] = {}  # prevent KeyError
+        original_create = client.create_order
+
+        async def create_with_price_00000000(**kwargs: Any) -> dict[str, Any]:
+            result = await original_create(**kwargs)
+            result["price"] = "0.00000000"
+            return result
+
+        client.create_order = create_with_price_00000000  # type: ignore[assignment]
+        client._markets = {"BTCUSDT": _make_binance_market()}
+        adapter = _adapter(client)
+
+        req = _make_request(price=None, order_type=OrderType.MARKET)
+        rules = await adapter.get_market_rules("BTCUSDT")
+        quantized = adapter.quantize_order(req, rules)
+        ack = await adapter.place_order(quantized)
+
+        assert ack.price is None, f"expected None but got {ack.price!r}"

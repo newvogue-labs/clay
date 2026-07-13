@@ -1,40 +1,46 @@
 """POST /workspace/trading/execution/testnet-probe — live testnet order probe.
 
 Operator-initiated endpoint that places a REAL order on Binance Spot
-testnet, validating the signal→execution chain on a live testnet API.
+testnet, validating the signal->execution chain on a live testnet API.
 
 Safety gates:
-  - default-deny: only ``testnet`` mode allowed (dry_run → 409)
-  - notional guard: adapter-side via ``validate_order`` + venue market rules
+  - default-deny: only ``testnet`` mode allowed (dry_run -> 409)
+  - notional guard: per-order cap (S-LIVE-2) with fail-closed semantics
+    (cap>0 + unknown price -> reject)
+  - adapter validate+quantize before any cex call
 
 BREAKING-CHANGE (v2): monetary fields now serialise as **str** not float
-(Decimal → JSON string). Frontend consumers: none — operator/curl only.
+(Decimal -> JSON string). Frontend consumers: none — operator/curl only.
 
 Audit: durable write via ``AuditWriter.write`` (sync, from bootstrap).
 """
 
 from __future__ import annotations
 
-from typing import Annotated
+from decimal import Decimal
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from clay.api.dependencies import get_execution_client, get_execution_config
 from clay.bootstrap import audit_writer
-from clay.execution.adapter.domain import OrderAck
+from clay.execution.adapter.domain import OrderAck, OrderRequest
+from clay.execution.adapter.enums import OrderSide, OrderType, TimeInForce
 from clay.execution.adapter.errors import (
     AdapterError,
     InvalidOrderError,
+    OperationNotAllowedError,
     OrderRejectedError,
 )
+from clay.execution.adapter.notional import check_order_notional
 from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.config import ExecutionConfig
 
 router = APIRouter(prefix="/workspace/trading/execution", tags=["execution"])
 
 
-# ── Response models (v2 — Decimal as str) ─────────────────────────
+# -- Response models (v2 -- Decimal as str) -------------------------
 
 
 class TestnetProbeFill(BaseModel):
@@ -63,7 +69,7 @@ class TestnetProbeResponse(BaseModel):
     fills: list[TestnetProbeFill] = []
 
 
-# ── Request model ─────────────────────────────────────────────────
+# -- Request model -------------------------------------------------
 
 
 class TestnetProbeRequest(BaseModel):
@@ -75,12 +81,12 @@ class TestnetProbeRequest(BaseModel):
     client_order_id: str | None = None
 
 
-# ── Mapper: adapter domain → pydantic response ───────────────────
+# -- Mapper: adapter domain -> pydantic response ----
 
 
-def _ack_to_response(ack: OrderAck, client_order_id: str) -> TestnetProbeResponse:
+def _ack_to_response(ack: OrderAck) -> TestnetProbeResponse:
     return TestnetProbeResponse(
-        client_order_id=ack.client_order_id or client_order_id,
+        client_order_id=ack.client_order_id,
         exchange_order_id=ack.venue_order_id,
         symbol=ack.symbol,
         side=ack.side.value,
@@ -106,36 +112,33 @@ def _ack_to_response(ack: OrderAck, client_order_id: str) -> TestnetProbeRespons
     )
 
 
-# ── Endpoint ──────────────────────────────────────────────────────
+# -- Endpoint -----------------------------------------
 
 
 @router.post("/testnet-probe", response_model=TestnetProbeResponse)
 async def testnet_probe(
     payload: TestnetProbeRequest,
-    exec_config: Annotated[ExecutionConfig, Depends(get_execution_config)],
-    client: Annotated[ExchangeAdapter, Depends(get_execution_client)],
+    exec_config: ExecutionConfig = Depends(get_execution_config),
+    client: ExchangeAdapter | None = Depends(get_execution_client),
 ) -> TestnetProbeResponse:
-    # V3: mode guard — only testnet allowed
+    # V3: mode guard
     if exec_config.mode != "testnet":
         raise HTTPException(
             status_code=409,
             detail=f"testnet-probe requires mode=testnet, current={exec_config.mode!r}",
         )
 
-    # V4: default-deny — no adapter for non-testnet modes
+    # V4: default-deny
     if client is None:
         raise HTTPException(
             status_code=409,
-            detail="execution not armed for testnet — no adapter available",
+            detail="execution not armed for testnet",
         )
 
-    # Build OrderRequest from payload
-    cid = payload.client_order_id or f"probe-{hash(str(payload))}"
-    from decimal import Decimal
+    # V1: resolve or allocate client_order_id
+    cid = payload.client_order_id or uuid4().hex
 
-    from clay.execution.adapter.domain import OrderRequest
-    from clay.execution.adapter.enums import OrderSide, OrderType, TimeInForce
-
+    # V2: build domain request
     req = OrderRequest(
         symbol=payload.symbol,
         side=OrderSide(payload.side),
@@ -143,10 +146,10 @@ async def testnet_probe(
         quantity=Decimal(payload.quantity),
         time_in_force=TimeInForce.GTC,
         client_order_id=cid,
-        price=Decimal(payload.price) if payload.price is not None else None,
+        price=Decimal(payload.price) if payload.price else None,
     )
 
-    # V5: validate + quantize via adapter domain functions
+    # V5: get market rules + validate
     try:
         rules = await client.get_market_rules(req.symbol)
     except AdapterError as exc:
@@ -155,17 +158,30 @@ async def testnet_probe(
     client.validate_order(req, rules)
     quantized = client.quantize_order(req, rules)
 
-    # V6: place via adapter
+    # V6: notional cap (S-LIVE-2) after quantization, before cex call
+    try:
+        check_order_notional(
+            symbol=quantized.symbol,
+            quantity=quantized.quantity,
+            price=quantized.price,
+            max_notional=Decimal(str(exec_config.max_order_notional_usdt)),
+        )
+    except OperationNotAllowedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # V7: place via adapter
     try:
         ack = await client.place_order(quantized)
     except InvalidOrderError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OrderRejectedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OperationNotAllowedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except AdapterError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    # V2: durable audit write (sync, from bootstrap)
+    # V8: durable audit write
     audit_writer.write(
         "execution.testnet_probe",
         {
@@ -186,4 +202,4 @@ async def testnet_probe(
         },
     )
 
-    return _ack_to_response(ack, cid)
+    return _ack_to_response(ack)

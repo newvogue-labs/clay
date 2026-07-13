@@ -74,7 +74,10 @@ def _dec(val: Any) -> Decimal:
     """Safely convert a ccxt value to ``Decimal`` — never ``Decimal(float)``."""
     if val is None:
         return Decimal("0")
-    return Decimal(str(val))
+    s = str(val).strip()
+    if not s:
+        return Decimal("0")
+    return Decimal(s)
 
 
 class BinanceExecutionAdapter:
@@ -314,7 +317,7 @@ class BinanceExecutionAdapter:
         price_raw = response.get("price")
         price = (
             _dec(price_raw)
-            if price_raw is not None and str(price_raw) not in ("", "0")
+            if price_raw is not None and _dec(price_raw) != 0
             else None
         )
         return OrderAck(
@@ -339,7 +342,7 @@ class BinanceExecutionAdapter:
         price_raw = response.get("price")
         price = (
             _dec(price_raw)
-            if price_raw is not None and str(price_raw) not in ("", "0")
+            if price_raw is not None and _dec(price_raw) != 0
             else None
         )
         return OrderSnapshot(

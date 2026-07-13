@@ -40,6 +40,13 @@ class AmbiguousExecutionError(AdapterError):
     """
 
 
+class OperationNotAllowedError(AdapterError):
+    """Operation not allowed by safety policy.
+
+    For example, hitting a per-order notional hard cap.
+    """
+
+
 def is_retryable(exc: BaseException) -> bool:
     """Return ``True`` only for transient / retryable adapter errors."""
     return isinstance(exc, TransientAdapterError)

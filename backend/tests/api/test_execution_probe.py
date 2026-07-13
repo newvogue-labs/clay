@@ -155,7 +155,7 @@ def testnet_config() -> ExecutionConfig:
         mode="testnet",
         api_key="test-key",
         api_secret="test-secret",
-        max_order_notional_usdt=50.0,
+        max_order_notional_usdt=0.0,
     )
 
 
@@ -329,3 +329,83 @@ def test_response_fields_are_strings_not_floats(
     assert isinstance(body["fills"][0]["quantity"], str)
     assert isinstance(body["fills"][0]["price"], str)
     assert isinstance(body["fills"][0]["commission"], str)
+
+
+def test_notional_cap_over_returns_422(app, testnet_config: ExecutionConfig) -> None:
+    cap_config = ExecutionConfig(
+        mode="testnet",
+        api_key="test-key",
+        api_secret="test-secret",
+        max_order_notional_usdt=0.01,
+    )
+    mock_client = _make_client(mode="testnet")
+
+    app.dependency_overrides[get_execution_config] = lambda: cap_config
+    app.dependency_overrides[get_execution_client] = lambda: mock_client
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "100",
+            "order_type": "market",
+            "price": "1.00",
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "exceeds cap" in resp.json()["detail"]
+
+
+def test_notional_cap_off_by_default_returns_200(app, testnet_config: ExecutionConfig) -> None:
+    zero_cap_config = ExecutionConfig(
+        mode="testnet",
+        api_key="test-key",
+        api_secret="test-secret",
+        max_order_notional_usdt=0.0,
+    )
+    mock_client = _make_client(mode="testnet")
+
+    app.dependency_overrides[get_execution_config] = lambda: zero_cap_config
+    app.dependency_overrides[get_execution_client] = lambda: mock_client
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "100",
+            "order_type": "market",
+            "price": "1.00",
+        },
+    )
+
+    assert resp.status_code == 200
+
+
+def test_notional_cap_fail_closed_market_no_price(app, testnet_config: ExecutionConfig) -> None:
+    """Cap active + market order without price → fail-closed 422."""
+    cap_config = ExecutionConfig(
+        mode="testnet",
+        api_key="test-key",
+        api_secret="test-secret",
+        max_order_notional_usdt=50.0,
+    )
+    mock_client = _make_client(mode="testnet")
+
+    app.dependency_overrides[get_execution_config] = lambda: cap_config
+    app.dependency_overrides[get_execution_client] = lambda: mock_client
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "market",
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "price is unknown" in resp.json()["detail"]
