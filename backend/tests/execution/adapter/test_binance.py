@@ -12,6 +12,7 @@ import pytest
 
 from clay.execution.adapter.binance import (
     BinanceExecutionAdapter,
+    _is_duplicate_cid,
     _map_state,
 )
 from clay.execution.adapter.domain import OrderRequest
@@ -33,6 +34,7 @@ from clay.execution.adapter.errors import (
 )
 from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.adapter.rules import MarketRules
+from clay.execution.resilience import RetryPolicy, ResilientExecutionAdapter
 
 
 # ---------------------------------------------------------------------------
@@ -372,8 +374,114 @@ class TestPlaceOrder:
 
 
 # ---------------------------------------------------------------------------
-# cancel_order
+# _is_duplicate_cid (unit)
 # ---------------------------------------------------------------------------
+
+
+class TestIsDuplicateCid:
+    def test_spot_error_code(self) -> None:
+        assert _is_duplicate_cid(
+            ccxt.ExchangeError("binance -4116 DUPLICATED_CLIENT_ORDER_ID")
+        )
+
+    def test_futures_error_code(self) -> None:
+        assert _is_duplicate_cid(
+            ccxt.InvalidOrder("binance -4116 DUPLICATED_CLIENT_ORDER_ID")
+        )
+
+    def test_code_only(self) -> None:
+        assert _is_duplicate_cid(ccxt.ExchangeError("binance -4116"))
+
+    def test_message_only(self) -> None:
+        assert _is_duplicate_cid(ccxt.ExchangeError("DUPLICATED_CLIENT_ORDER_ID"))
+
+    def test_unrelated_exchange_error(self) -> None:
+        assert not _is_duplicate_cid(ccxt.ExchangeError("generic error"))
+
+    def test_unrelated_invalid_order(self) -> None:
+        assert not _is_duplicate_cid(ccxt.InvalidOrder("LOT_SIZE filter failure"))
+
+    def test_empty_message(self) -> None:
+        assert not _is_duplicate_cid(ccxt.ExchangeError(""))
+
+
+# ---------------------------------------------------------------------------
+# place_order: duplicate clientOrderId → AmbiguousExecutionError
+# ---------------------------------------------------------------------------
+
+
+_DUPLICATE_CID_SPOT_MSG = (
+    "binance POST https://api.binance.com/api/v3/order 400 "
+    '{"code":-4116,"msg":"DUPLICATED_CLIENT_ORDER_ID"}'
+)
+_DUPLICATE_CID_FUTURES_MSG = (
+    "binance POST https://fapi.binance.com/fapi/v1/order 400 "
+    '{"code":-4116,"msg":"DUPLICATED_CLIENT_ORDER_ID"}'
+)
+
+
+class TestPlaceOrderDuplicateCid:
+    """Duplicate clientOrderId must raise AmbiguousExecutionError, not terminal."""
+
+    @pytest.mark.anyio
+    async def test_spot_exchange_error_is_ambiguous(self) -> None:
+        """Binance Spot maps -4116 → ExchangeError (not InvalidOrder)."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError(_DUPLICATE_CID_SPOT_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="-4116"):
+            await adapter.place_order(_make_request())
+
+    @pytest.mark.anyio
+    async def test_futures_invalid_order_is_ambiguous(self) -> None:
+        """USDT-M Futures maps -4116 → InvalidOrder — still ambiguous."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_FUTURES_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="-4116"):
+            await adapter.place_order(_make_request())
+
+    @pytest.mark.anyio
+    async def test_cid_preserved_in_message(self) -> None:
+        """AmbiguousExecutionError includes the client_order_id."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError(_DUPLICATE_CID_SPOT_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="cid='test-001'"):
+            await adapter.place_order(_make_request(client_order_id="test-001"))
+
+    @pytest.mark.anyio
+    async def test_invalid_order_without_dup_cid_stays_terminal(self) -> None:
+        """InvalidOrder WITHOUT -4116 must still raise InvalidOrderError."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder("LOT_SIZE filter failure")
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(InvalidOrderError):
+            await adapter.place_order(_make_request())
+
+    @pytest.mark.anyio
+    async def test_exchange_error_without_dup_cid_stays_rejected(self) -> None:
+        """ExchangeError WITHOUT -4116 must still raise OrderRejectedError."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError("some other error")
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(OrderRejectedError):
+            await adapter.place_order(_make_request())
 
 
 class TestCancelOrder:
@@ -743,3 +851,109 @@ class TestMarketOrderPriceZero:
         ack = await adapter.place_order(quantized)
 
         assert ack.price is None, f"expected None but got {ack.price!r}"
+
+
+# ---------------------------------------------------------------------------
+# Integration: dup-cid through ResilientExecutionAdapter (S-ADAPT-5a × S-ADAPT-3)
+# ---------------------------------------------------------------------------
+
+_DUPLICATE_CID_EXCHANGE_ERROR_MSG = (
+    "binance POST https://api.binance.com/api/v3/order 400 "
+    '{"code":-4116,"msg":"DUPLICATED_CLIENT_ORDER_ID"}'
+)
+
+
+def _fast_policy() -> RetryPolicy:
+    """Fast policy for tests — minimal delays."""
+    return RetryPolicy(
+        max_place_attempts=2,
+        max_read_attempts=3,
+        base_delay_s=Decimal("0.001"),
+        max_delay_s=Decimal("0.01"),
+        reconcile_skew_s=5,
+    )
+
+
+class TestDuplicateCidResilientIntegration:
+    """End-to-end: Binance dup-cid → AmbiguousExecutionError → reconcile-hit.
+
+    Verifies that the S-ADAPT-5a dup-cid guard (AmbiguousExecutionError)
+    correctly triggers the S-ADAPT-3 reconcile-before-retry flow through
+    ResilientExecutionAdapter — order found by cid, no blind re-place.
+    """
+
+    @pytest.mark.anyio
+    async def test_dupcid_reconcile_hit_returns_ack(self) -> None:
+        """dup-cid → ambiguous → reconcile finds order → ack, no re-place."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+
+        # 1st create_order: raises dup-cid ExchangeError (-4116)
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError(_DUPLICATE_CID_EXCHANGE_ERROR_MSG)
+        )  # type: ignore[assignment]
+        # reconcile_orders returns existing order with matching cid
+        client._all_orders = [
+            {
+                "id": "venue-existing",
+                "clientOrderId": "test-001",
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "type": "limit",
+                "amount": "0.01",
+                "filled": "0",
+                "price": "50000",
+                "status": "open",
+                "timestamp": 1700000000000,
+                "trades": [],
+            }
+        ]
+
+        resilient = ResilientExecutionAdapter(adapter, _fast_policy())  # type: ignore[arg-type]
+        req = _make_request()
+
+        ack = await resilient.place_order(req)
+
+        # Reconcile found the order — returned its ack
+        assert ack.client_order_id == "test-001"
+        assert ack.venue_order_id == "venue-existing"
+        # Only 1 create_order call (the one that raised dup-cid)
+        assert len(client.create_order.call_args_list) == 1
+        # 1 reconcile call (fetch_orders)
+        assert len(client._all_orders) == 1  # noqa: S101
+
+    @pytest.mark.anyio
+    async def test_invalid_order_without_dup_cid_stays_terminal(self) -> None:
+        """InvalidOrder WITHOUT -4116 → terminal, no reconcile."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder("LOT_SIZE filter failure")
+        )  # type: ignore[assignment]
+
+        resilient = ResilientExecutionAdapter(adapter, _fast_policy())  # type: ignore[arg-type]
+        req = _make_request()
+
+        with pytest.raises(InvalidOrderError):
+            await resilient.place_order(req)
+
+        assert len(client.create_order.call_args_list) == 1
+
+    @pytest.mark.anyio
+    async def test_exchange_error_without_dup_cid_stays_terminal(self) -> None:
+        """ExchangeError WITHOUT -4116 → terminal, no reconcile."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError("some other error")
+        )  # type: ignore[assignment]
+
+        resilient = ResilientExecutionAdapter(adapter, _fast_policy())  # type: ignore[arg-type]
+        req = _make_request()
+
+        with pytest.raises(OrderRejectedError):
+            await resilient.place_order(req)
+
+        assert len(client.create_order.call_args_list) == 1
