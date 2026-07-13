@@ -5,6 +5,9 @@ ccxt client can be injected for testing; ``None`` → real ``ccxt.binance``.
 
 Error-map (safety-critical):
 - ``place_order``: ``NetworkError`` → ``AmbiguousExecutionError`` (not transient).
+- ``place_order``: duplicate clientOrderId (-4116) → ``AmbiguousExecutionError``
+  (reconcile-before-retry, covers both spot ``ExchangeError`` and futures
+  ``InvalidOrder`` paths).
 - Read methods: ``NetworkError`` → ``TransientAdapterError`` (retry-safe).
 """
 
@@ -41,6 +44,20 @@ from clay.execution.adapter.errors import (
 )
 from clay.execution.adapter.normalization import quantize_order, validate_order
 from clay.execution.adapter.rules import MarketRules
+
+
+def _is_duplicate_cid(exc: Exception) -> bool:
+    """Detect Binance duplicate clientOrderId error (code -4116).
+
+    On Binance Spot ccxt maps ``-4116`` → ``ExchangeError`` (not
+    ``InvalidOrder``), while futures maps it → ``InvalidOrder``.  We
+    catch both via message inspection so that the upstream
+    ``AmbiguousExecutionError`` path (reconcile-before-retry) fires
+    regardless of venue type.
+    """
+    s = str(exc)
+    return "-4116" in s or "DUPLICATED_CLIENT_ORDER_ID" in s
+
 
 # Binance Spot supported order types and TIF policies
 _SPOT_ORDER_TYPES: frozenset[OrderType] = frozenset(
@@ -199,12 +216,22 @@ class BinanceExecutionAdapter:
         except ccxt.InsufficientFunds as exc:
             raise InsufficientFundsError(str(exc)) from exc
         except ccxt.InvalidOrder as exc:
+            if _is_duplicate_cid(exc):
+                raise AmbiguousExecutionError(
+                    f"duplicate clientOrderId (-4116): order may already "
+                    f"exist, reconcile required (cid={req.client_order_id!r})"
+                ) from exc
             raise InvalidOrderError(str(exc)) from exc
         except ccxt.NetworkError as exc:
             raise AmbiguousExecutionError(str(exc)) from exc
         except ccxt.AuthenticationError as exc:
             raise ConfigError(str(exc)) from exc
         except ccxt.ExchangeError as exc:
+            if _is_duplicate_cid(exc):
+                raise AmbiguousExecutionError(
+                    f"duplicate clientOrderId (-4116): order may already "
+                    f"exist, reconcile required (cid={req.client_order_id!r})"
+                ) from exc
             raise OrderRejectedError(str(exc)) from exc
 
         return self._ack_from_response(

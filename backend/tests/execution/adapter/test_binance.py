@@ -12,6 +12,7 @@ import pytest
 
 from clay.execution.adapter.binance import (
     BinanceExecutionAdapter,
+    _is_duplicate_cid,
     _map_state,
 )
 from clay.execution.adapter.domain import OrderRequest
@@ -372,8 +373,114 @@ class TestPlaceOrder:
 
 
 # ---------------------------------------------------------------------------
-# cancel_order
+# _is_duplicate_cid (unit)
 # ---------------------------------------------------------------------------
+
+
+class TestIsDuplicateCid:
+    def test_spot_error_code(self) -> None:
+        assert _is_duplicate_cid(
+            ccxt.ExchangeError("binance -4116 DUPLICATED_CLIENT_ORDER_ID")
+        )
+
+    def test_futures_error_code(self) -> None:
+        assert _is_duplicate_cid(
+            ccxt.InvalidOrder("binance -4116 DUPLICATED_CLIENT_ORDER_ID")
+        )
+
+    def test_code_only(self) -> None:
+        assert _is_duplicate_cid(ccxt.ExchangeError("binance -4116"))
+
+    def test_message_only(self) -> None:
+        assert _is_duplicate_cid(ccxt.ExchangeError("DUPLICATED_CLIENT_ORDER_ID"))
+
+    def test_unrelated_exchange_error(self) -> None:
+        assert not _is_duplicate_cid(ccxt.ExchangeError("generic error"))
+
+    def test_unrelated_invalid_order(self) -> None:
+        assert not _is_duplicate_cid(ccxt.InvalidOrder("LOT_SIZE filter failure"))
+
+    def test_empty_message(self) -> None:
+        assert not _is_duplicate_cid(ccxt.ExchangeError(""))
+
+
+# ---------------------------------------------------------------------------
+# place_order: duplicate clientOrderId → AmbiguousExecutionError
+# ---------------------------------------------------------------------------
+
+
+_DUPLICATE_CID_SPOT_MSG = (
+    "binance POST https://api.binance.com/api/v3/order 400 "
+    '{"code":-4116,"msg":"DUPLICATED_CLIENT_ORDER_ID"}'
+)
+_DUPLICATE_CID_FUTURES_MSG = (
+    "binance POST https://fapi.binance.com/fapi/v1/order 400 "
+    '{"code":-4116,"msg":"DUPLICATED_CLIENT_ORDER_ID"}'
+)
+
+
+class TestPlaceOrderDuplicateCid:
+    """Duplicate clientOrderId must raise AmbiguousExecutionError, not terminal."""
+
+    @pytest.mark.anyio
+    async def test_spot_exchange_error_is_ambiguous(self) -> None:
+        """Binance Spot maps -4116 → ExchangeError (not InvalidOrder)."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError(_DUPLICATE_CID_SPOT_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="-4116"):
+            await adapter.place_order(_make_request())
+
+    @pytest.mark.anyio
+    async def test_futures_invalid_order_is_ambiguous(self) -> None:
+        """USDT-M Futures maps -4116 → InvalidOrder — still ambiguous."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_FUTURES_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="-4116"):
+            await adapter.place_order(_make_request())
+
+    @pytest.mark.anyio
+    async def test_cid_preserved_in_message(self) -> None:
+        """AmbiguousExecutionError includes the client_order_id."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError(_DUPLICATE_CID_SPOT_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="cid='test-001'"):
+            await adapter.place_order(_make_request(client_order_id="test-001"))
+
+    @pytest.mark.anyio
+    async def test_invalid_order_without_dup_cid_stays_terminal(self) -> None:
+        """InvalidOrder WITHOUT -4116 must still raise InvalidOrderError."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder("LOT_SIZE filter failure")
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(InvalidOrderError):
+            await adapter.place_order(_make_request())
+
+    @pytest.mark.anyio
+    async def test_exchange_error_without_dup_cid_stays_rejected(self) -> None:
+        """ExchangeError WITHOUT -4116 must still raise OrderRejectedError."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError("some other error")
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(OrderRejectedError):
+            await adapter.place_order(_make_request())
 
 
 class TestCancelOrder:
