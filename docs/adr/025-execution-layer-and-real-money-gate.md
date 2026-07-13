@@ -289,6 +289,14 @@ dependencies = [
 
 **Порядок:** S-EXEC-1 → (S-EXEC-2 + S-EXEC-3 параллельно) → S-EXEC-4 → S-EXEC-5.
 
+## Errata 2026-07-13 (S-ADAPT-2C)
+
+- **ADR-025 legacy retired.** `ExecutionClient` protocol, `TestnetExecutionClient`/`DryRunExecutionClient`/`LiveExecutionClient`, и `build_execution_client` фабрика удалены. Заменены на `ExchangeAdapter` port + `BinanceExecutionAdapter` (ADR-032).
+- **`POST /testnet-probe`** теперь работает через `BinanceExecutionAdapter(Environment.TESTNET)`. Default-deny: адаптер строится только при `mode=testnet` + наличии credentials; иначе `409`.
+- **Breaking-change:** денежные поля в response — `str` (не `float`). Frontend-потребителей нет (operator/curl only).
+- **`execution_client` в bootstrap** — теперь `ExchangeAdapter | None` (не mode-dispatched).
+- **ADR-025 invariants Q5, default=dry_run, secrets never in repo — сохранены.**
+
 ## Не-цели (out of scope)
 
 - Real-money торговля и реальные prod-ключи

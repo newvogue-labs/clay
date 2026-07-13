@@ -27,3 +27,5 @@ playwright-report/
 backend/scripts/smoke_testnet_evidence.json
 frontend/test-results/
 site/
+.cache/
+.cache/

@@ -153,6 +153,10 @@ class BinanceExecutionAdapter:
         notional_filter = next(
             (f for f in filters if f.get("filterType") == "NOTIONAL"), {}
         )
+        if not notional_filter:
+            notional_filter = next(
+                (f for f in filters if f.get("filterType") == "MIN_NOTIONAL"), {}
+            )
 
         amount_step = _dec(lot_size.get("stepSize"))
         min_amount = _dec(lot_size.get("minQty"))
@@ -307,6 +311,12 @@ class BinanceExecutionAdapter:
         status = str(response.get("status", "open"))
         state = _map_state(status, filled_qty)
 
+        price_raw = response.get("price")
+        price = (
+            _dec(price_raw)
+            if price_raw is not None and str(price_raw) not in ("", "0")
+            else None
+        )
         return OrderAck(
             client_order_id=str(response.get("clientOrderId", client_order_id)),
             venue_order_id=str(response.get("id", "")),
@@ -315,7 +325,7 @@ class BinanceExecutionAdapter:
             order_type=OrderType(str(response.get("type", "limit"))),
             state=state,
             quantity=_dec(response.get("amount")),
-            price=_dec(response.get("price")) if response.get("price") else None,
+            price=price,
             transact_time=int(response.get("timestamp", 0)),
             fills=tuple(fills),
         )
@@ -326,6 +336,12 @@ class BinanceExecutionAdapter:
         status = str(response.get("status", "open"))
         state = _map_state(status, filled_qty)
 
+        price_raw = response.get("price")
+        price = (
+            _dec(price_raw)
+            if price_raw is not None and str(price_raw) not in ("", "0")
+            else None
+        )
         return OrderSnapshot(
             client_order_id=str(response.get("clientOrderId", "")),
             venue_order_id=str(response.get("id", "")),
@@ -335,7 +351,7 @@ class BinanceExecutionAdapter:
             state=state,
             quantity=_dec(response.get("amount")),
             executed_qty=filled_qty,
-            price=_dec(response.get("price")) if response.get("price") else None,
+            price=price,
             transact_time=int(response.get("timestamp", 0)),
             fills=tuple(fills),
         )

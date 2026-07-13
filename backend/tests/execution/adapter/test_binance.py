@@ -625,3 +625,98 @@ class TestConstructor:
             client=client,  # type: ignore[arg-type]
         )
         assert client._sandbox is False
+
+
+# ---------------------------------------------------------------------------
+# F-low #2: MIN_NOTIONAL filterType fallback
+# ---------------------------------------------------------------------------
+
+
+class TestMarketRulesMinNotionalFallback:
+    @pytest.mark.anyio
+    async def test_legacy_min_notional_filter(self) -> None:
+        market = _make_binance_market()
+        market["info"]["filters"] = [
+            {
+                "filterType": "LOT_SIZE",
+                "minQty": "0.001",
+                "maxQty": "1000",
+                "stepSize": "0.001",
+            },
+            {
+                "filterType": "PRICE_FILTER",
+                "minPrice": "0.01",
+                "maxPrice": "1000000",
+                "tickSize": "0.01",
+            },
+            {
+                "filterType": "MIN_NOTIONAL",
+                "minNotional": "10",
+            },
+        ]
+        client = FakeBinanceClient()
+        client._markets = {"BTCUSDT": market}
+        adapter = _adapter(client)
+
+        rules = await adapter.get_market_rules("BTCUSDT")
+
+        assert rules.min_notional == Decimal("10")
+
+    @pytest.mark.anyio
+    async def test_no_notional_filter_returns_zero(self) -> None:
+        market = _make_binance_market()
+        market["info"]["filters"] = [
+            {
+                "filterType": "LOT_SIZE",
+                "minQty": "0.001",
+                "maxQty": "1000",
+                "stepSize": "0.001",
+            },
+            {
+                "filterType": "PRICE_FILTER",
+                "minPrice": "0.01",
+                "maxPrice": "1000000",
+                "tickSize": "0.01",
+            },
+        ]
+        client = FakeBinanceClient()
+        client._markets = {"BTCUSDT": market}
+        adapter = _adapter(client)
+
+        rules = await adapter.get_market_rules("BTCUSDT")
+
+        assert rules.min_notional == Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# F-low #3: price="0" for market orders → None
+# ---------------------------------------------------------------------------
+
+
+class TestMarketOrderPriceZero:
+    @pytest.mark.anyio
+    async def test_price_zero_becomes_none(self) -> None:
+        client = FakeBinanceClient()
+        client._markets = {"BTCUSDT": _make_binance_market()}
+        adapter = _adapter(client)
+
+        req = _make_request(price=None, order_type=OrderType.MARKET)
+        rules = await adapter.get_market_rules("BTCUSDT")
+        quantized = adapter.quantize_order(req, rules)
+        ack = await adapter.place_order(quantized)
+
+        assert ack.price is None
+
+    @pytest.mark.anyio
+    async def test_explicit_price_preserved(self) -> None:
+        client = FakeBinanceClient()
+        client._markets = {"BTCUSDT": _make_binance_market()}
+        adapter = _adapter(client)
+
+        req = _make_request(price="50000.0", order_type=OrderType.LIMIT)
+        rules = await adapter.get_market_rules("BTCUSDT")
+        quantized = adapter.quantize_order(req, rules)
+        ack = await adapter.place_order(quantized)
+
+        assert ack.price is not None
+        assert ack.price > Decimal("0")

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from clay.api.dependencies import get_override_service
-from clay.execution.exceptions import ExecutionConfigError
+from clay.execution.service import ExecutionConfigError
 from clay.execution.service import OverrideService
 
 

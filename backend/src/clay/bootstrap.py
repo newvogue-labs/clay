@@ -36,8 +36,8 @@ from clay.db.repositories_market import set_source_priority
 from clay.db.session import build_session_factory
 from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
-from clay.execution.config import ExecutionConfig
-from clay.execution.factory import build_execution_client
+from clay.execution.adapter.binance import BinanceExecutionAdapter
+from clay.execution.config import ExecutionConfig, environment_from_mode
 from clay.execution.service import OverrideService
 from clay.health.monitor import HealthMonitor
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
@@ -207,13 +207,15 @@ def build_services(
         event_bus=event_bus,
     )
     execution_config = ExecutionConfig.from_env()
-    execution_client = build_execution_client(
-        mode=execution_config.mode,
-        api_key=execution_config.api_key,
-        api_secret=execution_config.api_secret,
-        recv_window=execution_config.recv_window,
-        max_order_notional_usdt=execution_config.max_order_notional_usdt,
-    )
+    env = environment_from_mode(execution_config.mode)
+    if env is not None and execution_config.api_key and execution_config.api_secret:
+        execution_client = BinanceExecutionAdapter(
+            environment=env,
+            api_key=execution_config.api_key,
+            api_secret=execution_config.api_secret,
+        )
+    else:
+        execution_client = None
     override_service = OverrideService(
         session_factory=session_factory,
         audit_writer=audit_writer,

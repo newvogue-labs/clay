@@ -29,8 +29,8 @@ from clay.alpha.service import AlphaReadinessService
 from clay.control_center.service import ControlCenterService
 from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
+from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.config import ExecutionConfig
-from clay.execution.protocol import ExecutionClient
 from clay.execution.service import OverrideService
 from clay.ingestion.context.manager import ContextConnectorManager
 from clay.ingestion.market.service import MarketIngestionService
@@ -149,8 +149,8 @@ def get_execution_config() -> ExecutionConfig:
     return execution_config
 
 
-def get_execution_client() -> ExecutionClient:
-    """Return the execution client for order placement."""
+def get_execution_client() -> ExchangeAdapter | None:
+    """Return the execution adapter (or ``None`` if not armed for testnet)."""
     return execution_client
 
 

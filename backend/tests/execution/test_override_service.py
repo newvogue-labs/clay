@@ -13,7 +13,7 @@ from clay.audit.writer import AuditWriter
 from clay.core.clock import SystemClock, VirtualClock
 from clay.db.repositories_ops import OverrideRepository
 from clay.execution.config import ExecutionConfig
-from clay.execution.exceptions import ExecutionConfigError
+from clay.execution.service import ExecutionConfigError
 from clay.execution.service import OverrideService
 
 pytestmark = pytest.mark.usefixtures("sqlite_session_factory")

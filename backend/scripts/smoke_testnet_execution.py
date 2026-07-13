@@ -1,7 +1,7 @@
-"""S-EXEC-4: Testnet execution smoke (manual/gated).
+"""S-ADAPT-2C: Testnet execution smoke via BinanceExecutionAdapter (no legacy).
 
 Place a non-marketable limit order on testnet, query, cancel, verify gone.
-Do NOT write to demo_trade_records. Adapter-level only.
+Uses the public adapter API only — no private attrs, no legacy execution client.
 
 Run:
     CLAY_BINANCE_TESTNET_API_KEY=... CLAY_BINANCE_TESTNET_API_SECRET=... python scripts/smoke_testnet_execution.py
@@ -18,27 +18,33 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
-from clay.execution.binance_testnet import BinanceTestnetExecutionClient
-from clay.execution.models import OrderResult
+from clay.execution.adapter.binance import BinanceExecutionAdapter
+from clay.execution.adapter.domain import OrderAck, OrderRequest, OrderSnapshot
+from clay.execution.adapter.enums import (
+    Environment,
+    OrderSide,
+    OrderType,
+    TimeInForce,
+)
 
 
 @dataclass
 class SmokeEvidence:
     symbol: str = "BTCUSDT"
     side: str = "buy"
-    quantity: float = 0.001
-    limit_price: float = 50000.0  # non-marketable: below BTC market, above minNotional
+    quantity: str = "0.001"
+    limit_price: str = "50000.0"
     order_type: str = "limit"
-    place_result: OrderResult | None = None
+    place_result: OrderAck | None = None
     open_orders_before_cancel: list[dict[str, Any]] = field(default_factory=list)
-    cancel_result: dict[str, Any] | None = None
+    cancel_result: str | None = None
     open_orders_after_cancel: list[dict[str, Any]] = field(default_factory=list)
     place_latency_ms: float = 0.0
     query_latency_ms: float = 0.0
     cancel_latency_ms: float = 0.0
-    rate_limit_weight: str | None = None
     error: str | None = None
 
 
@@ -57,70 +63,70 @@ def _evidence_path() -> str:
     return os.path.join(os.path.dirname(__file__), "smoke_testnet_evidence.json")
 
 
+def _snap_to_dict(snap: OrderSnapshot) -> dict[str, Any]:
+    return {
+        "venue_order_id": snap.venue_order_id,
+        "client_order_id": snap.client_order_id,
+        "status": snap.state.value,
+        "side": snap.side.value,
+        "quantity": str(snap.quantity),
+        "price": str(snap.price) if snap.price else None,
+    }
+
+
 async def _run() -> SmokeEvidence:
     evidence = SmokeEvidence()
     key, secret = _env()
     if key is None:
         return evidence
 
-    client = BinanceTestnetExecutionClient(api_key=key, api_secret=secret)
-    ccxt_client = client._client
+    adapter = BinanceExecutionAdapter(
+        environment=Environment.TESTNET,
+        api_key=key,
+        api_secret=secret,
+    )
     client_order_id = f"smoke-{int(time.time() * 1000)}"
 
     try:
-        await ccxt_client.load_markets()
-        t0 = time.perf_counter()
-        evidence.place_result = await client.place_order(
+        req = OrderRequest(
             symbol=evidence.symbol,
-            side=evidence.side,
-            quantity=evidence.quantity,
-            order_type=evidence.order_type,
-            price=evidence.limit_price,
-            time_in_force="GTC",
+            side=OrderSide(evidence.side),
+            order_type=OrderType(evidence.order_type),
+            quantity=Decimal(evidence.quantity),
+            time_in_force=TimeInForce.GTC,
             client_order_id=client_order_id,
+            price=Decimal(evidence.limit_price),
         )
+
+        rules = await adapter.get_market_rules(req.symbol)
+        adapter.validate_order(req, rules)
+        quantized = adapter.quantize_order(req, rules)
+
+        t0 = time.perf_counter()
+        evidence.place_result = await adapter.place_order(quantized)
         evidence.place_latency_ms = (time.perf_counter() - t0) * 1000
-        evidence.rate_limit_weight = getattr(
-            ccxt_client, "last_response_headers", {}
-        ).get("x-mbx-used-weight-1m")
 
         t0 = time.perf_counter()
-        open_orders = await client.get_open_orders(symbol=evidence.symbol)
+        open_orders = await adapter.get_open_orders(symbol=evidence.symbol)
         evidence.query_latency_ms = (time.perf_counter() - t0) * 1000
-        evidence.open_orders_before_cancel = [
-            {
-                "exchange_order_id": o.exchange_order_id,
-                "client_order_id": o.client_order_id,
-                "status": o.status,
-                "side": o.side,
-                "quantity": o.quantity,
-                "price": o.price,
-            }
-            for o in open_orders
-        ]
+        evidence.open_orders_before_cancel = [_snap_to_dict(o) for o in open_orders]
 
-        order_id = evidence.place_result.exchange_order_id
+        order_id = evidence.place_result.venue_order_id
         t0 = time.perf_counter()
-        cancel = await client.cancel_order(symbol=evidence.symbol, order_id=order_id)
+        await adapter.cancel_order(symbol=evidence.symbol, venue_order_id=order_id)
         evidence.cancel_latency_ms = (time.perf_counter() - t0) * 1000
-        evidence.cancel_result = cancel
+        evidence.cancel_result = order_id
 
         t0 = time.perf_counter()
-        open_after = await client.get_open_orders(symbol=evidence.symbol)
+        open_after = await adapter.get_open_orders(symbol=evidence.symbol)
         evidence.query_latency_ms = max(
             evidence.query_latency_ms, (time.perf_counter() - t0) * 1000
         )
-        evidence.open_orders_after_cancel = [
-            {
-                "exchange_order_id": o.exchange_order_id,
-                "status": o.status,
-            }
-            for o in open_after
-        ]
+        evidence.open_orders_after_cancel = [_snap_to_dict(o) for o in open_after]
     except Exception as exc:  # noqa: BLE001
         evidence.error = f"{type(exc).__name__}: {exc}"
     finally:
-        await client.close()
+        await adapter.close()
 
     return evidence
 
@@ -138,10 +144,10 @@ def _print_evidence(evidence: SmokeEvidence) -> None:
                     "client_order_id": evidence.place_result.client_order_id
                     if evidence.place_result
                     else None,
-                    "exchange_order_id": evidence.place_result.exchange_order_id
+                    "venue_order_id": evidence.place_result.venue_order_id
                     if evidence.place_result
                     else None,
-                    "status": evidence.place_result.status
+                    "status": evidence.place_result.state.value
                     if evidence.place_result
                     else None,
                 }
@@ -159,7 +165,6 @@ def _print_evidence(evidence: SmokeEvidence) -> None:
                 "place_latency_ms": round(evidence.place_latency_ms, 2),
                 "query_latency_ms": round(evidence.query_latency_ms, 2),
                 "cancel_latency_ms": round(evidence.cancel_latency_ms, 2),
-                "rate_limit_weight": evidence.rate_limit_weight,
                 "error": evidence.error,
             },
             indent=2,
@@ -186,10 +191,10 @@ def main() -> int:
                     "client_order_id": evidence.place_result.client_order_id
                     if evidence.place_result
                     else None,
-                    "exchange_order_id": evidence.place_result.exchange_order_id
+                    "venue_order_id": evidence.place_result.venue_order_id
                     if evidence.place_result
                     else None,
-                    "status": evidence.place_result.status
+                    "status": evidence.place_result.state.value
                     if evidence.place_result
                     else None,
                 }
@@ -204,7 +209,6 @@ def main() -> int:
                 "place_latency_ms": round(evidence.place_latency_ms, 2),
                 "query_latency_ms": round(evidence.query_latency_ms, 2),
                 "cancel_latency_ms": round(evidence.cancel_latency_ms, 2),
-                "rate_limit_weight": evidence.rate_limit_weight,
                 "error": evidence.error,
             },
             f,

@@ -1,32 +1,67 @@
 # Execution
 
-## Client Protocol
+## Adapter Protocol
 
-::: clay.execution.protocol
+::: clay.execution.adapter.port
     options:
       members:
-        - ExecutionClient
+        - ExchangeAdapter
 
-## Factory
+## Binance Adapter
 
-::: clay.execution.factory
+::: clay.execution.adapter.binance
     options:
       members:
-        - build_execution_client
+        - BinanceExecutionAdapter
 
-## Clients (dry-run · testnet · live-stub)
+## Domain Types
 
-::: clay.execution.binance_testnet
+::: clay.execution.adapter.enums
     options:
       members:
-        - DryRunExecutionClient
-        - BinanceTestnetExecutionClient
-        - LiveExecutionClient
+        - Environment
+        - OrderSide
+        - OrderType
+        - TimeInForce
+        - OrderState
+        - PrecisionMode
 
 ## Data Models
 
-::: clay.execution.models
+::: clay.execution.adapter.domain
+    options:
+      members:
+        - OrderRequest
+        - Fill
+        - OrderAck
+        - OrderSnapshot
+        - BalanceSnapshot
 
-## Exceptions
+## Normalisation
 
-::: clay.execution.exceptions
+::: clay.execution.adapter.normalization
+    options:
+      members:
+        - validate_order
+        - quantize_order
+
+## Adapter Errors
+
+::: clay.execution.adapter.errors
+    options:
+      members:
+        - AdapterError
+        - TransientAdapterError
+        - OrderRejectedError
+        - InsufficientFundsError
+        - InvalidOrderError
+        - ConfigError
+        - AmbiguousExecutionError
+        - is_retryable
+
+## Market Rules
+
+::: clay.execution.adapter.rules
+    options:
+      members:
+        - MarketRules

@@ -4,7 +4,20 @@ import logging
 import os
 from dataclasses import dataclass
 
+from clay.execution.adapter.enums import Environment
+
 logger = logging.getLogger(__name__)
+
+
+def environment_from_mode(mode: str) -> Environment | None:
+    """Map legacy execution mode string to adapter ``Environment``.
+
+    Returns ``None`` for modes that must NOT build a live adapter
+    (``dry_run``, ``live`` without override, unknown).
+    """
+    if mode == "testnet":
+        return Environment.TESTNET
+    return None
 
 
 @dataclass(frozen=True)
