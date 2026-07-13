@@ -460,6 +460,47 @@ def test_ambiguous_execution_returns_409_with_audit(
     assert payload["symbol"] == "BTCUSDT"
 
 
+def test_circuit_open_returns_503_with_audit(
+    app, testnet_config: ExecutionConfig
+) -> None:
+    """CircuitOpenError → HTTP 503 + audit write."""
+    from clay.execution.adapter.errors import CircuitOpenError
+
+    mock_audit = _mock_audit_writer()
+
+    mock_client = _make_client(mode="testnet")
+    assert mock_client is not None
+
+    async def _raise_circuit_open(req: Any) -> Any:
+        raise CircuitOpenError("circuit open, retry after 28.5s")
+
+    mock_client.place_order = _raise_circuit_open  # type: ignore[assignment]
+
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: mock_client
+
+    with patch("clay.api.routes.execution.audit_writer", mock_audit):
+        resp = TestClient(app).post(
+            "/workspace/trading/execution/testnet-probe",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "quantity": "0.001",
+                "order_type": "market",
+            },
+        )
+
+    assert resp.status_code == 503
+    assert "venue degraded" in resp.json()["detail"]
+
+    mock_audit.write.assert_called_once()
+    call_args = mock_audit.write.call_args
+    assert call_args[0][0] == "execution.testnet_probe_circuit_open"
+    payload = call_args[0][1]
+    assert payload["actor"] == "operator"
+    assert payload["symbol"] == "BTCUSDT"
+
+
 def _make_rules_from_client() -> Any:
     """Build a MarketRules-compatible object from FakeProbeClient data."""
     from clay.execution.adapter.rules import MarketRules as RealRules

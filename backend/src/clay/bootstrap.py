@@ -38,7 +38,7 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.execution.adapter.binance import BinanceExecutionAdapter
 from clay.execution.config import ExecutionConfig, environment_from_mode
-from clay.execution.resilience import ResilientExecutionAdapter
+from clay.execution.resilience import CircuitBreakerPolicy, ResilientExecutionAdapter
 from clay.execution.service import OverrideService
 from clay.health.monitor import HealthMonitor
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
@@ -215,7 +215,8 @@ def build_services(
                 environment=env,
                 api_key=execution_config.api_key,
                 api_secret=execution_config.api_secret,
-            )
+            ),
+            cb_policy=CircuitBreakerPolicy(),
         )
     else:
         execution_client = None
