@@ -38,6 +38,7 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.execution.adapter.binance import BinanceExecutionAdapter
 from clay.execution.config import ExecutionConfig, environment_from_mode
+from clay.execution.resilience import ResilientExecutionAdapter
 from clay.execution.service import OverrideService
 from clay.health.monitor import HealthMonitor
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
@@ -209,10 +210,12 @@ def build_services(
     execution_config = ExecutionConfig.from_env()
     env = environment_from_mode(execution_config.mode)
     if env is not None and execution_config.api_key and execution_config.api_secret:
-        execution_client = BinanceExecutionAdapter(
-            environment=env,
-            api_key=execution_config.api_key,
-            api_secret=execution_config.api_secret,
+        execution_client = ResilientExecutionAdapter(
+            BinanceExecutionAdapter(
+                environment=env,
+                api_key=execution_config.api_key,
+                api_secret=execution_config.api_secret,
+            )
         )
     else:
         execution_client = None

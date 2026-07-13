@@ -29,6 +29,7 @@ from clay.execution.adapter.domain import OrderAck, OrderRequest
 from clay.execution.adapter.enums import OrderSide, OrderType, TimeInForce
 from clay.execution.adapter.errors import (
     AdapterError,
+    AmbiguousExecutionError,
     InvalidOrderError,
     OperationNotAllowedError,
     OrderRejectedError,
@@ -178,6 +179,19 @@ async def testnet_probe(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OperationNotAllowedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except AmbiguousExecutionError as exc:
+        audit_writer.write(
+            "execution.testnet_probe_ambiguous",
+            {
+                "actor": "operator",
+                "cid": quantized.client_order_id,
+                "symbol": quantized.symbol,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=409, detail=f"reconcile pending: {exc}"
+        ) from exc
     except AdapterError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

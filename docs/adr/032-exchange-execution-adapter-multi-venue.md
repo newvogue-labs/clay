@@ -178,6 +178,18 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 
 **Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → (S-ADAPT-3 + S-ADAPT-4) → S-ADAPT-5.
 
+## Errata 2026-07-13 (S-ADAPT-3)
+
+- **S-ADAPT-3 completed.** `ResilientExecutionAdapter` — resilience wrapper через композицию (`execution/resilience.py`). Оборачивает любой `ExchangeAdapter`, reconcile-before-retry для `place_order`, bounded backoff-retry для read-операций на `TransientAdapterError`.
+- **Resilience wrapper — композиция, не наследование.** `ResilientExecutionAdapter(inner: ExchangeAdapter)` делегирует через `self._inner`, ноль ccxt-импорт в resilience.py. `isinstance(ResilientExecutionAdapter(fake), ExchangeAdapter)` → True (`@runtime_checkable`).
+- **Reconcile-before-retry через reconcile_orders + cid-фильтр.** Порт НЕ расширен — используется существующий `reconcile_orders(symbol, since)` + фильтр по `client_order_id`. `_ack_from_snapshot()` конвертирует `OrderSnapshot` → `OrderAck` (дропает `executed_qty`).
+- **Q1(CircuitBreaker) остаётся за S-ADAPT-4.** resilience wrapper не содержит CB/fallback logic.
+- **Route V7: `AmbiguousExecutionError` → HTTP 409.** Добавлен `except AmbiguousExecutionError` в `POST /testnet-probe` ВЫШЕ generic `except AdapterError → 422`. Audit: `execution.testnet_probe_ambiguous` durable write.
+- **Bootstrap: `ResilientExecutionAdapter(BinanceExecutionAdapter(...))`.** `get_execution_client()` возвращает wrapper; тип-контракт `ExchangeAdapter | None` сохранён.
+- **`max_place_attempts` = потолок ВСЕХ place-вызовов** (initial + re-places). При `max_place_attempts=2`: 1 initial + 1 re-place максимум. Цикл `range(max_place_attempts - 1)`.
+
+**Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → S-ADAPT-3 → (S-ADAPT-4 + S-ADAPT-5).
+
 ## Не-цели (out of scope)
 
 - Реальные деньги / prod-ключи (за гейтом `high-risk-operation-ready` + Q5).

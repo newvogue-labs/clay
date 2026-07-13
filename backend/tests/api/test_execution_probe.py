@@ -1,14 +1,16 @@
-"""Tests for POST /workspace/trading/execution/testnet-probe (S-ADAPT-2C).
+"""Tests for POST /workspace/trading/execution/testnet-probe (S-ADAPT-2C, S-ADAPT-3).
 
 Covers:
   - happy-path: testnet mode + FakeBinanceClient → 200 + adapter response fields
   - mode guard: dry_run → 409, live → 409 (place_order NOT called)
   - default-deny: no adapter (None) → 409
   - audit: durable write recorded with correct event_type
+  - ambiguous: unresolved AmbiguousExecutionError → 409 + audit (S-ADAPT-3)
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -21,6 +23,7 @@ from clay.execution.adapter.binance import BinanceExecutionAdapter
 from clay.execution.adapter.enums import (
     Environment,
 )
+from clay.execution.adapter.errors import AmbiguousExecutionError
 from clay.execution.config import ExecutionConfig
 
 
@@ -413,3 +416,66 @@ def test_notional_cap_fail_closed_market_no_price(
 
     assert resp.status_code == 422
     assert "price is unknown" in resp.json()["detail"]
+
+
+def test_ambiguous_execution_returns_409_with_audit(
+    app, testnet_config: ExecutionConfig
+) -> None:
+    """Unresolved AmbiguousExecutionError → HTTP 409 + audit write."""
+    mock_audit = _mock_audit_writer()
+
+    # Use real adapter (handles get_market_rules), patch place_order to raise
+    mock_client = _make_client(mode="testnet")
+    assert mock_client is not None
+
+    async def _raise_ambiguous(req: Any) -> Any:
+        raise AmbiguousExecutionError("connection timeout")
+
+    mock_client.place_order = _raise_ambiguous  # type: ignore[assignment]
+
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: mock_client
+
+    with patch("clay.api.routes.execution.audit_writer", mock_audit):
+        resp = TestClient(app).post(
+            "/workspace/trading/execution/testnet-probe",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "quantity": "0.001",
+                "order_type": "market",
+            },
+        )
+
+    assert resp.status_code == 409
+    assert "reconcile pending" in resp.json()["detail"]
+
+    # Audit should have been written with ambiguous event type
+    mock_audit.write.assert_called_once()
+    call_args = mock_audit.write.call_args
+    assert call_args[0][0] == "execution.testnet_probe_ambiguous"
+    payload = call_args[0][1]
+    assert payload["actor"] == "operator"
+    assert payload["cid"] is not None
+    assert payload["symbol"] == "BTCUSDT"
+
+
+def _make_rules_from_client() -> Any:
+    """Build a MarketRules-compatible object from FakeProbeClient data."""
+    from clay.execution.adapter.rules import MarketRules as RealRules
+    from clay.execution.adapter.enums import PrecisionMode, OrderType, TimeInForce
+
+    return RealRules(
+        min_amount=Decimal("0.001"),
+        max_amount=Decimal("1000"),
+        min_price=Decimal("0.01"),
+        max_price=Decimal("1000000"),
+        min_notional=Decimal("10"),
+        amount_step=Decimal("0.001"),
+        price_tick=Decimal("0.01"),
+        precision_mode=PrecisionMode.TICK_SIZE,
+        supported_order_types=frozenset(
+            {OrderType.MARKET, OrderType.LIMIT, OrderType.STOP_LIMIT}
+        ),
+        supported_tif=frozenset({TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK}),
+    )
