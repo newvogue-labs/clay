@@ -30,6 +30,7 @@ from clay.execution.adapter.enums import OrderSide, OrderType, TimeInForce
 from clay.execution.adapter.errors import (
     AdapterError,
     AmbiguousExecutionError,
+    CircuitOpenError,
     InvalidOrderError,
     OperationNotAllowedError,
     OrderRejectedError,
@@ -179,6 +180,19 @@ async def testnet_probe(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OperationNotAllowedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CircuitOpenError as exc:
+        audit_writer.write(
+            "execution.testnet_probe_circuit_open",
+            {
+                "actor": "operator",
+                "cid": quantized.client_order_id,
+                "symbol": quantized.symbol,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=503, detail=f"venue degraded, retry later: {exc}"
+        ) from exc
     except AmbiguousExecutionError as exc:
         audit_writer.write(
             "execution.testnet_probe_ambiguous",

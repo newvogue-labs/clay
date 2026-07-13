@@ -40,6 +40,15 @@ class AmbiguousExecutionError(AdapterError):
     """
 
 
+class CircuitOpenError(TransientAdapterError):
+    """Circuit breaker is open — venue degraded.
+
+    Subclass of ``TransientAdapterError`` so ``is_retryable`` returns True.
+    Raised BEFORE calling the inner operation (fast-fail) — does NOT count
+    as an inner failure for CB trip purposes.
+    """
+
+
 class OperationNotAllowedError(AdapterError):
     """Operation not allowed by safety policy.
 

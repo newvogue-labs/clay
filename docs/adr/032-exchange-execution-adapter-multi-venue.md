@@ -188,7 +188,17 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 - **Bootstrap: `ResilientExecutionAdapter(BinanceExecutionAdapter(...))`.** `get_execution_client()` возвращает wrapper; тип-контракт `ExchangeAdapter | None` сохранён.
 - **`max_place_attempts` = потолок ВСЕХ place-вызовов** (initial + re-places). При `max_place_attempts=2`: 1 initial + 1 re-place максимум. Цикл `range(max_place_attempts - 1)`.
 
-**Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → S-ADAPT-3 → (S-ADAPT-4 + S-ADAPT-5).
+**Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → S-ADAPT-3 → S-ADAPT-4 → S-ADAPT-5.
+
+## Errata 2026-07-13 (S-ADAPT-4)
+
+- **Q1 решён: in-house daily_stock_analysis pattern.** `CircuitBreaker` + `CircuitBreakerPolicy` в `execution/resilience.py`. Состояния CLOSED/OPEN/HALF_OPEN, `asyncio.Lock` на переходы. Не `pybreaker` — свой async CB.
+- **CB-outermost.** `place_order` (вся reconcile-before-retry логика), `cancel_order`, и все read-ops (`get_*`, `reconcile_orders`) проходят через `self._cb.call()`. `validate`/`quantize` — sync, вне CB.
+- **Trip только на `TransientAdapterError`.** Terminal-ошибки (Rejected/InsufficientFunds/InvalidOrder/Config/OperationNotAllowed) + `AmbiguousExecutionError` пробрасываются без tripping CB.
+- **`CircuitOpenError(TransientAdapterError)`.** Подкласс `TransientAdapterError` — `is_retryable` = True by design. Raised BEFORE calling inner (fast-fail), не само-считается как inner-failure.
+- **Route V7: `CircuitOpenError` → HTTP 503.** `except CircuitOpenError` ВЫШЕ `except AmbiguousExecutionError(409)` и `except AdapterError(422)`. Durable audit `execution.testnet_probe_circuit_open`.
+- **Разделение путей для S-ADAPT-5.** Read-ops и cancel_order идут через CB раздельными путями. Read-fallback в S-ADAPT-5 сел ТОЛЬКО на read-ops (get_*), не трогая order-plane (place/cancel) — venue-sticky (инв.7).
+- **Read-only fallback-chain отложена в S-ADAPT-5.** В этом слайсе — только CB + fail-fast, без chain-scaffolding.
 
 ## Не-цели (out of scope)
 

@@ -1,15 +1,17 @@
-"""Tests for ResilientExecutionAdapter (S-ADAPT-3).
+"""Tests for ResilientExecutionAdapter (S-ADAPT-3 + S-ADAPT-4).
 
 Covers:
-  - D1: isinstance(ResilientExecutionAdapter(fake), ExchangeAdapter)
-  - D2: place_order — happy passthrough, ambiguous→reconcile-hit (no re-place),
-        ambiguous→absent→re-place same cid→success, ambiguous unresolved→raise,
-        terminal→immediate propagation
-  - D3: read-retry — Transient retry success, Transient exhaust
+  - Protocol: isinstance(ResilientExecutionAdapter(fake), ExchangeAdapter)
+  - place_order: happy passthrough, ambiguous→reconcile-hit, ambiguous→absent→re-place,
+    ambiguous unresolved→raise, terminal→immediate propagation
+  - read-retry: Transient retry success, Transient exhaust, terminal propagation
+  - CB: opens after threshold, OPEN→fast-fail, HALF_OPEN probe success/fail,
+    taxonomy (terminal/ambiguous don't trip), place/cancel at OPEN, route 503
 """
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -32,6 +34,7 @@ from clay.execution.adapter.enums import (
 )
 from clay.execution.adapter.errors import (
     AmbiguousExecutionError,
+    CircuitOpenError,
     ConfigError,
     InsufficientFundsError,
     InvalidOrderError,
@@ -41,7 +44,11 @@ from clay.execution.adapter.errors import (
 )
 from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.adapter.rules import MarketRules
-from clay.execution.resilience import RetryPolicy, ResilientExecutionAdapter
+from clay.execution.resilience import (
+    CircuitBreakerPolicy,
+    RetryPolicy,
+    ResilientExecutionAdapter,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +74,7 @@ class FakeInnerAdapter:
         self._get_open_orders_calls: int = 0
         self._get_balances_calls: int = 0
         self._cancel_order_calls: int = 0
+        self._cancel_order_effects: list[Any] = []
 
         # Configurable side effects (deque-like: pop on each call)
         self._place_effects: list[Any] = []
@@ -98,6 +106,9 @@ class FakeInnerAdapter:
     def set_get_balances_effect(self, effect: Any) -> None:
         self._get_balances_effects.append(effect)
 
+    def set_cancel_order_effect(self, effect: Any) -> None:
+        self._cancel_order_effects.append(effect)
+
     # -- protocol methods --
 
     def validate_order(self, req: OrderRequest, rules: MarketRules) -> None:
@@ -126,6 +137,10 @@ class FakeInnerAdapter:
 
     async def cancel_order(self, symbol: str, venue_order_id: str) -> None:
         self._cancel_order_calls += 1
+        if self._cancel_order_effects:
+            eff = self._cancel_order_effects.pop(0)
+            if isinstance(eff, BaseException):
+                raise eff
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
         self._get_order_calls += 1
@@ -477,3 +492,338 @@ class TestReadRetry:
         result = resilient.quantize_order(req, rules)
 
         assert result == req
+
+
+# ---------------------------------------------------------------------------
+# S-ADAPT-4: CircuitBreaker tests
+# ---------------------------------------------------------------------------
+
+
+def _cb_policy(threshold: int = 5, reset_s: str = "30", probes: int = 1):
+    return CircuitBreakerPolicy(
+        failure_threshold=threshold,
+        reset_timeout_s=Decimal(reset_s),
+        half_open_max_probes=probes,
+    )
+
+
+class TestCircuitBreakerOpensAfterThreshold:
+    @pytest.mark.anyio
+    async def test_cb_opens_after_failure_threshold(self) -> None:
+        """Transient × threshold → CB opens."""
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=3))
+
+        async def _fail():
+            raise TransientAdapterError("net")
+
+        for _ in range(3):
+            with pytest.raises(TransientAdapterError):
+                await cb.call(_fail)
+
+        assert cb.state == _CBState.OPEN
+
+    @pytest.mark.anyio
+    async def test_cb_resets_on_success(self) -> None:
+        """Success resets failure counter."""
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=3))
+
+        async def _fail():
+            raise TransientAdapterError("net")
+
+        async def _ok():
+            return "ok"
+
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        # Success resets
+        assert await cb.call(_ok) == "ok"
+        assert cb.state == _CBState.CLOSED
+
+        # 2 more failures (below threshold)
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        # Still CLOSED (only 2 consecutive)
+        assert cb.state == _CBState.CLOSED
+
+
+class TestCircuitBreakerOpenFastFail:
+    @pytest.mark.anyio
+    async def test_open_raises_circuit_open_without_calling_inner(self) -> None:
+        """CB OPEN → CircuitOpenError, inner NOT called."""
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=1, reset_s="999"))
+        call_count = 0
+
+        async def _fail():
+            nonlocal call_count
+            call_count += 1
+            raise TransientAdapterError("net")
+
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        assert cb.state == _CBState.OPEN
+
+        async def _inner_call():
+            nonlocal call_count
+            call_count += 1
+            return "should not reach"
+
+        with pytest.raises(CircuitOpenError):
+            await cb.call(_inner_call)
+
+        # Only 1 call (the initial failure), inner NOT called when OPEN
+        assert call_count == 1
+
+
+class TestCircuitBreakerHalfOpen:
+    @pytest.mark.anyio
+    async def test_half_open_probe_success_closes(self) -> None:
+        """After reset timeout: HALF_OPEN → probe success → CLOSED."""
+        import time
+
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=1, reset_s="0.01"))
+
+        async def _fail():
+            raise TransientAdapterError("net")
+
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        assert cb.state == _CBState.OPEN
+
+        # Wait for reset timeout
+        time.sleep(0.02)
+
+        async def _ok():
+            return "recovered"
+
+        result = await cb.call(_ok)
+        assert result == "recovered"
+        assert cb.state == _CBState.CLOSED
+
+    @pytest.mark.anyio
+    async def test_half_open_probe_fail_reopens(self) -> None:
+        """After reset timeout: HALF_OPEN → probe fail → OPEN."""
+        import time
+
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=1, reset_s="0.01"))
+
+        async def _fail():
+            raise TransientAdapterError("net")
+
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        assert cb.state == _CBState.OPEN
+
+        time.sleep(0.02)
+
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        assert cb.state == _CBState.OPEN
+
+    @pytest.mark.anyio
+    async def test_half_open_enforces_max_probes(self) -> None:
+        """HALF_OPEN with max_probes=1: 2nd concurrent probe → CircuitOpenError."""
+        import time
+
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=1, reset_s="0.01", probes=1))
+
+        async def _fail():
+            raise TransientAdapterError("net")
+
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        assert cb.state == _CBState.OPEN
+
+        time.sleep(0.02)
+
+        # First call transitions OPEN → HALF_OPEN (probes=1, allowed)
+        async def _slow_ok():
+            await asyncio.sleep(0.05)  # simulate slow probe
+            return "probe-1"
+
+        # Start first probe (will be in flight)
+        task = asyncio.create_task(cb.call(_slow_ok))
+        await asyncio.sleep(0.005)  # let it start
+
+        # Second call while first probe in flight → rejected
+        with pytest.raises(CircuitOpenError, match="half-open probe limit"):
+            await cb.call(_slow_ok)
+
+        # Wait for first probe to complete
+        result = await task
+        assert result == "probe-1"
+        assert cb.state == _CBState.CLOSED  # success → CLOSED
+
+
+class TestCircuitBreakerTaxonomy:
+    @pytest.mark.anyio
+    async def test_terminal_error_does_not_trip_cb(self) -> None:
+        """Terminal errors pass through without affecting CB state."""
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=3))
+
+        async def _fail_terminal():
+            raise OrderRejectedError("rejected")
+
+        for _ in range(5):
+            with pytest.raises(OrderRejectedError):
+                await cb.call(_fail_terminal)
+
+        # CB still CLOSED — terminal doesn't trip
+        assert cb.state == _CBState.CLOSED
+
+    @pytest.mark.anyio
+    async def test_ambiguous_error_does_not_trip_cb(self) -> None:
+        """AmbiguousExecutionError passes through without affecting CB state."""
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=3))
+
+        async def _fail_ambiguous():
+            raise AmbiguousExecutionError("timeout")
+
+        for _ in range(5):
+            with pytest.raises(AmbiguousExecutionError):
+                await cb.call(_fail_ambiguous)
+
+        assert cb.state == _CBState.CLOSED
+
+    @pytest.mark.anyio
+    async def test_circuit_open_error_not_self_tripped(self) -> None:
+        """CircuitOpenError (from CB itself) never counts as inner failure."""
+        from clay.execution.resilience import CircuitBreaker, _CBState
+
+        cb = CircuitBreaker(_cb_policy(threshold=1, reset_s="999"))
+
+        async def _fail():
+            raise TransientAdapterError("net")
+
+        with pytest.raises(TransientAdapterError):
+            await cb.call(_fail)
+        assert cb.state == _CBState.OPEN
+
+        # CircuitOpenError from CB — should NOT affect state further
+        with pytest.raises(CircuitOpenError):
+            await cb.call(lambda: _fail())  # noqa: B023
+
+        assert cb.state == _CBState.OPEN  # unchanged
+
+
+class TestResilientAdapterCBIntegration:
+    @pytest.mark.anyio
+    async def test_place_open_circuit_no_inner_calls(self) -> None:
+        """CB OPEN + place_order → CircuitOpenError, zero inner place calls."""
+        inner = FakeInnerAdapter()
+        # Trip CB with threshold=1
+        inner.set_place_effect(TransientAdapterError("net"))
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=_cb_policy(threshold=1, reset_s="999")
+        )  # type: ignore[arg-type]
+        req = _make_req()
+
+        # First call: transient → trips CB
+        with pytest.raises(TransientAdapterError):
+            await resilient.place_order(req)
+
+        # Second call: CB OPEN → CircuitOpenError, no inner call
+        with pytest.raises(CircuitOpenError):
+            await resilient.place_order(req)
+
+        # Only 1 inner place call total (the initial transient)
+        assert len(inner._place_calls) == 1
+
+    @pytest.mark.anyio
+    async def test_cancel_open_circuit_no_inner_calls(self) -> None:
+        """CB OPEN + cancel_order → CircuitOpenError, zero inner cancel calls."""
+        inner = FakeInnerAdapter()
+        # 3 transient failures to exhaust _retry_transient (max_read_attempts=3)
+        inner.set_get_balances_effect(TransientAdapterError("net-1"))
+        inner.set_get_balances_effect(TransientAdapterError("net-2"))
+        inner.set_get_balances_effect(TransientAdapterError("net-3"))
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=_cb_policy(threshold=1, reset_s="999")
+        )  # type: ignore[arg-type]
+
+        # Trip CB via get_balances (exhausted retry → 1 CB failure → OPEN)
+        with pytest.raises(TransientAdapterError, match="net-3"):
+            await resilient.get_balances()
+
+        # cancel_order → CB OPEN → CircuitOpenError
+        with pytest.raises(CircuitOpenError):
+            await resilient.cancel_order("BTCUSDT", "v-1")
+
+        assert inner._cancel_order_calls == 0
+
+    @pytest.mark.anyio
+    async def test_read_retry_composition_with_cb(self) -> None:
+        """Read op: CB counts 1 failure per exhausted retry operation."""
+        inner = FakeInnerAdapter()
+        # 3 transient failures (exhausts _retry_transient with max_read_attempts=3)
+        inner.set_get_balances_effect(TransientAdapterError("net-1"))
+        inner.set_get_balances_effect(TransientAdapterError("net-2"))
+        inner.set_get_balances_effect(TransientAdapterError("net-3"))
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=_cb_policy(threshold=2)
+        )  # type: ignore[arg-type]
+
+        # 1st exhausted retry → 1 CB failure
+        with pytest.raises(TransientAdapterError, match="net-3"):
+            await resilient.get_balances()
+        # 2nd exhausted retry → 2nd CB failure → CB opens
+        inner.set_get_balances_effect(TransientAdapterError("net-4"))
+        inner.set_get_balances_effect(TransientAdapterError("net-5"))
+        inner.set_get_balances_effect(TransientAdapterError("net-6"))
+        with pytest.raises(TransientAdapterError, match="net-6"):
+            await resilient.get_balances()
+
+        # Now CB OPEN
+        with pytest.raises(CircuitOpenError):
+            await resilient.get_balances()
+
+    @pytest.mark.anyio
+    async def test_cancel_preserves_transient_retry(self) -> None:
+        """cancel_order: transient retry still works (N attempts before CB counts)."""
+        inner = FakeInnerAdapter()
+        # 1st cancel: transient, 2nd cancel: success (no more effects → default no-op)
+        inner.set_cancel_order_effect(TransientAdapterError("net"))
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=_cb_policy(threshold=5)
+        )  # type: ignore[arg-type]
+
+        # cancel_order: transient → retry → success
+        await resilient.cancel_order("BTCUSDT", "v-1")
+        assert inner._cancel_order_calls == 2  # 1st transient + 2nd success
+
+    @pytest.mark.anyio
+    async def test_terminal_in_place_does_not_trip_cb(self) -> None:
+        """Terminal error in place_order → propagates, CB stays CLOSED."""
+        from clay.execution.resilience import _CBState
+
+        inner = FakeInnerAdapter()
+        inner.set_place_effect(OrderRejectedError("rejected"))
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=_cb_policy(threshold=3)
+        )  # type: ignore[arg-type]
+        req = _make_req()
+
+        with pytest.raises(OrderRejectedError):
+            await resilient.place_order(req)
+
+        assert resilient._cb.state == _CBState.CLOSED
+        assert len(inner._place_calls) == 1
