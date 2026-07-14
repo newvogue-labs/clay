@@ -90,10 +90,62 @@ class TestHappyPath:
             intent=req,
             snapshot=DEFAULT_SNAPSHOT,
             policy=DEFAULT_POLICY,
-            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            max_order_notional=Decimal("0"),  # cap выключен → MARKET допустим
             now=NOW,
         )
         assert rec.decision == Decision.ADMIT
+
+    def test_market_cap_active_denies(self) -> None:
+        """MARKET + cap>0 → DENY [NOTIONAL_UNCOMPUTABLE] (fail-closed, S-LIVE-2 mirror)."""
+        req = _make_request(order_type=OrderType.MARKET, price=None)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.NOTIONAL_UNCOMPUTABLE in rec.reason_codes
+
+    def test_market_cap_disabled_admits(self) -> None:
+        """price=None + cap<=0 → ADMIT (no notional reason)."""
+        req = _make_request(order_type=OrderType.MARKET, price=None)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+        )
+        assert rec.decision == Decision.ADMIT
+        assert ReasonCode.NOTIONAL_UNCOMPUTABLE not in rec.reason_codes
+        assert ReasonCode.NOTIONAL_ABOVE_CAP not in rec.reason_codes
+
+    def test_limit_cap_within_admits(self) -> None:
+        """LIMIT + cap>0, notional ≤ cap → ADMIT."""
+        req = _make_request(quantity=Decimal("0.1"), price=Decimal("50000"))
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("100000"),
+            now=NOW,
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_limit_cap_exceeded_denies(self) -> None:
+        """LIMIT + cap>0, notional > cap → DENY [NOTIONAL_ABOVE_CAP]."""
+        req = _make_request(quantity=Decimal("1"), price=Decimal("50000"))
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("10000"),
+            now=NOW,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.NOTIONAL_ABOVE_CAP in rec.reason_codes
 
 
 # ── Off-by-default cap ────────────────────────────────────────────────────

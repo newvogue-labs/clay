@@ -98,7 +98,11 @@ def _check_invariants(
     if max_order_notional > 0 and req.price is not None:
         notional_cap = req.quantity * req.price
         _add(ReasonCode.NOTIONAL_ABOVE_CAP, notional_cap <= max_order_notional)
+    elif max_order_notional > 0 and req.price is None:
+        # cap активен, но notional невычислим (MARKET) → DENY (fail-closed, зеркалит S-LIVE-2)
+        _add(ReasonCode.NOTIONAL_UNCOMPUTABLE, False)
     else:
+        # cap выключен (<=0) → неприменимо, проходит
         _add(ReasonCode.NOTIONAL_ABOVE_CAP, True)
     # 11. snapshot freshness: age
     age_seconds = (now - snapshot.fetched_at).total_seconds()
