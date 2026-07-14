@@ -11,6 +11,7 @@ from clay.db.models_ops import (
     AIAgentRun,
     ConnectorStatusHistory,
     ExecutionOverride,
+    ExecutionProofDecision,
     IngestRun,
     SourceHealthEvent,
 )
@@ -226,6 +227,37 @@ class OverrideRepository:
             select(ExecutionOverride)
             .where(ExecutionOverride.override_id == override_id)
             .order_by(ExecutionOverride.created_at.desc())
+            .limit(1)
+        )
+        return self.session.scalar(stmt)
+
+
+class ProofDecisionRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def append(self, row: ExecutionProofDecision) -> None:
+        self.session.add(row)
+        self.session.flush()
+
+    def list_by_symbol(
+        self, symbol: str, *, limit: int = 50
+    ) -> list[ExecutionProofDecision]:
+        stmt = (
+            select(ExecutionProofDecision)
+            .where(ExecutionProofDecision.symbol == symbol)
+            .order_by(ExecutionProofDecision.created_at.desc())
+            .limit(limit)
+        )
+        return list(self.session.scalars(stmt).all())
+
+    def latest_for_client_order_id(
+        self, client_order_id: str
+    ) -> ExecutionProofDecision | None:
+        stmt = (
+            select(ExecutionProofDecision)
+            .where(ExecutionProofDecision.client_order_id == client_order_id)
+            .order_by(ExecutionProofDecision.created_at.desc())
             .limit(1)
         )
         return self.session.scalar(stmt)

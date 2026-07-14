@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import CheckConstraint, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -220,3 +221,74 @@ class ExecutionOverride(Base):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     audit_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class ExecutionProofDecision(Base):
+    """INSERT-only audit record for proof-gate admission decisions (S-EXEC-SAFE-2b).
+
+    Append-only: rows are never updated or deleted. `event_id` is a surrogate
+    PK for collision-free identity under concurrent writes.
+    """
+
+    __tablename__ = "execution_proof_decisions"
+    __table_args__ = (
+        Index("ix_execution_proof_decisions_symbol_created_at", "symbol", "created_at"),
+        Index(
+            "ix_execution_proof_decisions_decision_created_at",
+            "decision",
+            "created_at",
+        ),
+        {"schema": "ops"},
+    )
+
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    decision: Mapped[str] = mapped_column(Text, nullable=False)
+    intent_hash: Mapped[str] = mapped_column(String(16), nullable=False)
+    snapshot_hash: Mapped[str] = mapped_column(String(16), nullable=False)
+    snapshot_ts: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    metadata_version: Mapped[str] = mapped_column(Text, nullable=False)
+    symbol: Mapped[str] = mapped_column(Text, nullable=False)
+    client_order_id: Mapped[str] = mapped_column(Text, nullable=False)
+    reason_codes: Mapped[str] = mapped_column(Text, nullable=False)
+    invariant_results: Mapped[str] = mapped_column(Text, nullable=False)
+    arming_event_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+
+    @classmethod
+    def from_record(
+        cls,
+        record,  # : DecisionRecord — импорт отложенный чтобы из circular
+        *,
+        symbol: str,
+        client_order_id: str,
+        event_id: str | None = None,
+    ) -> "ExecutionProofDecision":
+        """Маппинг DecisionRecord → ORM-строка. enum'ы сериализуются по .name."""
+        import json
+
+        from clay.execution.proof.decision import DecisionRecord
+
+        assert isinstance(record, DecisionRecord)
+        return cls(
+            event_id=event_id or str(uuid4()),
+            decision=record.decision.name,
+            intent_hash=record.intent_hash,
+            snapshot_hash=record.snapshot_hash,
+            snapshot_ts=record.snapshot_ts,
+            metadata_version=record.metadata_version,
+            symbol=symbol,
+            client_order_id=client_order_id,
+            reason_codes=json.dumps(
+                [rc.name for rc in record.reason_codes], sort_keys=True
+            ),
+            invariant_results=json.dumps(
+                [
+                    {"code": ir.code.name, "passed": ir.passed}
+                    for ir in record.invariant_results
+                ],
+                sort_keys=True,
+                default=str,
+            ),
+            arming_event_id=record.arming_event_id,
+            created_at=record.created_at,
+        )
