@@ -13,8 +13,8 @@ import pytest
 from clay.execution.adapter.binance import (
     BinanceExecutionAdapter,
     _is_duplicate_cid,
-    _map_state,
 )
+from clay.execution.adapter.ccxt_base import _map_state
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
     Environment,
