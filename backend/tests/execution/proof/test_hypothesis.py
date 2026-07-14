@@ -24,6 +24,7 @@ from clay.execution.adapter.normalization import validate_order
 from clay.execution.adapter.rules import MarketRules
 from clay.execution.proof.checker import admit
 from clay.execution.proof.decision import Decision
+from clay.execution.proof.reason_codes import ReasonCode
 from clay.execution.proof.snapshot import FreshnessPolicy, MarketSnapshot
 
 NOW = datetime.now(tz=timezone.utc)
@@ -164,7 +165,29 @@ def test_valid_order_with_fresh_snapshot_admits(
         intent=valid_req,
         snapshot=snapshot,
         policy=STABLE_POLICY,
-        max_order_notional=STABLE_MAX_NOTIONAL,
+        max_order_notional=Decimal(
+            "0"
+        ),  # cap выключен — тестируем admission, не notional
         now=NOW,
     )
     assert rec.decision == Decision.ADMIT
+
+
+@hypothesis.settings(max_examples=200)
+@given(req=_order_request_strategy())
+def test_market_with_active_cap_always_denies(req: OrderRequest) -> None:
+    """price is None ∧ cap>0 ⇒ DENY ∧ NOTIONAL_UNCOMPUTABLE ∈ reason_codes."""
+    if req.price is not None:
+        return  # не MARKET — не наш кейс
+    cap = Decimal("100")
+    rec = admit(
+        intent=req,
+        snapshot=MarketSnapshot(
+            rules=STABLE_RULES, fetched_at=NOW, metadata_version="v1"
+        ),
+        policy=STABLE_POLICY,
+        max_order_notional=cap,
+        now=NOW,
+    )
+    assert rec.decision == Decision.DENY
+    assert ReasonCode.NOTIONAL_UNCOMPUTABLE in rec.reason_codes
