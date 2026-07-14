@@ -21,6 +21,7 @@ from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _dec,
 )
+from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
     Environment,
     OrderType,
@@ -116,6 +117,12 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
 
     def _is_duplicate_cid(self, exc: Exception) -> bool:
         return _is_duplicate_cid(exc)
+
+    def _build_order_params(self, req: OrderRequest) -> dict[str, Any]:
+        params: dict[str, Any] = {"newClientOrderId": req.client_order_id}
+        if req.stop_price is not None:
+            params["stopPrice"] = str(req.stop_price)
+        return params
 
     async def get_market_rules(self, symbol: str) -> MarketRules:
         try:

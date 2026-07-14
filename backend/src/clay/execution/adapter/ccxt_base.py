@@ -97,12 +97,11 @@ class CcxtExchangeAdapter:
 
     # -- network-bound (async) ------------------------------------------------
 
+    @abstractmethod
     async def get_market_rules(self, symbol: str) -> MarketRules: ...
 
     async def place_order(self, req: OrderRequest) -> OrderAck:
-        params: dict[str, Any] = {"newClientOrderId": req.client_order_id}
-        if req.stop_price is not None:
-            params["stopPrice"] = str(req.stop_price)
+        params = self._build_order_params(req)
 
         try:
             response = await self._client.create_order(
@@ -244,6 +243,11 @@ class CcxtExchangeAdapter:
         ...
 
     _dup_cid_code: ClassVar[str] = ""
+
+    @abstractmethod
+    def _build_order_params(self, req: OrderRequest) -> dict[str, Any]:
+        """Venue-specific create_order params (client-order-id key, stop encoding)."""
+        ...
 
     # -- private helpers ------------------------------------------------------
 
