@@ -4,6 +4,7 @@ Pure domain — no network, no I/O, no float.
 """
 
 from clay.execution.adapter.ccxt_base import CcxtExchangeAdapter
+from clay.execution.adapter.bybit import BybitExecutionAdapter
 from clay.execution.adapter.domain import (
     BalanceSnapshot,
     Fill,
@@ -38,6 +39,7 @@ __all__ = [
     "AdapterError",
     "AmbiguousExecutionError",
     "BalanceSnapshot",
+    "BybitExecutionAdapter",
     "CcxtExchangeAdapter",
     "ConfigError",
     "Environment",
