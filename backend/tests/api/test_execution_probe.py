@@ -158,7 +158,7 @@ def testnet_config() -> ExecutionConfig:
         mode="testnet",
         api_key="test-key",
         api_secret="test-secret",
-        max_order_notional_usdt=0.0,
+        max_order_notional_usdt=Decimal("0"),
     )
 
 
@@ -339,7 +339,7 @@ def test_notional_cap_over_returns_422(app, testnet_config: ExecutionConfig) -> 
         mode="testnet",
         api_key="test-key",
         api_secret="test-secret",
-        max_order_notional_usdt=0.01,
+        max_order_notional_usdt=Decimal("0.01"),
     )
     mock_client = _make_client(mode="testnet")
 
@@ -368,7 +368,7 @@ def test_notional_cap_off_by_default_returns_200(
         mode="testnet",
         api_key="test-key",
         api_secret="test-secret",
-        max_order_notional_usdt=0.0,
+        max_order_notional_usdt=Decimal("0"),
     )
     mock_client = _make_client(mode="testnet")
 
@@ -397,7 +397,7 @@ def test_notional_cap_fail_closed_market_no_price(
         mode="testnet",
         api_key="test-key",
         api_secret="test-secret",
-        max_order_notional_usdt=50.0,
+        max_order_notional_usdt=Decimal("50"),
     )
     mock_client = _make_client(mode="testnet")
 

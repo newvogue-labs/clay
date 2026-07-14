@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from decimal import Decimal
 
 from clay.execution.adapter.enums import Environment
 
@@ -30,7 +31,7 @@ class ExecutionConfig:
     testnet: bool = False
     recv_window: int = 5000
     allow_live_override: bool = False
-    max_order_notional_usdt: float = 0.0
+    max_order_notional_usdt: Decimal = Decimal("0")
 
     @classmethod
     def from_env(cls) -> ExecutionConfig:
@@ -52,7 +53,7 @@ class ExecutionConfig:
                 "CLAY_EXECUTION_ALLOW_LIVE_OVERRIDE", "false"
             ).lower()
             == "true",
-            max_order_notional_usdt=float(
+            max_order_notional_usdt=Decimal(
                 os.environ.get("CLAY_EXECUTION_MAX_ORDER_NOTIONAL", "0")
             ),
         )

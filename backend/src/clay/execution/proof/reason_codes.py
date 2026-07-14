@@ -1,0 +1,24 @@
+"""Стабильные reason-codes для Execution Proof-Gate.
+
+Append-only: новые коды добавляются в конец. Удаление/переименование запрещено.
+"""
+
+from enum import Enum
+
+
+class ReasonCode(str, Enum):
+    """Стабильные коды причин отказа. append-only."""
+
+    UNSUPPORTED_ORDER_TYPE = "UNSUPPORTED_ORDER_TYPE"
+    UNSUPPORTED_TIF = "UNSUPPORTED_TIF"
+    PRICE_REQUIRED = "PRICE_REQUIRED"
+    NON_POSITIVE_FIELD = "NON_POSITIVE_FIELD"
+    QTY_BELOW_MIN = "QTY_BELOW_MIN"
+    QTY_ABOVE_MAX = "QTY_ABOVE_MAX"
+    PRICE_BELOW_MIN = "PRICE_BELOW_MIN"
+    PRICE_ABOVE_MAX = "PRICE_ABOVE_MAX"
+    NOTIONAL_BELOW_MIN = "NOTIONAL_BELOW_MIN"
+    NOTIONAL_ABOVE_CAP = "NOTIONAL_ABOVE_CAP"
+    SNAPSHOT_STALE = "SNAPSHOT_STALE"
+    SNAPSHOT_VERSION_MISMATCH = "SNAPSHOT_VERSION_MISMATCH"
+    EVAL_ERROR = "EVAL_ERROR"
