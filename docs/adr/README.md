@@ -46,7 +46,8 @@
 | 030 | Advisory #knowledge → chief-agent (advisory-only) | Accepted | docs/adr | [`030-advisory-knowledge-chief-agent.md`](030-advisory-knowledge-chief-agent.md) |
 | 031 | Notion-mirror publisher — односторонний sync vault → Notion | Accepted | docs/adr | [`031-notion-mirror-publisher.md`](031-notion-mirror-publisher.md) |
 | 032 | Exchange Execution Adapter (Multi-Venue) | Proposed | docs/adr | [`032-exchange-execution-adapter-multi-venue.md`](032-exchange-execution-adapter-multi-venue.md) |
-| 033+ | свободны | — | — | |
+| 033 | Execution Proof-Gate | Proposed | docs/adr | [`033-execution-proof-gate.md`](033-execution-proof-gate.md) |
+| 034+ | свободны | — | — | |
 
 ## Карта номеров
 
