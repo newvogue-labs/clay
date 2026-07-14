@@ -3,25 +3,20 @@
 Operator-initiated endpoint that places a REAL order on Binance Spot
 testnet, validating the signal->execution chain on a live testnet API.
 
-Safety gates:
+Safety gates (consolidated into ExecutionProofGate):
   - default-deny: only ``testnet`` mode allowed (dry_run -> 409)
-  - notional guard: per-order cap (S-LIVE-2) with fail-closed semantics
-    (cap>0 + unknown price -> reject)
-  - adapter validate+quantize before any cex call
-
-BREAKING-CHANGE (v2): monetary fields now serialise as **str** not float
-(Decimal -> JSON string). Frontend consumers: none — operator/curl only.
+  - Proof-Gate: admit/deny per order (validates rules, notional, freshness)
+  - persist fail-closed (ProofGatePersistError -> 503)
 
 Audit: durable write via ``AuditWriter.write`` (sync, from bootstrap).
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from clay.api.dependencies import get_execution_client, get_execution_config
 from clay.bootstrap import audit_writer
@@ -35,9 +30,9 @@ from clay.execution.adapter.errors import (
     OperationNotAllowedError,
     OrderRejectedError,
 )
-from clay.execution.adapter.notional import check_order_notional
 from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.config import ExecutionConfig
+from clay.execution.proof.errors import ProofGateDeniedError, ProofGatePersistError
 
 router = APIRouter(prefix="/workspace/trading/execution", tags=["execution"])
 
@@ -75,6 +70,8 @@ class TestnetProbeResponse(BaseModel):
 
 
 class TestnetProbeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     symbol: str
     side: str
     quantity: str
@@ -137,10 +134,12 @@ async def testnet_probe(
             detail="execution not armed for testnet",
         )
 
-    # V1: resolve or allocate client_order_id
+    # resolve or allocate client_order_id
     cid = payload.client_order_id or uuid4().hex
 
-    # V2: build domain request
+    # build raw domain request (gate handles validate + quantize + admit)
+    from decimal import Decimal
+
     req = OrderRequest(
         symbol=payload.symbol,
         side=OrderSide(payload.side),
@@ -151,29 +150,18 @@ async def testnet_probe(
         price=Decimal(payload.price) if payload.price else None,
     )
 
-    # V5: get market rules + validate
+    # place via gate (admit → persist → delegate)
     try:
-        rules = await client.get_market_rules(req.symbol)
-    except AdapterError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    client.validate_order(req, rules)
-    quantized = client.quantize_order(req, rules)
-
-    # V6: notional cap (S-LIVE-2) after quantization, before cex call
-    try:
-        check_order_notional(
-            symbol=quantized.symbol,
-            quantity=quantized.quantity,
-            price=quantized.price,
-            max_notional=Decimal(str(exec_config.max_order_notional_usdt)),
-        )
-    except OperationNotAllowedError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    # V7: place via adapter
-    try:
-        ack = await client.place_order(quantized)
+        ack = await client.place_order(req)
+    except ProofGateDeniedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "denied", "reason_codes": list(exc.reason_codes)},
+        ) from exc
+    except ProofGatePersistError as exc:
+        raise HTTPException(
+            status_code=503, detail=f"proof-gate persist failed: {exc}"
+        ) from exc
     except InvalidOrderError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OrderRejectedError as exc:
@@ -185,8 +173,8 @@ async def testnet_probe(
             "execution.testnet_probe_circuit_open",
             {
                 "actor": "operator",
-                "cid": quantized.client_order_id,
-                "symbol": quantized.symbol,
+                "cid": cid,
+                "symbol": payload.symbol,
                 "error": str(exc),
             },
         )
@@ -198,8 +186,8 @@ async def testnet_probe(
             "execution.testnet_probe_ambiguous",
             {
                 "actor": "operator",
-                "cid": quantized.client_order_id,
-                "symbol": quantized.symbol,
+                "cid": cid,
+                "symbol": payload.symbol,
                 "error": str(exc),
             },
         )

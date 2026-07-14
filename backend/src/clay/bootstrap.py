@@ -38,6 +38,8 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.execution.adapter.binance import BinanceExecutionAdapter
 from clay.execution.config import ExecutionConfig, environment_from_mode
+from clay.execution.proof.gate import ExecutionProofGate
+from clay.execution.proof.snapshot import FreshnessPolicy
 from clay.execution.resilience import CircuitBreakerPolicy, ResilientExecutionAdapter
 from clay.execution.service import OverrideService
 from clay.health.monitor import HealthMonitor
@@ -210,13 +212,22 @@ def build_services(
     execution_config = ExecutionConfig.from_env()
     env = environment_from_mode(execution_config.mode)
     if env is not None and execution_config.api_key and execution_config.api_secret:
-        execution_client = ResilientExecutionAdapter(
-            BinanceExecutionAdapter(
-                environment=env,
-                api_key=execution_config.api_key,
-                api_secret=execution_config.api_secret,
+        execution_client = ExecutionProofGate(
+            ResilientExecutionAdapter(
+                BinanceExecutionAdapter(
+                    environment=env,
+                    api_key=execution_config.api_key,
+                    api_secret=execution_config.api_secret,
+                ),
+                cb_policy=CircuitBreakerPolicy(),
             ),
-            cb_policy=CircuitBreakerPolicy(),
+            session_factory=session_factory,
+            freshness_policy=FreshnessPolicy(
+                max_age_seconds=execution_config.proof_max_snapshot_age_seconds,
+                expected_metadata_version=execution_config.proof_metadata_version,
+            ),
+            max_order_notional=execution_config.max_order_notional_usdt,
+            metadata_version=execution_config.proof_metadata_version,
         )
     else:
         execution_client = None
