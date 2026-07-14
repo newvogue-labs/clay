@@ -90,9 +90,15 @@ class OrderState(StrEnum): NEW="new"; PARTIALLY_FILLED="partially_filled"; \
 
 CircuitBreaker перед венью-вызовами; выбор реализации (паттерн из daily_stock_analysis, MIT — read-only — vs `pybreaker`) фиксируется в build_spec слайса. **Fallback НИКОГДА не роутит `place_order`/`cancel_order` на другую венью** — только read-операции (`get_order`, `get_balances`, `reconcile`). Ордер-плоскость венью-sticky.
 
-### (h) Первый конкретный адаптер — Binance; per-venue подкласс = capability-overlay
+### (h) Первый конкретный адаптер — Binance; per-venue подкласс = capability-overlay ✅ IMPLEMENTED
 
 `BinanceExecutionAdapter(ExchangeAdapter)` замещает хардкод из ADR-025 `TestnetExecutionClient`; `Environment` выбирает endpoint (в т.ч. `demo.binance.com` для Track A). Следующие венью (Bybit, OKX) = подклассы с override `MarketRules`/capability-флагов, без дублирования порта.
+
+**Реализация (S-ADAPT-5b-1, 5b-2a, 5b-2b):**
+- `CcxtExchangeAdapter` — базовый класс с общей ccxt-механикой (error mapping, response building, validate/quantize delegation, place/cancel/get/reconcile/balances/close).
+- Venue-specific hooks: `_build_client()`, `_build_order_params()`, `_is_duplicate_cid()`, `get_market_rules()`, `supported_order_types`, `supported_tif`.
+- `BinanceExecutionAdapter(CcxtExchangeAdapter)` — Binance Spot (`newClientOrderId`, `-4116` dup-cid, `filters[]` parsing).
+- `BybitExecutionAdapter(CcxtExchangeAdapter)` — Bybit Spot (`clientOrderId→orderLinkId`, `12141/170141` dup-cid, ccxt-normalized `limits.cost.min`, `limits.price==None` guard).
 
 ## Invariants
 
@@ -166,6 +172,10 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 | **S-ADAPT-3** | Идемпотентность + `reconcile_orders` + `AmbiguousExecutionError` (reconcile-before-retry). | S-ADAPT-2 |
 | **S-ADAPT-4** | CircuitBreaker + read-only fallback-chain (Q1 решается тут). | S-ADAPT-2 |
 | **S-ADAPT-5** | Второй венью-подкласс (Bybit demo) через capability-overlay — доказать переносимость. | S-ADAPT-3, S-ADAPT-4 |
+| S-ADAPT-5a | dup-cid safety (AmbiguousExecutionError for -4116). | S-ADAPT-4 |
+| S-ADAPT-5b-1 | `CcxtExchangeAdapter` base class extraction. | S-ADAPT-5a |
+| S-ADAPT-5b-2a | `_build_order_params` hook + `@abstractmethod get_market_rules`. | S-ADAPT-5b-1 |
+| S-ADAPT-5b-2b | `BybitExecutionAdapter` + FakeBybitClient tests + ADR-032 update. | S-ADAPT-5b-2a |
 
 ## Errata 2026-07-13 (S-ADAPT-2C)
 
@@ -199,6 +209,22 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 - **Route V7: `CircuitOpenError` → HTTP 503.** `except CircuitOpenError` ВЫШЕ `except AmbiguousExecutionError(409)` и `except AdapterError(422)`. Durable audit `execution.testnet_probe_circuit_open`.
 - **Разделение путей для S-ADAPT-5.** Read-ops и cancel_order идут через CB раздельными путями. Read-fallback в S-ADAPT-5 сел ТОЛЬКО на read-ops (get_*), не трогая order-plane (place/cancel) — venue-sticky (инв.7).
 - **Read-only fallback-chain отложена в S-ADAPT-5.** В этом слайсе — только CB + fail-fast, без chain-scaffolding.
+
+## Errata 2026-07-14 (S-ADAPT-5b)
+
+- **S-ADAPT-5b-1 completed.** `CcxtExchangeAdapter` base class extracted from `BinanceExecutionAdapter`. Shared ccxt logic (error mapping, response building, state mapping, validate/quantize delegation) moved to base. `BinanceExecutionAdapter` becomes thin subclass with venue-specific hooks only.
+- **S-ADAPT-5b-2a completed.** `_build_order_params` abstract hook added (replaces inline params in `place_order`). `get_market_rules` marked `@abstractmethod`. Prepares for Bybit venue which needs `orderLinkId`/`triggerPrice`+`orderFilter` instead of Binance's `newClientOrderId`/`stopPrice`.
+- **S-ADAPT-5b-2b completed.** `BybitExecutionAdapter(CcxtExchangeAdapter)` — Bybit Spot adapter. Key differences from Binance:
+  - `defaultType='spot'` must be set explicitly (default is `'swap'`).
+  - `clientOrderId` → `orderLinkId` (ccxt unified).
+  - `_is_duplicate_cid`: `12141` (spot → BadRequest) and `170141` (linear → InvalidOrder).
+  - `get_market_rules`: ccxt-normalized `limits.cost.min` (not raw `filters[]`).
+  - `limits.price == None` for spot → guard (min/max_price = Decimal("0")).
+  - `supported_order_types`: `{MARKET, LIMIT}` (no STOP_LIMIT on Bybit spot).
+  - `enable_demo_trading` and `set_sandbox_mode` are mutually exclusive (not in this slice).
+  - 44 new tests (FakeBybitClient, dup-cid, get_market_rules, constructor).
+
+**Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → S-ADAPT-3 → S-ADAPT-4 → S-ADAPT-5a → S-ADAPT-5b-1 → S-ADAPT-5b-2a → S-ADAPT-5b-2b.
 
 ## Не-цели (out of scope)
 
