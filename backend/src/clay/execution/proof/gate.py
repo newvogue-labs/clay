@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from clay.execution.adapter.domain import (
@@ -53,6 +54,7 @@ class ExecutionProofGate:
         session_factory: sessionmaker | None,
         freshness_policy: FreshnessPolicy,
         max_order_notional,  # : Decimal
+        max_position: Decimal | None = None,
         metadata_version: str = "v1",
         enforce_portfolio: bool = False,
     ) -> None:
@@ -60,6 +62,7 @@ class ExecutionProofGate:
         self._session_factory = session_factory
         self._freshness_policy = freshness_policy
         self._max_order_notional = max_order_notional
+        self._max_position = max_position or Decimal(0)
         self._metadata_version = metadata_version
         self._enforce_portfolio = enforce_portfolio
 
@@ -97,6 +100,7 @@ class ExecutionProofGate:
             max_order_notional=self._max_order_notional,
             now=_now_utc(),
             account=account,
+            max_position=self._max_position,
         )
         # persist fail-closed
         try:

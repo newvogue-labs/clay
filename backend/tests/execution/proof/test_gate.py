@@ -355,3 +355,63 @@ class TestGateEnforcePortfolio:
         ack = await gate.place_order(req)
         assert inner.place_order_called
         assert ack.client_order_id == "test-gate-001"
+
+
+class TestGatePositionCap:
+    @pytest.mark.asyncio
+    async def test_enforce_true_cap_over_denies(self) -> None:
+        """enforce_portfolio=True + max_position over → ProofGateDeniedError."""
+        inner = FakeInner()
+
+        async def balances_with_btc() -> list:
+            return [
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("1"),
+                    locked=Decimal("0"),
+                    total=Decimal("1"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("100000"),
+                    locked=Decimal("0"),
+                    total=Decimal("100000"),
+                ),
+            ]
+
+        inner.get_balances = balances_with_btc  # type: ignore[assignment]
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            max_position=Decimal("80000"),
+            enforce_portfolio=True,
+        )
+        # projected = (1 + 1) * 50000 = 100000; cap=80000 → DENY
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("1"), price=Decimal("50000")
+        )
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "POSITION_ABOVE_CAP" in exc_info.value.reason_codes
+
+    @pytest.mark.asyncio
+    async def test_enforce_false_cap_ignored(self) -> None:
+        """enforce_portfolio=False → cap ignored, no get_balances call."""
+        inner = FakeInner()
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            max_position=Decimal("1"),
+            enforce_portfolio=False,
+        )
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("100"), price=Decimal("50000")
+        )
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not inner.get_balances_called
+        assert ack.client_order_id == "test-gate-001"

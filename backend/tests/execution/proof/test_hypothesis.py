@@ -242,3 +242,55 @@ def test_insufficient_free_never_admits(
     )
     assert rec.decision == Decision.DENY
     assert ReasonCode.INSUFFICIENT_FREE_BALANCE in rec.reason_codes
+
+
+@hypothesis.settings(max_examples=200)
+@given(
+    existing_total=st.decimals(min_value=Decimal("0"), max_value=Decimal("100")),
+    qty=st.decimals(min_value=Decimal("0.001"), max_value=Decimal("10")),
+    price=st.decimals(min_value=Decimal("1"), max_value=Decimal("200000")),
+)
+def test_position_above_cap_never_admits(
+    existing_total: Decimal,
+    qty: Decimal,
+    price: Decimal,
+) -> None:
+    """projected > cap ⇒ never ADMIT (position invariant holds)."""
+    projected = (existing_total + qty) * price
+    cap = projected - Decimal("1")  # cap is just below projected
+    if cap <= 0:
+        return  # not a meaningful test case
+
+    account = AccountSnapshot(
+        balances=(
+            BalanceSnapshot(
+                asset="BTC",
+                free=existing_total,
+                locked=Decimal(0),
+                total=existing_total,
+            ),
+        ),
+        fetched_at=NOW,
+    )
+    req = OrderRequest(
+        symbol="BTC/USDT",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=qty,
+        time_in_force=TimeInForce.GTC,
+        client_order_id="hypo-position-001",
+        price=price,
+    )
+    rec = admit(
+        intent=req,
+        snapshot=MarketSnapshot(
+            rules=STABLE_RULES, fetched_at=NOW, metadata_version="v1"
+        ),
+        policy=STABLE_POLICY,
+        max_order_notional=Decimal("0"),
+        now=NOW,
+        account=account,
+        max_position=cap,
+    )
+    assert rec.decision == Decision.DENY
+    assert ReasonCode.POSITION_ABOVE_CAP in rec.reason_codes

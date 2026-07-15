@@ -32,6 +32,7 @@ class ExecutionConfig:
     recv_window: int = 5000
     allow_live_override: bool = False
     max_order_notional_usdt: Decimal = Decimal("0")
+    proof_max_position_usdt: Decimal = Decimal("0")
     proof_max_snapshot_age_seconds: int = 30
     proof_metadata_version: str = "v1"
 
@@ -57,6 +58,9 @@ class ExecutionConfig:
             == "true",
             max_order_notional_usdt=Decimal(
                 os.environ.get("CLAY_EXECUTION_MAX_ORDER_NOTIONAL", "0")
+            ),
+            proof_max_position_usdt=Decimal(
+                os.environ.get("CLAY_PROOF_MAX_POSITION_USDT", "0")
             ),
             proof_max_snapshot_age_seconds=int(
                 os.environ.get("CLAY_PROOF_MAX_SNAPSHOT_AGE_SECONDS", "30")

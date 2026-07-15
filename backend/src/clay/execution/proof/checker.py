@@ -56,6 +56,7 @@ def _check_invariants(
     now: datetime,
     account: AccountSnapshot | None = None,
     fee_rate: Decimal = Decimal(0),
+    max_position: Decimal = Decimal(0),
 ) -> list[InvariantResult]:
     """Collect-all проверка инвариантов. Порядок фиксирован."""
     rules = snapshot.rules
@@ -143,6 +144,19 @@ def _check_invariants(
                 ReasonCode.INSUFFICIENT_FREE_BALANCE,
                 account.free_of(req.symbol.split("/")[0]) >= req.quantity,
             )
+        # 15. position cap (entry/increase-only; reduce bypass per ADR-033 §4)
+        if max_position > 0:
+            if "/" not in req.symbol:
+                _add(ReasonCode.POSITION_UNCOMPUTABLE, False)
+            elif req.side == OrderSide.BUY and req.price is None:
+                _add(ReasonCode.POSITION_UNCOMPUTABLE, False)
+            elif req.side == OrderSide.BUY and req.price is not None:
+                base = req.symbol.split("/")[0]
+                projected = (account.total_of(base) + req.quantity) * req.price
+                _add(ReasonCode.POSITION_ABOVE_CAP, projected <= max_position)
+            else:
+                # SELL (reduce) → bypass
+                _add(ReasonCode.POSITION_ABOVE_CAP, True)
     return results
 
 
@@ -161,6 +175,7 @@ def admit(
     now: datetime,
     account: AccountSnapshot | None = None,
     fee_rate: Decimal = Decimal(0),
+    max_position: Decimal = Decimal(0),
 ) -> DecisionRecord:
     """Оценка ордера: ADMIT или DENY(reason-codes). Collect-all, fail-closed."""
     try:
@@ -172,6 +187,7 @@ def admit(
             now=now,
             account=account,
             fee_rate=fee_rate,
+            max_position=max_position,
         )
         failed = tuple(r.code for r in results if not r.passed)
         decision = Decision.ADMIT if not failed else Decision.DENY

@@ -71,3 +71,10 @@ class AccountSnapshot:
             (b.free for b in self.balances if b.asset == asset),
             Decimal(0),
         )
+
+    def total_of(self, asset: str) -> Decimal:
+        """Сумма total по asset; Decimal(0) если нет."""
+        return sum(
+            (b.total for b in self.balances if b.asset == asset),
+            Decimal(0),
+        )

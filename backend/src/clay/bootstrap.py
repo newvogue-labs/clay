@@ -227,6 +227,7 @@ def build_services(
                 expected_metadata_version=execution_config.proof_metadata_version,
             ),
             max_order_notional=execution_config.max_order_notional_usdt,
+            max_position=execution_config.proof_max_position_usdt,
             metadata_version=execution_config.proof_metadata_version,
         )
     else:

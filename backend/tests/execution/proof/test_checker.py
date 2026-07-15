@@ -696,3 +696,192 @@ class TestAccountPortfolio:
         )
         assert rec.decision == Decision.DENY
         assert ReasonCode.BALANCE_UNCOMPUTABLE in rec.reason_codes
+
+
+# ── Position cap (off-by-default) ────────────────────────────────────────
+
+
+class TestPositionCap:
+    def test_buy_within_cap_admits(self) -> None:
+        """BUY 0.1 BTC @ 50000; total=1 → projected=(1+0.1)*50000=55000; cap=100000 → ADMIT."""
+        account = _make_account()
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("0.1"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=account,
+            max_position=Decimal("100000"),
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_buy_over_cap_denies(self) -> None:
+        """BUY 1 BTC @ 50000; total=1 → projected=(1+1)*50000=100000; cap=80000 → DENY."""
+        account = _make_account()
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("1"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+            max_position=Decimal("80000"),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.POSITION_ABOVE_CAP in rec.reason_codes
+
+    def test_projected_uses_total_of_base(self) -> None:
+        """projected = (total_of(base) + qty) * price — existing position counted."""
+        account = _make_account(
+            balances=(
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("0.5"),
+                    locked=Decimal("0.5"),
+                    total=Decimal("1"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("50000"),
+                    locked=Decimal(0),
+                    total=Decimal("50000"),
+                ),
+            ),
+        )
+        # projected = (1 + 0.1) * 50000 = 55000; cap=54000 → DENY
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("0.1"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+            max_position=Decimal("54000"),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.POSITION_ABOVE_CAP in rec.reason_codes
+
+    def test_buy_market_no_price_denies(self) -> None:
+        """BUY MARKET (price=None) + cap → DENY[POSITION_UNCOMPUTABLE]."""
+        account = _make_account()
+        req = _make_request(order_type=OrderType.MARKET, price=None)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+            max_position=Decimal("100000"),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.POSITION_UNCOMPUTABLE in rec.reason_codes
+
+    def test_sell_over_cap_admits(self) -> None:
+        """SELL (reduce) bypasses position cap — ADR-033 §4."""
+        account = _make_account(
+            balances=(
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("100"),
+                    locked=Decimal(0),
+                    total=Decimal("100"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("50000"),
+                    locked=Decimal(0),
+                    total=Decimal("50000"),
+                ),
+            ),
+        )
+        req = _make_request(
+            side=OrderSide.SELL, quantity=Decimal("10"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+            max_position=Decimal("1000"),
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_no_slash_symbol_denies(self) -> None:
+        """Symbol без '/' + cap → DENY[POSITION_UNCOMPUTABLE]."""
+        account = _make_account()
+        req = _make_request(symbol="BTCUSDT")
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=account,
+            max_position=Decimal("100000"),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.POSITION_UNCOMPUTABLE in rec.reason_codes
+
+    def test_cap_zero_off(self) -> None:
+        """max_position=0 → no portfolio result added."""
+        account = _make_account(
+            balances=(
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("1"),
+                    locked=Decimal(0),
+                    total=Decimal("1"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("5000000"),
+                    locked=Decimal(0),
+                    total=Decimal("5000000"),
+                ),
+            ),
+        )
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("100"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+            max_position=Decimal("0"),
+        )
+        assert rec.decision == Decision.ADMIT
+        pos_codes = {ReasonCode.POSITION_ABOVE_CAP, ReasonCode.POSITION_UNCOMPUTABLE}
+        assert pos_codes.isdisjoint(set(rec.reason_codes))
+
+    def test_account_none_off(self) -> None:
+        """account=None → no portfolio results, 12 invariants."""
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("100"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=None,
+            max_position=Decimal("100000"),
+        )
+        assert rec.decision == Decision.ADMIT
+        assert len(rec.invariant_results) == 12
