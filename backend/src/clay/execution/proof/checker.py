@@ -15,10 +15,14 @@ from decimal import Decimal
 import icontract
 
 from clay.execution.adapter.domain import OrderRequest
-from clay.execution.adapter.enums import OrderType
+from clay.execution.adapter.enums import OrderSide, OrderType
 from clay.execution.proof.decision import Decision, DecisionRecord, InvariantResult
 from clay.execution.proof.reason_codes import ReasonCode
-from clay.execution.proof.snapshot import FreshnessPolicy, MarketSnapshot
+from clay.execution.proof.snapshot import (
+    AccountSnapshot,
+    FreshnessPolicy,
+    MarketSnapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,8 @@ def _check_invariants(
     policy: FreshnessPolicy,
     max_order_notional: Decimal,
     now: datetime,
+    account: AccountSnapshot | None = None,
+    fee_rate: Decimal = Decimal(0),
 ) -> list[InvariantResult]:
     """Collect-all проверка инвариантов. Порядок фиксирован."""
     rules = snapshot.rules
@@ -115,6 +121,28 @@ def _check_invariants(
         )
     else:
         _add(ReasonCode.SNAPSHOT_VERSION_MISMATCH, True)
+    # ── Portfolio invariants (off-by-default: account=None ⇒ skip) ──────
+    if account is not None:
+        # 13. account freshness
+        account_age = (now - account.fetched_at).total_seconds()
+        _add(ReasonCode.ACCOUNT_SNAPSHOT_STALE, account_age <= policy.max_age_seconds)
+        # 14. no-oversell (side-dependent)
+        if "/" not in req.symbol:
+            _add(ReasonCode.BALANCE_UNCOMPUTABLE, False)
+        elif req.side == OrderSide.BUY and req.price is None:
+            _add(ReasonCode.BALANCE_UNCOMPUTABLE, False)
+        elif req.side == OrderSide.BUY and req.price is not None:
+            cost = req.quantity * req.price * (Decimal(1) + fee_rate)
+            _add(
+                ReasonCode.INSUFFICIENT_FREE_BALANCE,
+                account.free_of(req.symbol.split("/")[1]) >= cost,
+            )
+        else:
+            # SELL
+            _add(
+                ReasonCode.INSUFFICIENT_FREE_BALANCE,
+                account.free_of(req.symbol.split("/")[0]) >= req.quantity,
+            )
     return results
 
 
@@ -131,6 +159,8 @@ def admit(
     policy: FreshnessPolicy,
     max_order_notional: Decimal,
     now: datetime,
+    account: AccountSnapshot | None = None,
+    fee_rate: Decimal = Decimal(0),
 ) -> DecisionRecord:
     """Оценка ордера: ADMIT или DENY(reason-codes). Collect-all, fail-closed."""
     try:
@@ -140,6 +170,8 @@ def admit(
             policy=policy,
             max_order_notional=max_order_notional,
             now=now,
+            account=account,
+            fee_rate=fee_rate,
         )
         failed = tuple(r.code for r in results if not r.passed)
         decision = Decision.ADMIT if not failed else Decision.DENY

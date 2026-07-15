@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 
-from clay.execution.adapter.domain import OrderRequest
+from clay.execution.adapter.domain import BalanceSnapshot, OrderRequest
 from clay.execution.adapter.enums import (
     OrderSide,
     OrderType,
@@ -21,7 +21,11 @@ from clay.execution.adapter.rules import MarketRules
 from clay.execution.proof.checker import admit
 from clay.execution.proof.decision import Decision
 from clay.execution.proof.reason_codes import ReasonCode
-from clay.execution.proof.snapshot import FreshnessPolicy, MarketSnapshot
+from clay.execution.proof.snapshot import (
+    AccountSnapshot,
+    FreshnessPolicy,
+    MarketSnapshot,
+)
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -482,3 +486,213 @@ class TestDeterminism:
             now=NOW,
         )
         assert r1.intent_hash != r2.intent_hash
+
+
+# ── Account portfolio invariants (off-by-default) ────────────────────────
+
+
+def _make_account(**overrides: object) -> AccountSnapshot:
+    defaults: dict[str, object] = dict(
+        balances=(
+            BalanceSnapshot(
+                asset="BTC", free=Decimal("1"), locked=Decimal(0), total=Decimal("1")
+            ),
+            BalanceSnapshot(
+                asset="USDT",
+                free=Decimal("50000"),
+                locked=Decimal(0),
+                total=Decimal("50000"),
+            ),
+        ),
+        fetched_at=NOW,
+    )
+    defaults.update(overrides)  # type: ignore[arg-type]
+    return AccountSnapshot(**defaults)  # type: ignore[call-overload]
+
+
+class TestAccountPortfolio:
+    def test_account_none_skips_portfolio(self) -> None:
+        """account=None ⇒ ни одного портфельного кода, 12 invariants."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=None,
+        )
+        assert rec.decision == Decision.ADMIT
+        assert len(rec.invariant_results) == 12
+        portfolio_codes = {
+            ReasonCode.ACCOUNT_SNAPSHOT_STALE,
+            ReasonCode.INSUFFICIENT_FREE_BALANCE,
+            ReasonCode.BALANCE_UNCOMPUTABLE,
+        }
+        assert portfolio_codes.isdisjoint(set(rec.reason_codes))
+
+    def test_buy_within_free_admits(self) -> None:
+        """BUY 0.1 BTC @ 50000 = 5000 USDT; free=50000 → ADMIT."""
+        account = _make_account()
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("0.1"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=account,
+        )
+        assert rec.decision == Decision.ADMIT
+        assert len(rec.invariant_results) == 14
+
+    def test_buy_over_free_denies(self) -> None:
+        """BUY 1 BTC @ 50000 = 50000 USDT; free=50000 → DENY (cost includes fee)."""
+        account = _make_account()
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("1"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+            fee_rate=Decimal("0.001"),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.INSUFFICIENT_FREE_BALANCE in rec.reason_codes
+
+    def test_buy_market_with_account_denies(self) -> None:
+        """BUY MARKET + account → DENY[BALANCE_UNCOMPUTABLE] (price=None)."""
+        account = _make_account()
+        req = _make_request(order_type=OrderType.MARKET, price=None)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.BALANCE_UNCOMPUTABLE in rec.reason_codes
+
+    def test_sell_within_base_admits(self) -> None:
+        """SELL 0.5 BTC; free BTC=1 → ADMIT (cap disabled)."""
+        account = _make_account()
+        req = _make_request(
+            side=OrderSide.SELL, quantity=Decimal("0.5"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_sell_over_base_denies(self) -> None:
+        """SELL 2 BTC; free BTC=1 → DENY[INSUFFICIENT_FREE_BALANCE]."""
+        account = _make_account()
+        req = _make_request(
+            side=OrderSide.SELL, quantity=Decimal("2"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=account,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.INSUFFICIENT_FREE_BALANCE in rec.reason_codes
+
+    def test_fee_rate_pushes_over_free(self) -> None:
+        """fee_rate=0.01: cost = 0.1 * 50000 * 1.01 = 5050; free=5000 → DENY."""
+        account = _make_account(
+            balances=(
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("1"),
+                    locked=Decimal(0),
+                    total=Decimal("1"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("5000"),
+                    locked=Decimal(0),
+                    total=Decimal("5000"),
+                ),
+            ),
+        )
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("0.1"), price=Decimal("50000")
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            account=account,
+            fee_rate=Decimal("0.01"),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.INSUFFICIENT_FREE_BALANCE in rec.reason_codes
+
+    def test_stale_account_denies(self) -> None:
+        """Account fetched_at > max_age → DENY[ACCOUNT_SNAPSHOT_STALE]."""
+        stale_account = _make_account(fetched_at=NOW - timedelta(seconds=600))
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=stale_account,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.ACCOUNT_SNAPSHOT_STALE in rec.reason_codes
+
+    def test_collect_all_mixed_codes(self) -> None:
+        """Портфельный + per-order коды вместе в reason_codes."""
+        account = _make_account()
+        req = _make_request(
+            side=OrderSide.SELL,
+            quantity=Decimal("2"),
+            price=Decimal("50000"),
+        )
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=account,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.INSUFFICIENT_FREE_BALANCE in rec.reason_codes
+        assert len(rec.invariant_results) == 14
+
+    def test_symbol_no_slash_denies(self) -> None:
+        """Symbol без '/' → DENY[BALANCE_UNCOMPUTABLE]."""
+        account = _make_account()
+        req = _make_request(symbol="BTCUSDT")
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            account=account,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.BALANCE_UNCOMPUTABLE in rec.reason_codes
