@@ -9,10 +9,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from clay.execution.adapter.domain import BalanceSnapshot, OrderRequest
+
+from clay.execution.adapter.domain import BalanceSnapshot, OrderRequest, OrderSnapshot
 from clay.execution.adapter.enums import (
     OrderSide,
+    OrderState,
     OrderType,
     PrecisionMode,
     TimeInForce,
@@ -25,6 +29,7 @@ from clay.execution.proof.snapshot import (
     AccountSnapshot,
     FreshnessPolicy,
     MarketSnapshot,
+    OpenOrdersSnapshot,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -885,3 +890,254 @@ class TestPositionCap:
         )
         assert rec.decision == Decision.ADMIT
         assert len(rec.invariant_results) == 12
+
+
+# ── Open orders count cap (off-by-default) ────────────────────────────────
+
+
+def _make_order_snapshot(**overrides: object) -> OrderSnapshot:
+    defaults: dict[str, object] = dict(
+        client_order_id="ord-001",
+        venue_order_id="v-001",
+        symbol="BTC/USDT",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        state=OrderState.NEW,
+        quantity=Decimal("0.1"),
+        executed_qty=Decimal(0),
+        price=Decimal("50000"),
+        transact_time=int(NOW.timestamp() * 1000),
+    )
+    defaults.update(overrides)  # type: ignore[arg-type]
+    return OrderSnapshot(**defaults)  # type: ignore[call-overload]
+
+
+def _make_open_orders(
+    orders: tuple[OrderSnapshot, ...] | None = None,
+    fetched_at: datetime | None = None,
+) -> OpenOrdersSnapshot:
+    return OpenOrdersSnapshot(
+        orders=orders or (),
+        fetched_at=fetched_at or NOW,
+    )
+
+
+class TestOpenOrdersPortfolio:
+    def test_within_cap_admits(self) -> None:
+        """2 open orders + cap=3 → projected=3 ≤ 3 → ADMIT."""
+        oo = _make_open_orders(
+            orders=(
+                _make_order_snapshot(client_order_id="o1", venue_order_id="v1"),
+                _make_order_snapshot(client_order_id="o2", venue_order_id="v2"),
+            ),
+        )
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=3,
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_over_cap_denies(self) -> None:
+        """3 open orders + cap=3 → projected=4 > 3 → DENY."""
+        oo = _make_open_orders(
+            orders=(
+                _make_order_snapshot(client_order_id="o1", venue_order_id="v1"),
+                _make_order_snapshot(client_order_id="o2", venue_order_id="v2"),
+                _make_order_snapshot(client_order_id="o3", venue_order_id="v3"),
+            ),
+        )
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=3,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.OPEN_ORDERS_ABOVE_CAP in rec.reason_codes
+
+    def test_at_cap_admits(self) -> None:
+        """1 open order + cap=1 → projected=2 > 1 → DENY; but 0 existing + cap=1 → ADMIT."""
+        # Zero existing orders, cap=1 → projected=1 ≤ 1 → ADMIT
+        oo = _make_open_orders(orders=())
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=1,
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_cap_zero_off(self) -> None:
+        """max_open_orders=0 → no open orders result added."""
+        oo = _make_open_orders(
+            orders=(_make_order_snapshot(client_order_id="o1", venue_order_id="v1"),),
+        )
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=0,
+        )
+        assert rec.decision == Decision.ADMIT
+        oo_codes = {
+            ReasonCode.OPEN_ORDERS_SNAPSHOT_STALE,
+            ReasonCode.OPEN_ORDERS_ABOVE_CAP,
+        }
+        assert oo_codes.isdisjoint(set(rec.reason_codes))
+
+    def test_open_orders_none_off(self) -> None:
+        """open_orders=None → no open orders results, 12 invariants."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=None,
+            max_open_orders=3,
+        )
+        assert rec.decision == Decision.ADMIT
+        assert len(rec.invariant_results) == 12
+
+    def test_stale_open_orders_denies(self) -> None:
+        """open_orders fetched_at > max_age → DENY[OPEN_ORDERS_SNAPSHOT_STALE]."""
+        oo = _make_open_orders(fetched_at=NOW - timedelta(seconds=600))
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=3,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.OPEN_ORDERS_SNAPSHOT_STALE in rec.reason_codes
+
+    def test_market_bypass_over_cap_admits(self) -> None:
+        """MARKET order over cap → ADMIT (MARKET bypass, only _LIMIT_TYPES checked)."""
+        oo = _make_open_orders(
+            orders=(
+                _make_order_snapshot(client_order_id="o1", venue_order_id="v1"),
+                _make_order_snapshot(client_order_id="o2", venue_order_id="v2"),
+                _make_order_snapshot(client_order_id="o3", venue_order_id="v3"),
+            ),
+        )
+        req = _make_request(order_type=OrderType.MARKET, price=None)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=3,
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_per_symbol_isolation(self) -> None:
+        """Orders for ETH/USDT don't count toward BTC/USDT cap."""
+        oo = _make_open_orders(
+            orders=(
+                _make_order_snapshot(
+                    client_order_id="o1",
+                    venue_order_id="v1",
+                    symbol="ETH/USDT",
+                ),
+                _make_order_snapshot(
+                    client_order_id="o2",
+                    venue_order_id="v2",
+                    symbol="ETH/USDT",
+                ),
+            ),
+        )
+        req = _make_request(symbol="BTC/USDT")
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=1,
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_sell_orders_count(self) -> None:
+        """SELL orders also count toward cap (both sides, no reduce-bypass)."""
+        oo = _make_open_orders(
+            orders=(
+                _make_order_snapshot(
+                    client_order_id="o1",
+                    venue_order_id="v1",
+                    side=OrderSide.SELL,
+                ),
+                _make_order_snapshot(client_order_id="o2", venue_order_id="v2"),
+            ),
+        )
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            open_orders=oo,
+            max_open_orders=2,
+        )
+        # 2 existing + 1 projected = 3 > 2 → DENY
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.OPEN_ORDERS_ABOVE_CAP in rec.reason_codes
+
+
+# ── Hypothesis anti-drift ─────────────────────────────────────────────────
+
+
+@given(
+    num_orders=st.integers(min_value=0, max_value=50),
+    cap=st.integers(min_value=1, max_value=50),
+)
+@settings(max_examples=200)
+def test_open_orders_over_cap_never_admit(num_orders: int, cap: int) -> None:
+    """projected > cap ⇒ never ADMIT (Hypothesis anti-drift)."""
+    orders = tuple(
+        _make_order_snapshot(
+            client_order_id=f"o{i}",
+            venue_order_id=f"v{i}",
+        )
+        for i in range(num_orders)
+    )
+    oo = _make_open_orders(orders=orders)
+    req = _make_request()
+    rec = admit(
+        intent=req,
+        snapshot=DEFAULT_SNAPSHOT,
+        policy=DEFAULT_POLICY,
+        max_order_notional=Decimal("0"),
+        now=NOW,
+        open_orders=oo,
+        max_open_orders=cap,
+    )
+    if num_orders + 1 > cap:
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.OPEN_ORDERS_ABOVE_CAP in rec.reason_codes

@@ -228,6 +228,7 @@ def build_services(
             ),
             max_order_notional=execution_config.max_order_notional_usdt,
             max_position=execution_config.proof_max_position_usdt,
+            max_open_orders=execution_config.proof_max_open_orders,
             metadata_version=execution_config.proof_metadata_version,
         )
     else:
