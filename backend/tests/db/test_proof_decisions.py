@@ -153,12 +153,52 @@ class TestRoundTrip:
 
 class TestMigrationSmoke:
     def test_upgrade_downgrade(self) -> None:
-        """Проверяем что миграция 0024 валидна и содержит нужные revision-строки."""
+        """Реальный up/down прогон revision 0024 через alembic Operations."""
+        import importlib.util
         from pathlib import Path
 
-        migration_path = Path("alembic/versions/0024_execution_proof_decisions.py")
-        source = migration_path.read_text()
-        assert "def upgrade()" in source
-        assert "def downgrade()" in source
-        assert 'revision: str = "0024_execution_proof_decisions"' in source
-        assert 'down_revision: str | None = "0023_knowledge_external_id"' in source
+        from sqlalchemy import inspect as sa_inspect
+
+        from alembic.operations import Operations
+        from alembic.runtime.migration import MigrationContext
+
+        from clay.db.session import build_engine
+        from clay.settings.ingestion import IngestionSettings
+
+        engine = build_engine(
+            IngestionSettings(database_url="sqlite+pysqlite:///:memory:")
+        )
+
+        migration_path = (
+            Path(__file__).resolve().parents[2]
+            / "alembic/versions/0024_execution_proof_decisions.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "migration_0024",
+            migration_path,
+        )
+        assert spec is not None and spec.loader is not None
+        mig = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mig)
+
+        assert mig.revision == "0024_execution_proof_decisions"
+        assert mig.down_revision == "0023_knowledge_external_id"
+
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn)
+            with Operations.context(ctx):
+                mig.upgrade()
+
+            inspector = sa_inspect(conn)
+            assert inspector.has_table("execution_proof_decisions") is True
+            indexes = {
+                idx["name"]
+                for idx in inspector.get_indexes("execution_proof_decisions")
+            }
+            assert "ix_execution_proof_decisions_symbol_created_at" in indexes
+            assert "ix_execution_proof_decisions_decision_created_at" in indexes
+
+            with Operations.context(ctx):
+                mig.downgrade()
+
+            assert sa_inspect(conn).has_table("execution_proof_decisions") is False
