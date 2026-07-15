@@ -22,6 +22,7 @@ from clay.execution.proof.snapshot import (
     AccountSnapshot,
     FreshnessPolicy,
     MarketSnapshot,
+    OpenOrdersSnapshot,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,8 @@ def _check_invariants(
     account: AccountSnapshot | None = None,
     fee_rate: Decimal = Decimal(0),
     max_position: Decimal = Decimal(0),
+    open_orders: OpenOrdersSnapshot | None = None,
+    max_open_orders: int = 0,
 ) -> list[InvariantResult]:
     """Collect-all проверка инвариантов. Порядок фиксирован."""
     rules = snapshot.rules
@@ -157,6 +160,17 @@ def _check_invariants(
             else:
                 # SELL (reduce) → bypass
                 _add(ReasonCode.POSITION_ABOVE_CAP, True)
+    # ── Open orders invariants (off-by-default: open_orders=None ⇒ skip) ─
+    if open_orders is not None:
+        # 16. open orders freshness
+        oo_age = (now - open_orders.fetched_at).total_seconds()
+        _add(ReasonCode.OPEN_ORDERS_SNAPSHOT_STALE, oo_age <= policy.max_age_seconds)
+        # 17. open order count cap (per-symbol, both sides count, MARKET bypass)
+        if max_open_orders > 0 and req.order_type in _LIMIT_TYPES:
+            projected = open_orders.count_for(req.symbol) + 1
+            _add(ReasonCode.OPEN_ORDERS_ABOVE_CAP, projected <= max_open_orders)
+        else:
+            _add(ReasonCode.OPEN_ORDERS_ABOVE_CAP, True)
     return results
 
 
@@ -176,6 +190,8 @@ def admit(
     account: AccountSnapshot | None = None,
     fee_rate: Decimal = Decimal(0),
     max_position: Decimal = Decimal(0),
+    open_orders: OpenOrdersSnapshot | None = None,
+    max_open_orders: int = 0,
 ) -> DecisionRecord:
     """Оценка ордера: ADMIT или DENY(reason-codes). Collect-all, fail-closed."""
     try:
@@ -188,6 +204,8 @@ def admit(
             account=account,
             fee_rate=fee_rate,
             max_position=max_position,
+            open_orders=open_orders,
+            max_open_orders=max_open_orders,
         )
         failed = tuple(r.code for r in results if not r.passed)
         decision = Decision.ADMIT if not failed else Decision.DENY

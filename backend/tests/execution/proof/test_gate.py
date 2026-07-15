@@ -65,6 +65,7 @@ class FakeInner:
     def __init__(self) -> None:
         self.place_order_called = False
         self.get_balances_called = False
+        self.get_open_orders_called = False
         self.environment = Environment.TESTNET
 
     async def get_market_rules(self, symbol: str) -> MarketRules:
@@ -414,4 +415,138 @@ class TestGatePositionCap:
         ack = await gate.place_order(req)
         assert inner.place_order_called
         assert not inner.get_balances_called
+        assert ack.client_order_id == "test-gate-001"
+
+
+class TestGateEnforceOpenOrders:
+    @pytest.mark.asyncio
+    async def test_enforce_true_over_cap_denies(self) -> None:
+        """enforce=True + cap=2 + 3 open orders → ProofGateDeniedError[OPEN_ORDERS_ABOVE_CAP]."""
+        inner = FakeInner()
+        inner.get_open_orders_called = False
+
+        async def balances_rich() -> list:
+            return [
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("1"),
+                    locked=Decimal("0"),
+                    total=Decimal("1"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("100000"),
+                    locked=Decimal("0"),
+                    total=Decimal("100000"),
+                ),
+            ]
+
+        async def three_open_orders(symbol: str | None = None) -> list:
+            return [
+                OrderSnapshot(
+                    client_order_id=f"o{i}",
+                    venue_order_id=f"v{i}",
+                    symbol="BTC/USDT",
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    state=OrderState.NEW,
+                    quantity=Decimal("0.1"),
+                    executed_qty=Decimal(0),
+                    price=Decimal("50000"),
+                    transact_time=int(NOW.timestamp() * 1000),
+                )
+                for i in range(3)
+            ]
+
+        inner.get_balances = balances_rich  # type: ignore[assignment]
+
+        async def tracking_get_open(symbol: str | None = None) -> list:
+            inner.get_open_orders_called = True
+            return await three_open_orders(symbol)
+
+        inner.get_open_orders = tracking_get_open  # type: ignore[assignment]
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            max_open_orders=2,
+            enforce_portfolio=True,
+        )
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("0.1"), price=Decimal("50000")
+        )
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "OPEN_ORDERS_ABOVE_CAP" in exc_info.value.reason_codes
+        assert inner.get_open_orders_called
+
+    @pytest.mark.asyncio
+    async def test_enforce_false_no_get_open_orders(self) -> None:
+        """enforce=False → get_open_orders not called."""
+        inner = FakeInner()
+        inner.get_open_orders_called = False
+
+        async def tracking_get_open(symbol: str | None = None) -> list:
+            inner.get_open_orders_called = True
+            return []
+
+        inner.get_open_orders = tracking_get_open  # type: ignore[assignment]
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            max_open_orders=5,
+            enforce_portfolio=False,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not inner.get_open_orders_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_enforce_true_cap_zero_no_get_open_orders(self) -> None:
+        """enforce=True + cap=0 → get_open_orders not called (cap off)."""
+        inner = FakeInner()
+        inner.get_open_orders_called = False
+
+        async def balances_rich() -> list:
+            return [
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("1"),
+                    locked=Decimal("0"),
+                    total=Decimal("1"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("100000"),
+                    locked=Decimal("0"),
+                    total=Decimal("100000"),
+                ),
+            ]
+
+        async def tracking_get_open(symbol: str | None = None) -> list:
+            inner.get_open_orders_called = True
+            return []
+
+        inner.get_balances = balances_rich  # type: ignore[assignment]
+        inner.get_open_orders = tracking_get_open  # type: ignore[assignment]
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            max_open_orders=0,
+            enforce_portfolio=True,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not inner.get_open_orders_called
         assert ack.client_order_id == "test-gate-001"

@@ -7,7 +7,7 @@ tags:
 
 # ADR-033: Execution Proof-Gate
 
-- **Status:** Proposed
+- **Status:** Implemented (per-order + portfolio invariants landed; session invariants pending)
 - **Date:** 2026-07-14
 - **Depends on:** ADR-032 (Exchange Execution Adapter, Multi-Venue), ADR-025 (Execution Modes & Override Gate)
 - **References:** ADR-021 / ADR-029 (Session & Exposure Risk-Limits), ADR-030 & M278 (knowledge ≠ execution red line), S-LIVE-2/3/4 (notional guard, killswitch, arming)
@@ -99,7 +99,7 @@ ExecutionProofGate → ResilientExecutionAdapter → CcxtExchangeAdapter → ven
 
 - free balance ≥ cost + fees + reserved (no oversell)
 - projected position ≤ MAX_POSITION (per-symbol notional USDT cap, entry/increase-only; reduce/close bypass per §4)
-- ~~open-order counts within MAX_NUM_ORDERS / ALGO / ICEBERG~~ → S-EXEC-SAFE-3c
+- open-order counts within MAX_NUM_ORDERS (per-symbol resting-order count cap, all-sides, MARKET bypass, off-by-default) — **Landed** in S-EXEC-SAFE-3c (closes portfolio class)
 
 **Session (state-scoped):**
 
@@ -191,6 +191,12 @@ gate never replaces it.
 - **−** New composition layer to maintain; decision-record storage to manage under D3.
 - **Migration:** S-LIVE-2 (`adapter/notional.py`) and ADR-021/029 risk-services are
   the first invariants wired in, not rewritten.
+
+## Errata
+
+- **S-EXEC-SAFE-3a:** Free-balance no-oversell invariant landed (off-by-default).
+- **S-EXEC-SAFE-3b:** Position cap per-symbol landed (off-by-default).
+- **S-EXEC-SAFE-3c:** Open-order count cap per-symbol landed (off-by-default, all-sides count, MARKET bypass). Closes **portfolio class** (#16/#17). ALGO/ICEBERG dropped — no such order types exist.
 
 ## Verification note (deps)
 

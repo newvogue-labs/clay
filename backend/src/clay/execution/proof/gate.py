@@ -28,6 +28,7 @@ from clay.execution.proof.snapshot import (
     AccountSnapshot,
     FreshnessPolicy,
     MarketSnapshot,
+    OpenOrdersSnapshot,
 )
 
 if TYPE_CHECKING:
@@ -55,6 +56,7 @@ class ExecutionProofGate:
         freshness_policy: FreshnessPolicy,
         max_order_notional,  # : Decimal
         max_position: Decimal | None = None,
+        max_open_orders: int = 0,
         metadata_version: str = "v1",
         enforce_portfolio: bool = False,
     ) -> None:
@@ -63,6 +65,7 @@ class ExecutionProofGate:
         self._freshness_policy = freshness_policy
         self._max_order_notional = max_order_notional
         self._max_position = max_position or Decimal(0)
+        self._max_open_orders = max_open_orders
         self._metadata_version = metadata_version
         self._enforce_portfolio = enforce_portfolio
 
@@ -88,11 +91,17 @@ class ExecutionProofGate:
             metadata_version=self._metadata_version,
         )
         account: AccountSnapshot | None = None
+        open_orders: OpenOrdersSnapshot | None = None
         if self._enforce_portfolio:
             account = AccountSnapshot(
                 balances=tuple(await self._inner.get_balances()),
                 fetched_at=_now_utc(),
             )
+            if self._max_open_orders > 0:
+                open_orders = OpenOrdersSnapshot(
+                    orders=tuple(await self._inner.get_open_orders(quantized.symbol)),
+                    fetched_at=_now_utc(),
+                )
         record = admit(
             intent=quantized,
             snapshot=snapshot,
@@ -101,6 +110,8 @@ class ExecutionProofGate:
             now=_now_utc(),
             account=account,
             max_position=self._max_position,
+            open_orders=open_orders,
+            max_open_orders=self._max_open_orders,
         )
         # persist fail-closed
         try:

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from clay.execution.adapter.domain import BalanceSnapshot
+from clay.execution.adapter.domain import BalanceSnapshot, OrderSnapshot
 from clay.execution.adapter.rules import MarketRules
 
 
@@ -78,3 +78,19 @@ class AccountSnapshot:
             (b.total for b in self.balances if b.asset == asset),
             Decimal(0),
         )
+
+
+@dataclass(frozen=True)
+class OpenOrdersSnapshot:
+    """Снимок открытых ордеров для подсчёта per-symbol resting-order count."""
+
+    orders: tuple[OrderSnapshot, ...]
+    fetched_at: datetime  # aware UTC
+
+    def __post_init__(self) -> None:
+        if self.fetched_at.tzinfo is None:
+            raise ValueError("fetched_at должен быть aware (UTC)")
+
+    def count_for(self, symbol: str) -> int:
+        """Число открытых ордеров по symbol."""
+        return sum(1 for o in self.orders if o.symbol == symbol)
