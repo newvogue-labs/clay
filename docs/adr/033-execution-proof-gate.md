@@ -98,8 +98,8 @@ ExecutionProofGate → ResilientExecutionAdapter → CcxtExchangeAdapter → ven
 **Portfolio (account-scoped):**
 
 - free balance ≥ cost + fees + reserved (no oversell)
-- projected position ≤ MAX_POSITION
-- open-order counts within MAX_NUM_ORDERS / ALGO / ICEBERG
+- projected position ≤ MAX_POSITION (per-symbol notional USDT cap, entry/increase-only; reduce/close bypass per §4)
+- ~~open-order counts within MAX_NUM_ORDERS / ALGO / ICEBERG~~ → S-EXEC-SAFE-3c
 
 **Session (state-scoped):**
 
