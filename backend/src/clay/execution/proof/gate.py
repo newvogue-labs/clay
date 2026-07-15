@@ -23,7 +23,11 @@ from clay.execution.adapter.rules import MarketRules
 from clay.execution.proof.checker import admit
 from clay.execution.proof.decision import Decision, DecisionRecord
 from clay.execution.proof.errors import ProofGateDeniedError, ProofGatePersistError
-from clay.execution.proof.snapshot import FreshnessPolicy, MarketSnapshot
+from clay.execution.proof.snapshot import (
+    AccountSnapshot,
+    FreshnessPolicy,
+    MarketSnapshot,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import sessionmaker
@@ -50,12 +54,14 @@ class ExecutionProofGate:
         freshness_policy: FreshnessPolicy,
         max_order_notional,  # : Decimal
         metadata_version: str = "v1",
+        enforce_portfolio: bool = False,
     ) -> None:
         self._inner = inner
         self._session_factory = session_factory
         self._freshness_policy = freshness_policy
         self._max_order_notional = max_order_notional
         self._metadata_version = metadata_version
+        self._enforce_portfolio = enforce_portfolio
 
     @property
     def environment(self) -> Environment:
@@ -78,12 +84,19 @@ class ExecutionProofGate:
             fetched_at=_now_utc(),
             metadata_version=self._metadata_version,
         )
+        account: AccountSnapshot | None = None
+        if self._enforce_portfolio:
+            account = AccountSnapshot(
+                balances=tuple(await self._inner.get_balances()),
+                fetched_at=_now_utc(),
+            )
         record = admit(
             intent=quantized,
             snapshot=snapshot,
             policy=self._freshness_policy,
             max_order_notional=self._max_order_notional,
             now=_now_utc(),
+            account=account,
         )
         # persist fail-closed
         try:

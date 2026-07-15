@@ -64,6 +64,7 @@ class FakeInner:
 
     def __init__(self) -> None:
         self.place_order_called = False
+        self.get_balances_called = False
         self.environment = Environment.TESTNET
 
     async def get_market_rules(self, symbol: str) -> MarketRules:
@@ -105,6 +106,7 @@ class FakeInner:
         return []
 
     async def get_balances(self) -> list[BalanceSnapshot]:
+        self.get_balances_called = True
         return []
 
 
@@ -263,3 +265,93 @@ class TestGateDelegation:
         req = _make_request()
         result = gate.quantize_order(req, DEFAULT_RULES)
         assert result == req
+
+
+class TestGateEnforcePortfolio:
+    @pytest.mark.asyncio
+    async def test_enforce_false_no_get_balances(self) -> None:
+        """enforce_portfolio=False → get_balances() не вызывается."""
+        inner = FakeInner()
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_portfolio=False,
+        )
+        req = _make_request()
+        await gate.place_order(req)
+        assert not inner.get_balances_called
+
+    @pytest.mark.asyncio
+    async def test_enforce_true_oversell_denies(self) -> None:
+        """enforce_portfolio=True + insufficient free → ProofGateDeniedError."""
+        inner = FakeInner()
+
+        async def rich_balances() -> list:
+            return [
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("0"),
+                    locked=Decimal("0"),
+                    total=Decimal("0"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("100"),
+                    locked=Decimal("0"),
+                    total=Decimal("100"),
+                ),
+            ]
+
+        inner.get_balances = rich_balances  # type: ignore[assignment]
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_portfolio=True,
+        )
+        # BUY 0.1 BTC @ 50000 = 5000 USDT; free=100 → DENY
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("0.1"), price=Decimal("50000")
+        )
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "INSUFFICIENT_FREE_BALANCE" in exc_info.value.reason_codes
+
+    @pytest.mark.asyncio
+    async def test_enforce_true_within_free_admits(self) -> None:
+        """enforce_portfolio=True + enough free → ADMIT + delegate."""
+        inner = FakeInner()
+
+        async def rich_balances() -> list:
+            return [
+                BalanceSnapshot(
+                    asset="BTC",
+                    free=Decimal("1"),
+                    locked=Decimal("0"),
+                    total=Decimal("1"),
+                ),
+                BalanceSnapshot(
+                    asset="USDT",
+                    free=Decimal("100000"),
+                    locked=Decimal("0"),
+                    total=Decimal("100000"),
+                ),
+            ]
+
+        inner.get_balances = rich_balances  # type: ignore[assignment]
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_portfolio=True,
+        )
+        req = _make_request(
+            side=OrderSide.BUY, quantity=Decimal("0.1"), price=Decimal("50000")
+        )
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"

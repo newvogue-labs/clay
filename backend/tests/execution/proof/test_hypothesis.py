@@ -13,7 +13,7 @@ import hypothesis
 from hypothesis import given
 from hypothesis import strategies as st
 
-from clay.execution.adapter.domain import OrderRequest
+from clay.execution.adapter.domain import BalanceSnapshot, OrderRequest
 from clay.execution.adapter.enums import (
     OrderSide,
     OrderType,
@@ -25,7 +25,11 @@ from clay.execution.adapter.rules import MarketRules
 from clay.execution.proof.checker import admit
 from clay.execution.proof.decision import Decision
 from clay.execution.proof.reason_codes import ReasonCode
-from clay.execution.proof.snapshot import FreshnessPolicy, MarketSnapshot
+from clay.execution.proof.snapshot import (
+    AccountSnapshot,
+    FreshnessPolicy,
+    MarketSnapshot,
+)
 
 NOW = datetime.now(tz=timezone.utc)
 
@@ -191,3 +195,50 @@ def test_market_with_active_cap_always_denies(req: OrderRequest) -> None:
     )
     assert rec.decision == Decision.DENY
     assert ReasonCode.NOTIONAL_UNCOMPUTABLE in rec.reason_codes
+
+
+@hypothesis.settings(max_examples=200)
+@given(
+    free_balance=st.decimals(min_value=Decimal("0"), max_value=Decimal("100000")),
+    qty=st.decimals(min_value=Decimal("0.001"), max_value=Decimal("10")),
+    price=st.decimals(min_value=Decimal("1"), max_value=Decimal("200000")),
+)
+def test_insufficient_free_never_admits(
+    free_balance: Decimal,
+    qty: Decimal,
+    price: Decimal,
+) -> None:
+    """free < qty * price ⇒ never ADMIT (portfolio invariant holds)."""
+    needed = qty * price
+    if free_balance >= needed:
+        return  # не наш кейс — free достаточно
+
+    account = AccountSnapshot(
+        balances=(
+            BalanceSnapshot(
+                asset="USDT", free=free_balance, locked=Decimal(0), total=free_balance
+            ),
+        ),
+        fetched_at=NOW,
+    )
+    req = OrderRequest(
+        symbol="BTC/USDT",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=qty,
+        time_in_force=TimeInForce.GTC,
+        client_order_id="hypo-portfolio-001",
+        price=price,
+    )
+    rec = admit(
+        intent=req,
+        snapshot=MarketSnapshot(
+            rules=STABLE_RULES, fetched_at=NOW, metadata_version="v1"
+        ),
+        policy=STABLE_POLICY,
+        max_order_notional=Decimal("0"),
+        now=NOW,
+        account=account,
+    )
+    assert rec.decision == Decision.DENY
+    assert ReasonCode.INSUFFICIENT_FREE_BALANCE in rec.reason_codes

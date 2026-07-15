@@ -9,7 +9,9 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 
+from clay.execution.adapter.domain import BalanceSnapshot
 from clay.execution.adapter.rules import MarketRules
 
 
@@ -50,3 +52,22 @@ class FreshnessPolicy:
 
     max_age_seconds: int
     expected_metadata_version: str | None = None  # None ⇒ version-check skip
+
+
+@dataclass(frozen=True)
+class AccountSnapshot:
+    """Снимок балансов аккаунта для портфельных инвариантов."""
+
+    balances: tuple[BalanceSnapshot, ...]
+    fetched_at: datetime  # aware UTC
+
+    def __post_init__(self) -> None:
+        if self.fetched_at.tzinfo is None:
+            raise ValueError("fetched_at должен быть aware (UTC)")
+
+    def free_of(self, asset: str) -> Decimal:
+        """Сумма free по asset; Decimal(0) если нет."""
+        return sum(
+            (b.free for b in self.balances if b.asset == asset),
+            Decimal(0),
+        )
