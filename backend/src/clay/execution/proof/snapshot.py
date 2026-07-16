@@ -10,9 +10,18 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 
 from clay.execution.adapter.domain import BalanceSnapshot, OrderSnapshot
 from clay.execution.adapter.rules import MarketRules
+
+
+class SessionMode(StrEnum):
+    """Decoupled session mode for proof-gate session invariants."""
+
+    NORMAL = "normal"
+    REDUCING = "reducing"
+    HALTED = "halted"
 
 
 @dataclass(frozen=True)
@@ -102,6 +111,7 @@ class SessionSnapshot:
 
     kill_switch_engaged: bool
     fetched_at: datetime  # aware UTC
+    mode: SessionMode = SessionMode.NORMAL
 
     def __post_init__(self) -> None:
         if self.fetched_at.tzinfo is None:

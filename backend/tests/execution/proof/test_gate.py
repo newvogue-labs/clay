@@ -25,7 +25,7 @@ from clay.execution.adapter.enums import (
 from clay.execution.adapter.rules import MarketRules
 from clay.execution.proof.errors import ProofGateDeniedError, ProofGatePersistError
 from clay.execution.proof.gate import ExecutionProofGate
-from clay.execution.proof.snapshot import FreshnessPolicy
+from clay.execution.proof.snapshot import FreshnessPolicy, SessionMode
 
 NOW = datetime.now(tz=timezone.utc)
 
@@ -672,3 +672,156 @@ class TestGateEnforceSession:
         assert "KILL_SWITCH_ENGAGED" in exc_info.value.reason_codes
         assert not inner.place_order_called
         probe_engaged.assert_called_once()
+
+
+class TestGateSessionMode:
+    @pytest.mark.asyncio
+    async def test_halted_mode_denies(self) -> None:
+        """enforce_session=True + mode_probe→HALTED → DENY[SESSION_HALTED]."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        mode_probe = MagicMock(return_value=SessionMode.HALTED)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_mode_probe=mode_probe,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_HALTED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+        mode_probe.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reducing_buy_denies(self) -> None:
+        """enforce_session=True + mode_probe→REDUCING + BUY → DENY[SESSION_REDUCE_ONLY]."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        mode_probe = MagicMock(return_value=SessionMode.REDUCING)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_mode_probe=mode_probe,
+        )
+        req = _make_request(side=OrderSide.BUY)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_REDUCE_ONLY" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_reducing_sell_admits(self) -> None:
+        """enforce_session=True + mode_probe→REDUCING + SELL → ADMIT + delegate."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        mode_probe = MagicMock(return_value=SessionMode.REDUCING)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_mode_probe=mode_probe,
+        )
+        req = _make_request(side=OrderSide.SELL)
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_no_mode_probe_defaults_normal(self) -> None:
+        """enforce_session=True + no session_mode_probe → NORMAL → ADMIT."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_mode_probe=None,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_mode_probe_raises_fail_closed_halted(self) -> None:
+        """enforce_session=True + mode_probe raises → fail-closed → HALTED → DENY."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        mode_probe = MagicMock(side_effect=RuntimeError("db down"))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_mode_probe=mode_probe,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_HALTED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_set_session_mode_probe_late_bind(self) -> None:
+        """set_session_mode_probe wires probe after construction."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        mode_probe = MagicMock(return_value=SessionMode.HALTED)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+        )
+        gate.set_session_mode_probe(mode_probe)
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_HALTED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+        mode_probe.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_enforce_false_no_mode_probe_call(self) -> None:
+        """enforce_session=False → mode_probe never called, delegate succeeds."""
+        inner = FakeInner()
+        mode_probe = MagicMock(return_value=SessionMode.HALTED)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=False,
+            session_mode_probe=mode_probe,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not mode_probe.called
+        assert ack.client_order_id == "test-gate-001"
