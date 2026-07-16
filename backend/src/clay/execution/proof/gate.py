@@ -65,6 +65,7 @@ class ExecutionProofGate:
         kill_switch_probe: Callable[[], bool] | None = None,
         session_mode_probe: Callable[[], SessionMode] | None = None,
         session_risk_probe: Callable[[], tuple[bool, bool]] | None = None,
+        session_submit_rate_probe: Callable[[], bool] | None = None,
     ) -> None:
         self._inner = inner
         self._session_factory = session_factory
@@ -78,6 +79,7 @@ class ExecutionProofGate:
         self._kill_switch_probe = kill_switch_probe
         self._session_mode_probe = session_mode_probe
         self._session_risk_probe = session_risk_probe
+        self._session_submit_rate_probe = session_submit_rate_probe
 
     def set_kill_switch_probe(self, probe: Callable[[], bool]) -> None:
         """Late-bind the kill-switch probe (bootstrap wiring, after override_service)."""
@@ -90,6 +92,10 @@ class ExecutionProofGate:
     def set_session_risk_probe(self, probe: Callable[[], tuple[bool, bool]]) -> None:
         """Late-bind the session risk probe (drawdown, cooldown)."""
         self._session_risk_probe = probe
+
+    def set_session_submit_rate_probe(self, probe: Callable[[], bool]) -> None:
+        """Late-bind the session submit-rate probe."""
+        self._session_submit_rate_probe = probe
 
     @property
     def environment(self) -> Environment:
@@ -155,12 +161,24 @@ class ExecutionProofGate:
                     drawdown_tripped, cooldown_tripped = True, True
             else:
                 drawdown_tripped, cooldown_tripped = False, False
+            # Resolve submit-rate exceeded (off-by-default: no probe → not exceeded)
+            if self._session_submit_rate_probe is not None:
+                try:
+                    submit_rate_exceeded = self._session_submit_rate_probe()
+                except Exception:
+                    logger.exception(
+                        "session_submit_rate_probe failed (fail-closed → exceeded)"
+                    )
+                    submit_rate_exceeded = True
+            else:
+                submit_rate_exceeded = False
             session = SessionSnapshot(
                 kill_switch_engaged=engaged,
                 fetched_at=_now_utc(),
                 mode=mode,
                 drawdown_tripped=drawdown_tripped,
                 cooldown_tripped=cooldown_tripped,
+                submit_rate_exceeded=submit_rate_exceeded,
             )
         record = admit(
             intent=quantized,
