@@ -956,3 +956,133 @@ class TestGateSessionRisk:
         assert "SESSION_DRAWDOWN_TRIPPED" in exc_info.value.reason_codes
         assert not inner.place_order_called
         risk_probe.assert_called_once()
+
+
+class TestGateSessionSubmitRate:
+    @pytest.mark.asyncio
+    async def test_submit_rate_exceeded_buy_denies(self) -> None:
+        """submit_rate_probe=True + BUY → DENY[SESSION_SUBMIT_RATE_EXCEEDED]."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        sr_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_submit_rate_probe=sr_probe,
+        )
+        req = _make_request(side=OrderSide.BUY)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_SUBMIT_RATE_EXCEEDED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_submit_rate_exceeded_sell_admits(self) -> None:
+        """submit_rate_probe=True + SELL → ADMIT (reduce bypass)."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        sr_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_submit_rate_probe=sr_probe,
+        )
+        req = _make_request(side=OrderSide.SELL)
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_submit_rate_probe_raises_fail_closed(self) -> None:
+        """submit_rate_probe raises → fail-closed → exceeded → DENY."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        sr_probe = MagicMock(side_effect=RuntimeError("db down"))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_submit_rate_probe=sr_probe,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_SUBMIT_RATE_EXCEEDED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_no_submit_rate_probe_no_codes(self) -> None:
+        """submit_rate_probe=None → no exceeded, ADMIT."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_submit_rate_probe=None,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_enforce_false_no_submit_rate_probe_call(self) -> None:
+        """enforce_session=False → submit_rate_probe never called."""
+        inner = FakeInner()
+        sr_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=False,
+            session_submit_rate_probe=sr_probe,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not sr_probe.called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_set_session_submit_rate_probe_late_bind(self) -> None:
+        """set_session_submit_rate_probe wires probe after construction."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        sr_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+        )
+        gate.set_session_submit_rate_probe(sr_probe)
+        req = _make_request(side=OrderSide.BUY)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_SUBMIT_RATE_EXCEEDED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+        sr_probe.assert_called_once()

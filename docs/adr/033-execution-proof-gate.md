@@ -105,7 +105,7 @@ ExecutionProofGate → ResilientExecutionAdapter → CcxtExchangeAdapter → ven
 
 - manual-arm present (+ break-glass), off-by-default
 - HALTED → only cancel admitted; REDUCING → only position-reducing admitted
-- submit / modify rate within budget
+- submit / modify rate within budget — **Landed** in S-EXEC-SAFE-4d (reason-code SESSION_SUBMIT_RATE_EXCEEDED, submit-only, reduce-bypass, off-by-default, dormant; modify N/A — amend-операции в адаптере нет)
 - kill-switch not engaged — **Landed** in S-EXEC-SAFE-4a (reason-code KILL_SWITCH_ENGAGED, off-by-default, dormant)
 - HALTED → all place denied; REDUCING → only SELL (spot-reduce) admitted — **Landed** in S-EXEC-SAFE-4b (decoupled SessionMode, reason-codes SESSION_HALTED/SESSION_REDUCE_ONLY, off-by-default, dormant)
 - cooldown / MaxDrawdown not tripped → reduce-only — **Landed** in S-EXEC-SAFE-4c (reason-codes SESSION_DRAWDOWN_TRIPPED/SESSION_COOLDOWN_TRIPPED, off-by-default, dormant)
@@ -202,6 +202,7 @@ gate never replaces it.
 - **S-EXEC-SAFE-4a:** Kill-switch engaged invariant landed (off-by-default, dormant). **Starts session class** (#18). Local DB-read via OverrideService.is_degraded at gate I/O boundary (not O(1) cached — addressed by future slice).
 - **S-EXEC-SAFE-4b:** Decoupled SessionMode (NORMAL/REDUCING/HALTED) landed (off-by-default, dormant). Invariants #19 SESSION_HALTED + #20 SESSION_REDUCE_ONLY. Reason-codes #23/#24 append-only. Session class closed (ADR-033 §3).
 - **S-EXEC-SAFE-4c:** Session risk-tripped (drawdown + cooldown) landed (off-by-default, dormant). Invariants #21 SESSION_DRAWDOWN_TRIPPED + #22 SESSION_COOLDOWN_TRIPPED (reduce-only semantics). Reason-codes #25/#26 append-only. StoplossGuard (per-signal ATR-stop) deferred.
+- **S-EXEC-SAFE-4d:** Submit-rate exceeded landed (off-by-default, dormant). Invariant #23 SESSION_SUBMIT_RATE_EXCEEDED (reduce-only semantics, submit-only — modify/amend N/A). Reason-code #27 append-only.
 
 ## Verification note (deps)
 

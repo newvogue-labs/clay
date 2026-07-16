@@ -1121,6 +1121,7 @@ def _make_session(
     mode: SessionMode = SessionMode.NORMAL,
     drawdown_tripped: bool = False,
     cooldown_tripped: bool = False,
+    submit_rate_exceeded: bool = False,
 ) -> SessionSnapshot:
     return SessionSnapshot(
         kill_switch_engaged=kill_switch_engaged,
@@ -1128,6 +1129,7 @@ def _make_session(
         mode=mode,
         drawdown_tripped=drawdown_tripped,
         cooldown_tripped=cooldown_tripped,
+        submit_rate_exceeded=submit_rate_exceeded,
     )
 
 
@@ -1369,7 +1371,7 @@ class TestSessionMode:
         assert ReasonCode.SESSION_HALTED in rec.reason_codes
 
     def test_invariant_count_with_session(self) -> None:
-        """session present → 17 invariants (12 base + #18..#22)."""
+        """session present → 18 invariants (12 base + #18..#23)."""
         req = _make_request()
         rec = admit(
             intent=req,
@@ -1379,7 +1381,7 @@ class TestSessionMode:
             now=NOW,
             session=_make_session(),
         )
-        assert len(rec.invariant_results) == 17
+        assert len(rec.invariant_results) == 18
 
 
 @given(mode=st.sampled_from([SessionMode.HALTED]))
@@ -1548,3 +1550,75 @@ class TestSessionRiskTripped:
         snap = SessionSnapshot(kill_switch_engaged=False, fetched_at=NOW)
         with pytest.raises(AttributeError):
             snap.drawdown_tripped = True  # type: ignore[misc]
+
+
+# ── Session submit-rate exceeded ─────────────────────────────────────────────
+
+
+class TestSessionSubmitRate:
+    def test_exceeded_buy_denies(self) -> None:
+        """submit_rate_exceeded + BUY → DENY[SESSION_SUBMIT_RATE_EXCEEDED]."""
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(submit_rate_exceeded=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED in rec.reason_codes
+
+    def test_exceeded_sell_admits(self) -> None:
+        """submit_rate_exceeded + SELL → ADMIT (reduce bypass)."""
+        req = _make_request(side=OrderSide.SELL)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(submit_rate_exceeded=True),
+        )
+        assert rec.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED not in rec.reason_codes
+
+    def test_not_exceeded_no_code(self) -> None:
+        """submit_rate_exceeded=False → no code."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(submit_rate_exceeded=False),
+        )
+        assert ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED not in rec.reason_codes
+
+    def test_session_none_skips_submit_rate(self) -> None:
+        """session=None → no submit-rate result."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=None,
+        )
+        codes = {r.code for r in rec.invariant_results}
+        assert ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED not in codes
+
+    def test_snapshot_submit_rate_default_false(self) -> None:
+        """SessionSnapshot submit_rate_exceeded defaults to False."""
+        snap = SessionSnapshot(kill_switch_engaged=False, fetched_at=NOW)
+        assert snap.submit_rate_exceeded is False
+
+    def test_snapshot_submit_rate_settable(self) -> None:
+        """SessionSnapshot accepts submit_rate_exceeded explicitly."""
+        snap = SessionSnapshot(
+            kill_switch_engaged=False, fetched_at=NOW, submit_rate_exceeded=True
+        )
+        assert snap.submit_rate_exceeded is True

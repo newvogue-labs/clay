@@ -195,6 +195,11 @@ def _check_invariants(
             ReasonCode.SESSION_COOLDOWN_TRIPPED,
             not session.cooldown_tripped or req.side == OrderSide.SELL,
         )
+        # 23. submit-rate exceeded: only SELL (reduce) admitted
+        _add(
+            ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED,
+            not session.submit_rate_exceeded or req.side == OrderSide.SELL,
+        )
     return results
 
 
