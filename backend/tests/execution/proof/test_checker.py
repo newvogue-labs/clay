@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 
 from clay.execution.adapter.domain import BalanceSnapshot, OrderRequest, OrderSnapshot
@@ -30,6 +31,7 @@ from clay.execution.proof.snapshot import (
     FreshnessPolicy,
     MarketSnapshot,
     OpenOrdersSnapshot,
+    SessionSnapshot,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -1110,7 +1112,100 @@ class TestOpenOrdersPortfolio:
         assert ReasonCode.OPEN_ORDERS_ABOVE_CAP in rec.reason_codes
 
 
-# ── Hypothesis anti-drift ─────────────────────────────────────────────────
+# ── Kill-switch invariant (off-by-default) ──────────────────────────────────
+
+
+def _make_session(kill_switch_engaged: bool = False) -> SessionSnapshot:
+    return SessionSnapshot(kill_switch_engaged=kill_switch_engaged, fetched_at=NOW)
+
+
+class TestKillSwitch:
+    def test_engaged_denies(self) -> None:
+        """kill_switch_engaged=True → DENY[KILL_SWITCH_ENGAGED]."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(kill_switch_engaged=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.KILL_SWITCH_ENGAGED in rec.reason_codes
+
+    def test_not_engaged_admits(self) -> None:
+        """kill_switch_engaged=False → ADMIT (no session violation)."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(kill_switch_engaged=False),
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_session_none_skips(self) -> None:
+        """session=None → kill-switch invariant absent (17 invariant_results)."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=None,
+        )
+        assert rec.decision == Decision.ADMIT
+        codes = {r.code for r in rec.invariant_results}
+        assert ReasonCode.KILL_SWITCH_ENGAGED not in codes
+
+    def test_collect_all_engaged_plus_violation(self) -> None:
+        """engaged + snapshot stale → both KILL_SWITCH_ENGAGED + SNAPSHOT_STALE."""
+        stale_snapshot = MarketSnapshot(
+            rules=DEFAULT_RULES,
+            fetched_at=NOW - timedelta(seconds=600),
+            metadata_version="v1",
+        )
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=stale_snapshot,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(kill_switch_engaged=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.KILL_SWITCH_ENGAGED in rec.reason_codes
+        assert ReasonCode.SNAPSHOT_STALE in rec.reason_codes
+
+    def test_session_snapshot_naive_guard(self) -> None:
+        """SessionSnapshot with naive fetched_at → ValueError."""
+        with pytest.raises(ValueError, match="fetched_at"):
+            SessionSnapshot(kill_switch_engaged=False, fetched_at=datetime(2026, 1, 1))
+
+
+# ── Hypothesis anti-drift (kill-switch) ─────────────────────────────────────
+
+
+@given(engaged=st.just(True))
+@settings(max_examples=200)
+def test_kill_switch_engaged_never_admit(engaged: bool) -> None:
+    """kill_switch_engaged=True ⇒ never ADMIT (Hypothesis anti-drift)."""
+    req = _make_request()
+    rec = admit(
+        intent=req,
+        snapshot=DEFAULT_SNAPSHOT,
+        policy=DEFAULT_POLICY,
+        max_order_notional=Decimal("0"),
+        now=NOW,
+        session=_make_session(kill_switch_engaged=engaged),
+    )
+    assert rec.decision == Decision.DENY
+    assert ReasonCode.KILL_SWITCH_ENGAGED in rec.reason_codes
 
 
 @given(

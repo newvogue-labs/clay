@@ -229,6 +229,7 @@ def build_services(
             max_order_notional=execution_config.max_order_notional_usdt,
             max_position=execution_config.proof_max_position_usdt,
             max_open_orders=execution_config.proof_max_open_orders,
+            enforce_session=execution_config.proof_enforce_session,
             metadata_version=execution_config.proof_metadata_version,
         )
     else:
@@ -239,6 +240,13 @@ def build_services(
         execution_config=execution_config,
     )
     override_service.rehydrate()
+
+    # S-EXEC-SAFE-4a: late-bind the kill-switch probe into ExecutionProofGate.
+    # Same pattern as degraded-probe (S-LIVE-3): override_service is built
+    # after ExecutionProofGate, so we wire it post-construction. When
+    # enforce_session=False (default) the probe is never called.
+    if execution_client is not None and execution_config.proof_enforce_session:
+        execution_client.set_kill_switch_probe(override_service.is_degraded)
 
     control_center_service = ControlCenterService(
         runtime_manager=runtime_manager,

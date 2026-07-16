@@ -94,3 +94,15 @@ class OpenOrdersSnapshot:
     def count_for(self, symbol: str) -> int:
         """Число открытых ордеров по symbol."""
         return sum(1 for o in self.orders if o.symbol == symbol)
+
+
+@dataclass(frozen=True)
+class SessionSnapshot:
+    """Снимок session-scoped состояния для инвариантов класса «session»."""
+
+    kill_switch_engaged: bool
+    fetched_at: datetime  # aware UTC
+
+    def __post_init__(self) -> None:
+        if self.fetched_at.tzinfo is None:
+            raise ValueError("fetched_at должен быть aware (UTC)")

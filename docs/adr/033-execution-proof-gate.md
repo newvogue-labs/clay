@@ -106,7 +106,7 @@ ExecutionProofGate → ResilientExecutionAdapter → CcxtExchangeAdapter → ven
 - manual-arm present (+ break-glass), off-by-default
 - HALTED → only cancel admitted; REDUCING → only position-reducing admitted
 - submit / modify rate within budget
-- kill-switch not engaged
+- kill-switch not engaged — **Landed** in S-EXEC-SAFE-4a (reason-code KILL_SWITCH_ENGAGED, off-by-default, dormant)
 - cooldown / StoplossGuard / MaxDrawdown not tripped
 - no duplicate intent
 
@@ -197,6 +197,7 @@ gate never replaces it.
 - **S-EXEC-SAFE-3a:** Free-balance no-oversell invariant landed (off-by-default).
 - **S-EXEC-SAFE-3b:** Position cap per-symbol landed (off-by-default).
 - **S-EXEC-SAFE-3c:** Open-order count cap per-symbol landed (off-by-default, all-sides count, MARKET bypass). Closes **portfolio class** (#16/#17). ALGO/ICEBERG dropped — no such order types exist.
+- **S-EXEC-SAFE-4a:** Kill-switch engaged invariant landed (off-by-default, dormant). **Starts session class** (#18). Local DB-read via OverrideService.is_degraded at gate I/O boundary (not O(1) cached — addressed by future slice).
 
 ## Verification note (deps)
 
