@@ -64,6 +64,7 @@ class ExecutionProofGate:
         enforce_session: bool = False,
         kill_switch_probe: Callable[[], bool] | None = None,
         session_mode_probe: Callable[[], SessionMode] | None = None,
+        session_risk_probe: Callable[[], tuple[bool, bool]] | None = None,
     ) -> None:
         self._inner = inner
         self._session_factory = session_factory
@@ -76,6 +77,7 @@ class ExecutionProofGate:
         self._enforce_session = enforce_session
         self._kill_switch_probe = kill_switch_probe
         self._session_mode_probe = session_mode_probe
+        self._session_risk_probe = session_risk_probe
 
     def set_kill_switch_probe(self, probe: Callable[[], bool]) -> None:
         """Late-bind the kill-switch probe (bootstrap wiring, after override_service)."""
@@ -84,6 +86,10 @@ class ExecutionProofGate:
     def set_session_mode_probe(self, probe: Callable[[], SessionMode]) -> None:
         """Late-bind the session mode probe (bootstrap wiring, after override_service)."""
         self._session_mode_probe = probe
+
+    def set_session_risk_probe(self, probe: Callable[[], tuple[bool, bool]]) -> None:
+        """Late-bind the session risk probe (drawdown, cooldown)."""
+        self._session_risk_probe = probe
 
     @property
     def environment(self) -> Environment:
@@ -138,10 +144,23 @@ class ExecutionProofGate:
                     mode = SessionMode.HALTED
             else:
                 mode = SessionMode.NORMAL
+            # Resolve risk-tripped flags (off-by-default: no probe → not tripped)
+            if self._session_risk_probe is not None:
+                try:
+                    drawdown_tripped, cooldown_tripped = self._session_risk_probe()
+                except Exception:
+                    logger.exception(
+                        "session_risk_probe failed (fail-closed → tripped)"
+                    )
+                    drawdown_tripped, cooldown_tripped = True, True
+            else:
+                drawdown_tripped, cooldown_tripped = False, False
             session = SessionSnapshot(
                 kill_switch_engaged=engaged,
                 fetched_at=_now_utc(),
                 mode=mode,
+                drawdown_tripped=drawdown_tripped,
+                cooldown_tripped=cooldown_tripped,
             )
         record = admit(
             intent=quantized,

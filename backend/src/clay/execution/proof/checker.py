@@ -185,6 +185,16 @@ def _check_invariants(
             ReasonCode.SESSION_REDUCE_ONLY,
             session.mode != SessionMode.REDUCING or req.side == OrderSide.SELL,
         )
+        # 21. drawdown tripped: only SELL (reduce) admitted
+        _add(
+            ReasonCode.SESSION_DRAWDOWN_TRIPPED,
+            not session.drawdown_tripped or req.side == OrderSide.SELL,
+        )
+        # 22. cooldown tripped: only SELL (reduce) admitted
+        _add(
+            ReasonCode.SESSION_COOLDOWN_TRIPPED,
+            not session.cooldown_tripped or req.side == OrderSide.SELL,
+        )
     return results
 
 

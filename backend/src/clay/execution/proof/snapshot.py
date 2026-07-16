@@ -112,6 +112,8 @@ class SessionSnapshot:
     kill_switch_engaged: bool
     fetched_at: datetime  # aware UTC
     mode: SessionMode = SessionMode.NORMAL
+    drawdown_tripped: bool = False
+    cooldown_tripped: bool = False
 
     def __post_init__(self) -> None:
         if self.fetched_at.tzinfo is None:
