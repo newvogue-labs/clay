@@ -100,6 +100,22 @@
   - ruff 0 · pyright 0 · pytest 475 · mkdocs --strict 0
   - Frontend flaky re-run (known, App.test.tsx:1477)
 
+### S-EXEC-SAFE-4a: kill-switch invariant (off-by-default, dormant)
+
+- **PR #93:** MERGED `d2ce681e007cf08c95d5758d8301541e64159d65` (squash)
+  - 9 файлов, +280/−3
+  - D1: ExecutionConfig.proof_enforce_session (bool, default 0, CLAY_PROOF_ENFORCE_SESSION)
+  - D2: SessionSnapshot frozen dataclass (kill_switch_engaged + UTC guard)
+  - D3: reason_code #22 KILL_SWITCH_ENGAGED (append-only)
+  - D4: checker invariant #18 (session keyword, kill-switch engaged → DENY)
+  - D5: gate + bootstrap (enforce_session + kill_switch_probe + late-bind + fail-closed)
+  - D6: 5 checker + 6 gate + 1 Hypothesis tests (487 total, +12)
+  - ADR-033 §3 errata: session class started, kill-switch landed
+  - Fail-closed: armed+probe=None → engaged → DENY; probe raises → engaged → DENY
+  - Recon-D5: is_degraded() = local DB-read (not O(1) cached, not network)
+  - Cargo-debt: degraded-probe → O(1) in-memory heartbeat (future slice)
+  - ruff 0 · pyright 0 · pytest 487 · mkdocs --strict 0
+
 ## In Progress
 
 - **S-LIVE-4** — открытие live mode через from_env (разрешение mode-coercion)
@@ -110,13 +126,13 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (clay main)** | `79e9592f6a69e74bc87a7aaec23055363a4c7b99` |
+| **HEAD (clay main)** | `d2ce681e007cf08c95d5758d8301541e64159d65` |
 | **PR open** | нет |
-| **CI** | ✅ 51 PR merged total |
-| **pytest** | 475 passed (execution+api+db) |
+| **CI** | ✅ 53 PR merged total |
+| **pytest** | 487 passed (execution+api+db) |
 | **Adapter layer** | CcxtExchangeAdapter base + BinanceAdapter + BybitAdapter + cutover + resilience wrapper + CB — complete |
-| **Execution safety** | notional ✅, LiveExecutionClient ✅, degraded killswitch ✅, D9 matrix ✅, testnet-probe ✅, reconcile-before-retry ✅, circuit breaker ✅, dup-cid safety ✅, proof-gate ✅, portfolio ✅ |
-| **ADR** | 032 accepted + errata; 033 Implemented (portfolio class closed) |
+| **Execution safety** | notional ✅, LiveExecutionClient ✅, degraded killswitch ✅, D9 matrix ✅, testnet-probe ✅, reconcile-before-retry ✅, circuit breaker ✅, dup-cid safety ✅, proof-gate ✅, portfolio ✅, kill-switch ✅ |
+| **ADR** | 032 accepted + errata; 033 Implemented (portfolio class closed, session class started) |
 
 ## Next Step
 

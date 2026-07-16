@@ -1,27 +1,29 @@
-# Отчёт за сессию (2026-07-15)
+# Отчёт за сессию (2026-07-15/16)
 
 ## Что сделано
 
-### S-EXEC-SAFE-3c: open-order count cap (per-symbol, off-by-default)
+### S-EXEC-SAFE-4a: kill-switch invariant (off-by-default, dormant)
 
-- **PR #91** -> MERGED `79e9592f6a69e74bc87a7aaec23055363a4c7b99` (squash)
-  - 9 файлов, +453/−4
-  - D1: ExecutionConfig.proof_max_open_orders (int, default 0, CLAY_PROOF_MAX_OPEN_ORDERS)
-  - D2: OpenOrdersSnapshot frozen dataclass + count_for(symbol)
-  - D3: reason_codes #20 OPEN_ORDERS_SNAPSHOT_STALE, #21 OPEN_ORDERS_ABOVE_CAP
-  - D4: checker #16 freshness + #17 count-cap (LIMIT/STOP_LIMIT only, MARKET bypass)
-  - D5: gate + bootstrap wiring (double-off: 0 get_open_orders при обоих off)
-  - D6: ADR-033 §3 landed, errata, Status → Implemented, portfolio class closed
-  - D7: 9 checker + 1 Hypothesis + 3 gate tests (475 total, +13)
-  - ruff 0 · pyright 0 · pytest 475 · mkdocs --strict 0
-  - Frontend flaky re-run (known, App.test.tsx:1477)
+- **PR #93** -> MERGED `d2ce681e007cf08c95d5758d8301541e64159d65` (squash)
+  - 9 файлов, +280/−3
+  - D1: ExecutionConfig.proof_enforce_session (bool, default 0, CLAY_PROOF_ENFORCE_SESSION)
+  - D2: SessionSnapshot frozen dataclass (kill_switch_engaged + UTC guard)
+  - D3: reason_code #22 KILL_SWITCH_ENGAGED (append-only, first 21 untouched)
+  - D4: checker invariant #18 (session keyword, kill-switch engaged → DENY)
+  - D5: gate + bootstrap (enforce_session + kill_switch_probe + late-bind + fail-closed)
+    - Fail-closed: armed+probe=None → engaged → DENY (ADR-033 §8)
+    - Fail-closed: probe raises → engaged → DENY
+  - D6: 5 checker + 6 gate + 1 Hypothesis tests (487 total, +12)
+  - ADR-033 §3 errata: session class started, kill-switch landed
+  - Recon-D5: is_degraded() = local DB-read at gate I/O boundary (not O(1) cached, not network)
+  - ruff 0 · pyright 0 · pytest 487 · mkdocs --strict 0
+  - CI: backend ✅ frontend ✅
 
 ## Итого за сессию
 
-- **51 PR** в clay
-- **HEAD clay:** `79e9592f6a69e74bc87a7aaec23055363a4c7b99` (S-EXEC-SAFE-3c merged)
-- **pytest:** 475 passed (execution+api+db)
-- **Portfolio class CLOSED:** free-balance ✅ + position cap ✅ + open-order count ✅
-- **ADR-033:** Status = Implemented (per-order + portfolio invariants landed)
-- **CI:** backend + frontend SUCCESS (frontend via re-run)
-- **Next:** S-LIVE-4 (live mode arming) или Emma выбирает направление
+- **53 PR** в clay
+- **HEAD clay:** `d2ce681e007cf08c95d5758d8301541e64159d65` (S-EXEC-SAFE-4a merged)
+- **pytest:** 487 passed (execution+api+db)
+- **Session class:** started (kill-switch landed, #18/#22)
+- **ADR-033:** portfolio class closed + session class started
+- **Cargo-debt:** degraded-probe → O(1) in-memory heartbeat (future slice)

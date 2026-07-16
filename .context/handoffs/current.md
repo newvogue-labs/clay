@@ -1,15 +1,17 @@
 # Текущее задание
 
-## Статус: S-EXEC-SAFE-3c landed
+## Статус: S-EXEC-SAFE-4a landed
 
-**PR #91** merged `79e9592f6a69e74bc87a7aaec23055363a4c7b99`. Open-order count cap per-symbol. Portfolio class closed.
+**PR #93** merged `d2ce681e007cf08c95d5758d8301541e64159d65`. Kill-switch invariant (off-by-default, dormant). Session class started.
 
-## Сессия (2026-07-15)
+## Сессия (2026-07-15/16)
 
-- **S-EXEC-SAFE-3c** (PR #91): open-order count invariant (#16/#17), D1-D7
-  - 9 файлов, +453/−4
-  - 475 tests green (462 + 13 new)
-  - ADR-033 Status → Implemented, errata S-EXEC-SAFE-3c
+- **S-EXEC-SAFE-4a** (PR #93): kill-switch invariant (#18), D1-D6
+  - 9 файлов, +280/−3
+  - 487 tests green (475 + 12 new)
+  - ADR-033: session class started, kill-switch landed
+  - Recon-D5: is_degraded() = local DB-read (not O(1))
+  - Fail-closed: armed+probe=None → engaged → DENY
 
 ## Следующий шаг
 
@@ -17,4 +19,4 @@ S-LIVE-4 (открытие live mode) или Emma выбирает направ�
 
 ## HEAD
 
-`79e9592f6a69e74bc87a7aaec23055363a4c7b99` (main)
+`d2ce681e007cf08c95d5758d8301541e64159d65` (main)
