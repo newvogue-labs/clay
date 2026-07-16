@@ -825,3 +825,134 @@ class TestGateSessionMode:
         assert inner.place_order_called
         assert not mode_probe.called
         assert ack.client_order_id == "test-gate-001"
+
+
+class TestGateSessionRisk:
+    @pytest.mark.asyncio
+    async def test_risk_probe_drawdown_buy_denies(self) -> None:
+        """risk_probe=(True,False) + BUY → DENY[SESSION_DRAWDOWN_TRIPPED]."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        risk_probe = MagicMock(return_value=(True, False))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_risk_probe=risk_probe,
+        )
+        req = _make_request(side=OrderSide.BUY)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_DRAWDOWN_TRIPPED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_risk_probe_drawdown_sell_admits(self) -> None:
+        """risk_probe=(True,False) + SELL → ADMIT (reduce bypass)."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        risk_probe = MagicMock(return_value=(True, False))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_risk_probe=risk_probe,
+        )
+        req = _make_request(side=OrderSide.SELL)
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_risk_probe_raises_fail_closed(self) -> None:
+        """risk_probe raises → fail-closed → both tripped → DENY."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        risk_probe = MagicMock(side_effect=RuntimeError("db down"))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_risk_probe=risk_probe,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_DRAWDOWN_TRIPPED" in exc_info.value.reason_codes
+        assert "SESSION_COOLDOWN_TRIPPED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_no_risk_probe_no_codes(self) -> None:
+        """risk_probe=None → no risk tripped, ADMIT."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_risk_probe=None,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_enforce_false_no_risk_probe_call(self) -> None:
+        """enforce_session=False → risk_probe never called."""
+        inner = FakeInner()
+        risk_probe = MagicMock(return_value=(True, True))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=False,
+            session_risk_probe=risk_probe,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not risk_probe.called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_set_session_risk_probe_late_bind(self) -> None:
+        """set_session_risk_probe wires probe after construction."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        risk_probe = MagicMock(return_value=(True, False))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+        )
+        gate.set_session_risk_probe(risk_probe)
+        req = _make_request(side=OrderSide.BUY)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_DRAWDOWN_TRIPPED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+        risk_probe.assert_called_once()

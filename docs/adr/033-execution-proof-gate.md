@@ -108,7 +108,8 @@ ExecutionProofGate → ResilientExecutionAdapter → CcxtExchangeAdapter → ven
 - submit / modify rate within budget
 - kill-switch not engaged — **Landed** in S-EXEC-SAFE-4a (reason-code KILL_SWITCH_ENGAGED, off-by-default, dormant)
 - HALTED → all place denied; REDUCING → only SELL (spot-reduce) admitted — **Landed** in S-EXEC-SAFE-4b (decoupled SessionMode, reason-codes SESSION_HALTED/SESSION_REDUCE_ONLY, off-by-default, dormant)
-- cooldown / StoplossGuard / MaxDrawdown not tripped
+- cooldown / MaxDrawdown not tripped → reduce-only — **Landed** in S-EXEC-SAFE-4c (reason-codes SESSION_DRAWDOWN_TRIPPED/SESSION_COOLDOWN_TRIPPED, off-by-default, dormant)
+- StoplossGuard (per-signal ATR-stop) — deferred, отдельный трек
 - no duplicate intent
 
 **Freshness (cross-cutting invariant):**
@@ -200,6 +201,7 @@ gate never replaces it.
 - **S-EXEC-SAFE-3c:** Open-order count cap per-symbol landed (off-by-default, all-sides count, MARKET bypass). Closes **portfolio class** (#16/#17). ALGO/ICEBERG dropped — no such order types exist.
 - **S-EXEC-SAFE-4a:** Kill-switch engaged invariant landed (off-by-default, dormant). **Starts session class** (#18). Local DB-read via OverrideService.is_degraded at gate I/O boundary (not O(1) cached — addressed by future slice).
 - **S-EXEC-SAFE-4b:** Decoupled SessionMode (NORMAL/REDUCING/HALTED) landed (off-by-default, dormant). Invariants #19 SESSION_HALTED + #20 SESSION_REDUCE_ONLY. Reason-codes #23/#24 append-only. Session class closed (ADR-033 §3).
+- **S-EXEC-SAFE-4c:** Session risk-tripped (drawdown + cooldown) landed (off-by-default, dormant). Invariants #21 SESSION_DRAWDOWN_TRIPPED + #22 SESSION_COOLDOWN_TRIPPED (reduce-only semantics). Reason-codes #25/#26 append-only. StoplossGuard (per-signal ATR-stop) deferred.
 
 ## Verification note (deps)
 

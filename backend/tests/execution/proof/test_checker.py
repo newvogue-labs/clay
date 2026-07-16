@@ -1119,9 +1119,15 @@ class TestOpenOrdersPortfolio:
 def _make_session(
     kill_switch_engaged: bool = False,
     mode: SessionMode = SessionMode.NORMAL,
+    drawdown_tripped: bool = False,
+    cooldown_tripped: bool = False,
 ) -> SessionSnapshot:
     return SessionSnapshot(
-        kill_switch_engaged=kill_switch_engaged, fetched_at=NOW, mode=mode
+        kill_switch_engaged=kill_switch_engaged,
+        fetched_at=NOW,
+        mode=mode,
+        drawdown_tripped=drawdown_tripped,
+        cooldown_tripped=cooldown_tripped,
     )
 
 
@@ -1363,7 +1369,7 @@ class TestSessionMode:
         assert ReasonCode.SESSION_HALTED in rec.reason_codes
 
     def test_invariant_count_with_session(self) -> None:
-        """session present → 15 invariants (12 base + 18 + 19 + 20)."""
+        """session present → 17 invariants (12 base + #18..#22)."""
         req = _make_request()
         rec = admit(
             intent=req,
@@ -1373,7 +1379,7 @@ class TestSessionMode:
             now=NOW,
             session=_make_session(),
         )
-        assert len(rec.invariant_results) == 15
+        assert len(rec.invariant_results) == 17
 
 
 @given(mode=st.sampled_from([SessionMode.HALTED]))
@@ -1391,3 +1397,154 @@ def test_halted_never_admit(mode: SessionMode) -> None:
     )
     assert rec.decision == Decision.DENY
     assert ReasonCode.SESSION_HALTED in rec.reason_codes
+
+
+# ── Session risk-tripped (drawdown + cooldown) ────────────────────────────────
+
+
+class TestSessionRiskTripped:
+    def test_drawdown_buy_denies(self) -> None:
+        """drawdown_tripped + BUY → DENY[SESSION_DRAWDOWN_TRIPPED]."""
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(drawdown_tripped=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED in rec.reason_codes
+
+    def test_drawdown_sell_admits(self) -> None:
+        """drawdown_tripped + SELL → ADMIT (reduce bypass)."""
+        req = _make_request(side=OrderSide.SELL)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(drawdown_tripped=True),
+        )
+        assert rec.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED not in rec.reason_codes
+
+    def test_cooldown_buy_denies(self) -> None:
+        """cooldown_tripped + BUY → DENY[SESSION_COOLDOWN_TRIPPED]."""
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(cooldown_tripped=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_COOLDOWN_TRIPPED in rec.reason_codes
+
+    def test_cooldown_sell_admits(self) -> None:
+        """cooldown_tripped + SELL → ADMIT (reduce bypass)."""
+        req = _make_request(side=OrderSide.SELL)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(cooldown_tripped=True),
+        )
+        assert rec.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_COOLDOWN_TRIPPED not in rec.reason_codes
+
+    def test_both_tripped_buy_denies_both_codes(self) -> None:
+        """both tripped + BUY → both DRAWDOWN + COOLDOWN in reason_codes."""
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(drawdown_tripped=True, cooldown_tripped=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED in rec.reason_codes
+        assert ReasonCode.SESSION_COOLDOWN_TRIPPED in rec.reason_codes
+
+    def test_not_tripped_no_codes(self) -> None:
+        """neither tripped → no risk codes."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(),
+        )
+        risk_codes = {
+            ReasonCode.SESSION_DRAWDOWN_TRIPPED,
+            ReasonCode.SESSION_COOLDOWN_TRIPPED,
+        }
+        assert risk_codes.isdisjoint(set(rec.reason_codes))
+
+    def test_session_none_skips_risk(self) -> None:
+        """session=None → no risk results."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=None,
+        )
+        codes = {r.code for r in rec.invariant_results}
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED not in codes
+        assert ReasonCode.SESSION_COOLDOWN_TRIPPED not in codes
+
+    def test_collect_all_drawdown_plus_stale(self) -> None:
+        """drawdown+stale+BUY → SNAPSHOT_STALE + SESSION_DRAWDOWN_TRIPPED."""
+        stale = MarketSnapshot(
+            rules=DEFAULT_RULES,
+            fetched_at=NOW - timedelta(seconds=600),
+            metadata_version="v1",
+        )
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=stale,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(drawdown_tripped=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SNAPSHOT_STALE in rec.reason_codes
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED in rec.reason_codes
+
+    def test_snapshot_defaults_false(self) -> None:
+        """SessionSnapshot defaults: drawdown=False, cooldown=False."""
+        snap = SessionSnapshot(kill_switch_engaged=False, fetched_at=NOW)
+        assert snap.drawdown_tripped is False
+        assert snap.cooldown_tripped is False
+
+    def test_snapshot_fields_settable(self) -> None:
+        """SessionSnapshot accepts drawdown/cooldown explicitly."""
+        snap = SessionSnapshot(
+            kill_switch_engaged=False,
+            fetched_at=NOW,
+            drawdown_tripped=True,
+            cooldown_tripped=True,
+        )
+        assert snap.drawdown_tripped is True
+        assert snap.cooldown_tripped is True
+
+    def test_snapshot_frozen(self) -> None:
+        """SessionSnapshot remains frozen after adding new fields."""
+        snap = SessionSnapshot(kill_switch_engaged=False, fetched_at=NOW)
+        with pytest.raises(AttributeError):
+            snap.drawdown_tripped = True  # type: ignore[misc]
