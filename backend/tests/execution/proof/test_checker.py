@@ -31,6 +31,7 @@ from clay.execution.proof.snapshot import (
     FreshnessPolicy,
     MarketSnapshot,
     OpenOrdersSnapshot,
+    SessionMode,
     SessionSnapshot,
 )
 
@@ -1115,8 +1116,13 @@ class TestOpenOrdersPortfolio:
 # ── Kill-switch invariant (off-by-default) ──────────────────────────────────
 
 
-def _make_session(kill_switch_engaged: bool = False) -> SessionSnapshot:
-    return SessionSnapshot(kill_switch_engaged=kill_switch_engaged, fetched_at=NOW)
+def _make_session(
+    kill_switch_engaged: bool = False,
+    mode: SessionMode = SessionMode.NORMAL,
+) -> SessionSnapshot:
+    return SessionSnapshot(
+        kill_switch_engaged=kill_switch_engaged, fetched_at=NOW, mode=mode
+    )
 
 
 class TestKillSwitch:
@@ -1236,3 +1242,152 @@ def test_open_orders_over_cap_never_admit(num_orders: int, cap: int) -> None:
     if num_orders + 1 > cap:
         assert rec.decision == Decision.DENY
         assert ReasonCode.OPEN_ORDERS_ABOVE_CAP in rec.reason_codes
+
+
+# ── Session mode (NORMAL / REDUCING / HALTED) ────────────────────────────────
+
+
+class TestSessionMode:
+    def test_halted_denies_all(self) -> None:
+        """HALTED → DENY[SESSION_HALTED] for any place intent."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(mode=SessionMode.HALTED),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_HALTED in rec.reason_codes
+
+    def test_halted_sell_denies(self) -> None:
+        """HALTED + SELL → still DENY[SESSION_HALTED] (cancel goes mimo gate)."""
+        req = _make_request(side=OrderSide.SELL)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(mode=SessionMode.HALTED),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_HALTED in rec.reason_codes
+
+    def test_reducing_buy_denies(self) -> None:
+        """REDUCING + BUY → DENY[SESSION_REDUCE_ONLY]."""
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(mode=SessionMode.REDUCING),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_REDUCE_ONLY in rec.reason_codes
+
+    def test_reducing_sell_admits(self) -> None:
+        """REDUCING + SELL → ADMIT (spot-reduce allowed)."""
+        req = _make_request(side=OrderSide.SELL)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(mode=SessionMode.REDUCING),
+        )
+        assert rec.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_REDUCE_ONLY not in rec.reason_codes
+
+    def test_normal_admits(self) -> None:
+        """NORMAL → ADMIT, no session violations."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(mode=SessionMode.NORMAL),
+        )
+        assert rec.decision == Decision.ADMIT
+        session_codes = {ReasonCode.SESSION_HALTED, ReasonCode.SESSION_REDUCE_ONLY}
+        assert session_codes.isdisjoint(set(rec.reason_codes))
+
+    def test_default_mode_is_normal(self) -> None:
+        """SessionSnapshot without explicit mode → NORMAL."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=SessionSnapshot(kill_switch_engaged=False, fetched_at=NOW),
+        )
+        assert rec.decision == Decision.ADMIT
+
+    def test_session_none_skips_mode(self) -> None:
+        """session=None → no session mode results."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=None,
+        )
+        codes = {r.code for r in rec.invariant_results}
+        assert ReasonCode.SESSION_HALTED not in codes
+        assert ReasonCode.SESSION_REDUCE_ONLY not in codes
+
+    def test_collect_all_halted_plus_killswitch(self) -> None:
+        """engaged + HALTED → both KILL_SWITCH_ENGAGED + SESSION_HALTED."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(kill_switch_engaged=True, mode=SessionMode.HALTED),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.KILL_SWITCH_ENGAGED in rec.reason_codes
+        assert ReasonCode.SESSION_HALTED in rec.reason_codes
+
+    def test_invariant_count_with_session(self) -> None:
+        """session present → 15 invariants (12 base + 18 + 19 + 20)."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(),
+        )
+        assert len(rec.invariant_results) == 15
+
+
+@given(mode=st.sampled_from([SessionMode.HALTED]))
+@settings(max_examples=200)
+def test_halted_never_admit(mode: SessionMode) -> None:
+    """HALTED ⇒ never ADMIT (Hypothesis anti-drift)."""
+    req = _make_request()
+    rec = admit(
+        intent=req,
+        snapshot=DEFAULT_SNAPSHOT,
+        policy=DEFAULT_POLICY,
+        max_order_notional=Decimal("0"),
+        now=NOW,
+        session=_make_session(mode=mode),
+    )
+    assert rec.decision == Decision.DENY
+    assert ReasonCode.SESSION_HALTED in rec.reason_codes

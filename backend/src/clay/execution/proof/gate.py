@@ -29,6 +29,7 @@ from clay.execution.proof.snapshot import (
     FreshnessPolicy,
     MarketSnapshot,
     OpenOrdersSnapshot,
+    SessionMode,
     SessionSnapshot,
 )
 
@@ -62,6 +63,7 @@ class ExecutionProofGate:
         enforce_portfolio: bool = False,
         enforce_session: bool = False,
         kill_switch_probe: Callable[[], bool] | None = None,
+        session_mode_probe: Callable[[], SessionMode] | None = None,
     ) -> None:
         self._inner = inner
         self._session_factory = session_factory
@@ -73,10 +75,15 @@ class ExecutionProofGate:
         self._enforce_portfolio = enforce_portfolio
         self._enforce_session = enforce_session
         self._kill_switch_probe = kill_switch_probe
+        self._session_mode_probe = session_mode_probe
 
     def set_kill_switch_probe(self, probe: Callable[[], bool]) -> None:
         """Late-bind the kill-switch probe (bootstrap wiring, after override_service)."""
         self._kill_switch_probe = probe
+
+    def set_session_mode_probe(self, probe: Callable[[], SessionMode]) -> None:
+        """Late-bind the session mode probe (bootstrap wiring, after override_service)."""
+        self._session_mode_probe = probe
 
     @property
     def environment(self) -> Environment:
@@ -122,9 +129,19 @@ class ExecutionProofGate:
             else:
                 # Fail-closed: armed without probe = engaged
                 engaged = True
+            # Resolve session mode (off-by-default: no probe → NORMAL)
+            if self._session_mode_probe is not None:
+                try:
+                    mode = self._session_mode_probe()
+                except Exception:
+                    logger.exception("session_mode_probe failed (fail-closed → HALTED)")
+                    mode = SessionMode.HALTED
+            else:
+                mode = SessionMode.NORMAL
             session = SessionSnapshot(
                 kill_switch_engaged=engaged,
                 fetched_at=_now_utc(),
+                mode=mode,
             )
         record = admit(
             intent=quantized,

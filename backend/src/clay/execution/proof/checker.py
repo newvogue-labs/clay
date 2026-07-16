@@ -23,6 +23,7 @@ from clay.execution.proof.snapshot import (
     FreshnessPolicy,
     MarketSnapshot,
     OpenOrdersSnapshot,
+    SessionMode,
     SessionSnapshot,
 )
 
@@ -177,6 +178,13 @@ def _check_invariants(
     if session is not None:
         # 18. kill-switch engaged
         _add(ReasonCode.KILL_SWITCH_ENGAGED, not session.kill_switch_engaged)
+        # 19. session halted
+        _add(ReasonCode.SESSION_HALTED, session.mode != SessionMode.HALTED)
+        # 20. reducing: only SELL allowed
+        _add(
+            ReasonCode.SESSION_REDUCE_ONLY,
+            session.mode != SessionMode.REDUCING or req.side == OrderSide.SELL,
+        )
     return results
 
 

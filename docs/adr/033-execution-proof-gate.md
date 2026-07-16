@@ -7,7 +7,7 @@ tags:
 
 # ADR-033: Execution Proof-Gate
 
-- **Status:** Implemented (per-order + portfolio invariants landed; session invariants pending)
+- **Status:** Implemented (per-order + portfolio invariants landed; session invariants landed)
 - **Date:** 2026-07-14
 - **Depends on:** ADR-032 (Exchange Execution Adapter, Multi-Venue), ADR-025 (Execution Modes & Override Gate)
 - **References:** ADR-021 / ADR-029 (Session & Exposure Risk-Limits), ADR-030 & M278 (knowledge ≠ execution red line), S-LIVE-2/3/4 (notional guard, killswitch, arming)
@@ -107,6 +107,7 @@ ExecutionProofGate → ResilientExecutionAdapter → CcxtExchangeAdapter → ven
 - HALTED → only cancel admitted; REDUCING → only position-reducing admitted
 - submit / modify rate within budget
 - kill-switch not engaged — **Landed** in S-EXEC-SAFE-4a (reason-code KILL_SWITCH_ENGAGED, off-by-default, dormant)
+- HALTED → all place denied; REDUCING → only SELL (spot-reduce) admitted — **Landed** in S-EXEC-SAFE-4b (decoupled SessionMode, reason-codes SESSION_HALTED/SESSION_REDUCE_ONLY, off-by-default, dormant)
 - cooldown / StoplossGuard / MaxDrawdown not tripped
 - no duplicate intent
 
@@ -198,6 +199,7 @@ gate never replaces it.
 - **S-EXEC-SAFE-3b:** Position cap per-symbol landed (off-by-default).
 - **S-EXEC-SAFE-3c:** Open-order count cap per-symbol landed (off-by-default, all-sides count, MARKET bypass). Closes **portfolio class** (#16/#17). ALGO/ICEBERG dropped — no such order types exist.
 - **S-EXEC-SAFE-4a:** Kill-switch engaged invariant landed (off-by-default, dormant). **Starts session class** (#18). Local DB-read via OverrideService.is_degraded at gate I/O boundary (not O(1) cached — addressed by future slice).
+- **S-EXEC-SAFE-4b:** Decoupled SessionMode (NORMAL/REDUCING/HALTED) landed (off-by-default, dormant). Invariants #19 SESSION_HALTED + #20 SESSION_REDUCE_ONLY. Reason-codes #23/#24 append-only. Session class closed (ADR-033 §3).
 
 ## Verification note (deps)
 
