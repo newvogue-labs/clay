@@ -23,6 +23,7 @@ from clay.execution.proof.snapshot import (
     FreshnessPolicy,
     MarketSnapshot,
     OpenOrdersSnapshot,
+    SessionSnapshot,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ def _check_invariants(
     max_position: Decimal = Decimal(0),
     open_orders: OpenOrdersSnapshot | None = None,
     max_open_orders: int = 0,
+    session: SessionSnapshot | None = None,
 ) -> list[InvariantResult]:
     """Collect-all проверка инвариантов. Порядок фиксирован."""
     rules = snapshot.rules
@@ -171,6 +173,10 @@ def _check_invariants(
             _add(ReasonCode.OPEN_ORDERS_ABOVE_CAP, projected <= max_open_orders)
         else:
             _add(ReasonCode.OPEN_ORDERS_ABOVE_CAP, True)
+    # ── Session invariants (off-by-default: session=None ⇒ skip) ─────────
+    if session is not None:
+        # 18. kill-switch engaged
+        _add(ReasonCode.KILL_SWITCH_ENGAGED, not session.kill_switch_engaged)
     return results
 
 
@@ -192,6 +198,7 @@ def admit(
     max_position: Decimal = Decimal(0),
     open_orders: OpenOrdersSnapshot | None = None,
     max_open_orders: int = 0,
+    session: SessionSnapshot | None = None,
 ) -> DecisionRecord:
     """Оценка ордера: ADMIT или DENY(reason-codes). Collect-all, fail-closed."""
     try:
@@ -206,6 +213,7 @@ def admit(
             max_position=max_position,
             open_orders=open_orders,
             max_open_orders=max_open_orders,
+            session=session,
         )
         failed = tuple(r.code for r in results if not r.passed)
         decision = Decision.ADMIT if not failed else Decision.DENY

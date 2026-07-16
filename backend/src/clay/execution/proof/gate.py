@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from clay.execution.adapter.domain import (
     BalanceSnapshot,
@@ -29,6 +29,7 @@ from clay.execution.proof.snapshot import (
     FreshnessPolicy,
     MarketSnapshot,
     OpenOrdersSnapshot,
+    SessionSnapshot,
 )
 
 if TYPE_CHECKING:
@@ -59,6 +60,8 @@ class ExecutionProofGate:
         max_open_orders: int = 0,
         metadata_version: str = "v1",
         enforce_portfolio: bool = False,
+        enforce_session: bool = False,
+        kill_switch_probe: Callable[[], bool] | None = None,
     ) -> None:
         self._inner = inner
         self._session_factory = session_factory
@@ -68,6 +71,12 @@ class ExecutionProofGate:
         self._max_open_orders = max_open_orders
         self._metadata_version = metadata_version
         self._enforce_portfolio = enforce_portfolio
+        self._enforce_session = enforce_session
+        self._kill_switch_probe = kill_switch_probe
+
+    def set_kill_switch_probe(self, probe: Callable[[], bool]) -> None:
+        """Late-bind the kill-switch probe (bootstrap wiring, after override_service)."""
+        self._kill_switch_probe = probe
 
     @property
     def environment(self) -> Environment:
@@ -102,6 +111,21 @@ class ExecutionProofGate:
                     orders=tuple(await self._inner.get_open_orders(quantized.symbol)),
                     fetched_at=_now_utc(),
                 )
+        session: SessionSnapshot | None = None
+        if self._enforce_session:
+            if self._kill_switch_probe is not None:
+                try:
+                    engaged = self._kill_switch_probe()
+                except Exception:
+                    logger.exception("kill_switch_probe failed (fail-closed → engaged)")
+                    engaged = True
+            else:
+                # Fail-closed: armed without probe = engaged
+                engaged = True
+            session = SessionSnapshot(
+                kill_switch_engaged=engaged,
+                fetched_at=_now_utc(),
+            )
         record = admit(
             intent=quantized,
             snapshot=snapshot,
@@ -112,6 +136,7 @@ class ExecutionProofGate:
             max_position=self._max_position,
             open_orders=open_orders,
             max_open_orders=self._max_open_orders,
+            session=session,
         )
         # persist fail-closed
         try:

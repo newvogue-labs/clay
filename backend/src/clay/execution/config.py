@@ -34,6 +34,7 @@ class ExecutionConfig:
     max_order_notional_usdt: Decimal = Decimal("0")
     proof_max_position_usdt: Decimal = Decimal("0")
     proof_max_open_orders: int = 0
+    proof_enforce_session: bool = False
     proof_max_snapshot_age_seconds: int = 30
     proof_metadata_version: str = "v1"
 
@@ -66,6 +67,10 @@ class ExecutionConfig:
             proof_max_open_orders=int(
                 os.environ.get("CLAY_PROOF_MAX_OPEN_ORDERS", "0")
             ),
+            proof_enforce_session=os.environ.get(
+                "CLAY_PROOF_ENFORCE_SESSION", "0"
+            ).lower()
+            in {"1", "true"},
             proof_max_snapshot_age_seconds=int(
                 os.environ.get("CLAY_PROOF_MAX_SNAPSHOT_AGE_SECONDS", "30")
             ),

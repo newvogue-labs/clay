@@ -550,3 +550,125 @@ class TestGateEnforceOpenOrders:
         assert inner.place_order_called
         assert not inner.get_open_orders_called
         assert ack.client_order_id == "test-gate-001"
+
+
+class TestGateEnforceSession:
+    @pytest.mark.asyncio
+    async def test_enforce_true_probe_engaged_denies(self) -> None:
+        """enforce_session=True + probe→True (engaged) → ProofGateDeniedError[KILL_SWITCH_ENGAGED]."""
+        inner = FakeInner()
+        probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=probe,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "KILL_SWITCH_ENGAGED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+        probe.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_enforce_false_no_probe_call(self) -> None:
+        """enforce_session=False → probe never called, delegate succeeds."""
+        inner = FakeInner()
+        probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=False,
+            kill_switch_probe=probe,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not probe.called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_enforce_true_probe_false_admits(self) -> None:
+        """enforce_session=True + probe→False → ADMIT + delegate."""
+        inner = FakeInner()
+        probe = MagicMock(return_value=False)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=probe,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_enforce_true_probe_none_fail_closed(self) -> None:
+        """enforce_session=True + probe=None → fail-closed → DENY[KILL_SWITCH_ENGAGED]."""
+        inner = FakeInner()
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=None,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "KILL_SWITCH_ENGAGED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_enforce_true_probe_raises_fail_closed(self) -> None:
+        """enforce_session=True + probe raises → fail-closed → DENY[KILL_SWITCH_ENGAGED]."""
+        inner = FakeInner()
+        probe = MagicMock(side_effect=RuntimeError("db down"))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=probe,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "KILL_SWITCH_ENGAGED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_set_kill_switch_probe_late_bind(self) -> None:
+        """set_kill_switch_probe wires probe after construction."""
+        inner = FakeInner()
+        probe_engaged = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+        )
+        gate.set_kill_switch_probe(probe_engaged)
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "KILL_SWITCH_ENGAGED" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+        probe_engaged.assert_called_once()
