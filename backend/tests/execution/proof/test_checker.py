@@ -1122,6 +1122,7 @@ def _make_session(
     drawdown_tripped: bool = False,
     cooldown_tripped: bool = False,
     submit_rate_exceeded: bool = False,
+    duplicate_intent: bool = False,
 ) -> SessionSnapshot:
     return SessionSnapshot(
         kill_switch_engaged=kill_switch_engaged,
@@ -1130,6 +1131,7 @@ def _make_session(
         drawdown_tripped=drawdown_tripped,
         cooldown_tripped=cooldown_tripped,
         submit_rate_exceeded=submit_rate_exceeded,
+        duplicate_intent=duplicate_intent,
     )
 
 
@@ -1371,7 +1373,7 @@ class TestSessionMode:
         assert ReasonCode.SESSION_HALTED in rec.reason_codes
 
     def test_invariant_count_with_session(self) -> None:
-        """session present → 18 invariants (12 base + #18..#23)."""
+        """session present → 19 invariants (12 base + #18..#24)."""
         req = _make_request()
         rec = admit(
             intent=req,
@@ -1381,7 +1383,7 @@ class TestSessionMode:
             now=NOW,
             session=_make_session(),
         )
-        assert len(rec.invariant_results) == 18
+        assert len(rec.invariant_results) == 19
 
 
 @given(mode=st.sampled_from([SessionMode.HALTED]))
@@ -1622,3 +1624,113 @@ class TestSessionSubmitRate:
             kill_switch_engaged=False, fetched_at=NOW, submit_rate_exceeded=True
         )
         assert snap.submit_rate_exceeded is True
+
+
+# ── Session duplicate-intent (off-by-default, both-sides deny) ───────────────
+
+
+class TestSessionDuplicateIntent:
+    def test_duplicate_buy_denies(self) -> None:
+        """duplicate_intent + BUY → DENY[SESSION_DUPLICATE_INTENT]."""
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(duplicate_intent=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes
+
+    def test_duplicate_sell_also_denies(self) -> None:
+        """duplicate_intent + SELL → DENY (no reduce-bypass, unique to #24)."""
+        req = _make_request(side=OrderSide.SELL)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(duplicate_intent=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes
+
+    def test_not_duplicate_no_code(self) -> None:
+        """duplicate_intent=False → no code."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(duplicate_intent=False),
+        )
+        assert ReasonCode.SESSION_DUPLICATE_INTENT not in rec.reason_codes
+
+    def test_session_none_skips_duplicate_intent(self) -> None:
+        """session=None → no duplicate-intent result."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=None,
+        )
+        codes = {r.code for r in rec.invariant_results}
+        assert ReasonCode.SESSION_DUPLICATE_INTENT not in codes
+
+    def test_collect_all_duplicate_plus_stale(self) -> None:
+        """duplicate+stale+BUY → SNAPSHOT_STALE + SESSION_DUPLICATE_INTENT."""
+        stale = MarketSnapshot(
+            rules=DEFAULT_RULES,
+            fetched_at=NOW - timedelta(seconds=600),
+            metadata_version="v1",
+        )
+        req = _make_request(side=OrderSide.BUY)
+        rec = admit(
+            intent=req,
+            snapshot=stale,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(duplicate_intent=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SNAPSHOT_STALE in rec.reason_codes
+        assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes
+
+    def test_snapshot_duplicate_intent_default_false(self) -> None:
+        """SessionSnapshot duplicate_intent defaults to False."""
+        snap = SessionSnapshot(kill_switch_engaged=False, fetched_at=NOW)
+        assert snap.duplicate_intent is False
+
+    def test_snapshot_duplicate_intent_settable(self) -> None:
+        """SessionSnapshot accepts duplicate_intent explicitly."""
+        snap = SessionSnapshot(
+            kill_switch_engaged=False, fetched_at=NOW, duplicate_intent=True
+        )
+        assert snap.duplicate_intent is True
+
+
+@given(duplicate=st.just(True))
+@settings(max_examples=200)
+def test_duplicate_intent_never_admit(duplicate: bool) -> None:
+    """duplicate_intent=True ⇒ never ADMIT (Hypothesis anti-drift, both sides)."""
+    for side in (OrderSide.BUY, OrderSide.SELL):
+        req = _make_request(side=side)
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(duplicate_intent=duplicate),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes

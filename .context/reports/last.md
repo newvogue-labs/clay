@@ -1,29 +1,55 @@
-# Отчёт за сессию (2026-07-15/16)
+# Отчёт за сессию (2026-07-16)
 
 ## Что сделано
 
-### S-EXEC-SAFE-4a: kill-switch invariant (off-by-default, dormant)
+### S-EXEC-SAFE-4b: decoupled SessionMode (NORMAL/REDUCING/HALTED)
 
-- **PR #93** -> MERGED `d2ce681e007cf08c95d5758d8301541e64159d65` (squash)
-  - 9 файлов, +280/−3
-  - D1: ExecutionConfig.proof_enforce_session (bool, default 0, CLAY_PROOF_ENFORCE_SESSION)
-  - D2: SessionSnapshot frozen dataclass (kill_switch_engaged + UTC guard)
-  - D3: reason_code #22 KILL_SWITCH_ENGAGED (append-only, first 21 untouched)
-  - D4: checker invariant #18 (session keyword, kill-switch engaged → DENY)
-  - D5: gate + bootstrap (enforce_session + kill_switch_probe + late-bind + fail-closed)
-    - Fail-closed: armed+probe=None → engaged → DENY (ADR-033 §8)
-    - Fail-closed: probe raises → engaged → DENY
-  - D6: 5 checker + 6 gate + 1 Hypothesis tests (487 total, +12)
-  - ADR-033 §3 errata: session class started, kill-switch landed
-  - Recon-D5: is_degraded() = local DB-read at gate I/O boundary (not O(1) cached, not network)
-  - ruff 0 · pyright 0 · pytest 487 · mkdocs --strict 0
+- **PR #95** -> MERGED `a5c27daa86e3e20e27d70c2518a7ef31c07e6ea0` (squash)
+  - 7 файлов, +351/−4
+  - D1: SessionMode(StrEnum) + mode field in SessionSnapshot
+  - D2: reason_codes #23 SESSION_HALTED, #24 SESSION_REDUCE_ONLY (append-only)
+  - D3: checker #19 HALTED + #20 REDUCING (reduce-only semantics)
+  - D4: gate session_mode_probe + set_session_mode_probe (off-by-default)
+  - D5: bootstrap.py zero diff
+  - D6: ADR-033 §3 session-bullet + errata
+  - D7: 10 checker + 7 gate + 1 Hypothesis = 17 new tests
+  - ruff 0 · format clean · mkdocs --strict 0 · pytest 1148 passed
+  - CI: backend ✅ frontend ✅
+
+### S-EXEC-SAFE-4c: session risk-tripped (drawdown + cooldown)
+
+- **PR #96** -> MERGED `70119e9a86e3e20e27d70c2518a7ef31c07e6ea0` (squash)
+  - 7 файлов, +327/−4
+  - D1: reason_codes #25 SESSION_DRAWDOWN_TRIPPED, #26 SESSION_COOLDOWN_TRIPPED
+  - D2: SessionSnapshot drawdown_tripped + cooldown_tripped (default False, frozen)
+  - D3: checker #21 drawdown + #22 cooldown (reduce-only, mirror #20)
+  - D4: gate session_risk_probe (tuple[bool,bool]) + set + fail-closed
+  - D5: bootstrap.py zero diff
+  - D6: ADR-033 §3 landed 4c + StoplossGuard deferred
+  - D7: 11 checker + 6 gate = 17 new tests
+  - ruff 0 · format clean · mkdocs --strict 0 · pytest 1165 passed
+  - CI: backend ✅ frontend ✅
+
+### S-EXEC-SAFE-4d: submit-rate exceeded (off-by-default, dormant)
+
+- **PR #97** -> MERGED `edf057ea86e3e20e27d70c2518a7ef31c07e6ea0` (squash)
+  - 7 файлов, +233/−3
+  - D1: reason_code #27 SESSION_SUBMIT_RATE_EXCEEDED (append-only)
+  - D2: SessionSnapshot submit_rate_exceeded: bool = False (frozen)
+  - D3: checker #23 submit-rate-exceeded (reduce-only, mirror #20-#22)
+  - D4: gate session_submit_rate_probe + set + fail-closed
+  - D5: bootstrap.py zero diff
+  - D6: ADR-033 §3 landed 4d + errata
+  - D7: 6 checker + 6 gate = 12 new tests
+  - ruff 0 · format clean · mkdocs --strict 0 · pytest 1177 passed
   - CI: backend ✅ frontend ✅
 
 ## Итого за сессию
 
-- **53 PR** в clay
-- **HEAD clay:** `d2ce681e007cf08c95d5758d8301541e64159d65` (S-EXEC-SAFE-4a merged)
-- **pytest:** 487 passed (execution+api+db)
-- **Session class:** started (kill-switch landed, #18/#22)
-- **ADR-033:** portfolio class closed + session class started
-- **Cargo-debt:** degraded-probe → O(1) in-memory heartbeat (future slice)
+- **56 PR** в clay (было 53, +3 за сессию)
+- **HEAD clay:** `edf057ea86e3e20e27d70c2518a7ef31c07e6ea0`
+- **pytest:** 1177 passed (было 1148/487 execution+api+db)
+- **Session class:** CLOSED (#18 kill-switch + #19 HALTED + #20 REDUCING + #21 drawdown + #22 cooldown + #23 submit-rate)
+- **ADR-033:** portfolio class closed + session class closed
+- **reason_codes:** 27 (было 22, +5 append-only)
+- **New tests this session:** 46 (17 + 17 + 12)

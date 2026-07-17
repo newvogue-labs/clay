@@ -1086,3 +1086,134 @@ class TestGateSessionSubmitRate:
         assert "SESSION_SUBMIT_RATE_EXCEEDED" in exc_info.value.reason_codes
         assert not inner.place_order_called
         sr_probe.assert_called_once()
+
+
+class TestGateSessionDuplicateIntent:
+    @pytest.mark.asyncio
+    async def test_duplicate_intent_buy_denies(self) -> None:
+        """duplicate_intent_probe=True + BUY → DENY[SESSION_DUPLICATE_INTENT]."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        di_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_duplicate_intent_probe=di_probe,
+        )
+        req = _make_request(side=OrderSide.BUY)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_DUPLICATE_INTENT" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_duplicate_intent_sell_also_denies(self) -> None:
+        """duplicate_intent_probe=True + SELL → DENY (no reduce-bypass)."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        di_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_duplicate_intent_probe=di_probe,
+        )
+        req = _make_request(side=OrderSide.SELL)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_DUPLICATE_INTENT" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_duplicate_intent_probe_raises_fail_closed(self) -> None:
+        """duplicate_intent_probe raises → fail-closed → duplicate → DENY."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        di_probe = MagicMock(side_effect=RuntimeError("db down"))
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_duplicate_intent_probe=di_probe,
+        )
+        req = _make_request()
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_DUPLICATE_INTENT" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+
+    @pytest.mark.asyncio
+    async def test_no_duplicate_intent_probe_no_codes(self) -> None:
+        """duplicate_intent_probe=None → no duplicate, ADMIT."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+            session_duplicate_intent_probe=None,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_enforce_false_no_duplicate_probe_call(self) -> None:
+        """enforce_session=False → duplicate_intent_probe never called."""
+        inner = FakeInner()
+        di_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=False,
+            session_duplicate_intent_probe=di_probe,
+        )
+        req = _make_request()
+        ack = await gate.place_order(req)
+        assert inner.place_order_called
+        assert not di_probe.called
+        assert ack.client_order_id == "test-gate-001"
+
+    @pytest.mark.asyncio
+    async def test_set_session_duplicate_intent_probe_late_bind(self) -> None:
+        """set_session_duplicate_intent_probe wires probe after construction."""
+        inner = FakeInner()
+        ks_probe = MagicMock(return_value=False)
+        di_probe = MagicMock(return_value=True)
+
+        gate = ExecutionProofGate(
+            inner,
+            session_factory=None,
+            freshness_policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            enforce_session=True,
+            kill_switch_probe=ks_probe,
+        )
+        gate.set_session_duplicate_intent_probe(di_probe)
+        req = _make_request(side=OrderSide.BUY)
+        with pytest.raises(ProofGateDeniedError) as exc_info:
+            await gate.place_order(req)
+        assert "SESSION_DUPLICATE_INTENT" in exc_info.value.reason_codes
+        assert not inner.place_order_called
+        di_probe.assert_called_once()

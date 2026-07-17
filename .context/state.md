@@ -4,117 +4,46 @@
 
 ...
 
-## Завершено (текущая сессия — 2026-07-14)
+## Завершено (текущая сессия — 2026-07-16)
 
-### S-EXEC-SAFE-2b-1b: gate wiring + route consolidation (testnet only)
+### S-EXEC-SAFE-4b: decoupled SessionMode (NORMAL/REDUCING/HALTED)
 
-- **PR #87:** MERGED `a8b1ee3fbf3f48ac00302f3e272be8341e482ce7` (squash)
-  - 8 файлов, +493/−52
-  - ExecutionProofGate wrapper + errors + route consolidation
-  - bootstrap: wrap in ExecutionProofGate (armed/testnet only)
-  - 437 tests: all green
+- **PR #95:** MERGED `a5c27daa86e3e20e27d70c2518a7ef31c07e6ea0` (squash)
+  - 7 файлов, +351/−4
+  - D1: SessionMode(StrEnum) + mode field in SessionSnapshot
+  - D2: reason_codes #23 SESSION_HALTED, #24 SESSION_REDUCE_ONLY (append-only)
+  - D3: checker invariants #19 HALTED + #20 REDUCING
+  - D4: gate session_mode_probe + set_session_mode_probe (off-by-default)
+  - D5: bootstrap.py zero diff
+  - D6: ADR-033 §3 session-bullet + errata
+  - D7: 10 checker + 7 gate + 1 Hypothesis = 17 new tests
+  - ruff 0 · format clean · mkdocs --strict 0 · pytest 1148 passed
 
-### S-EXEC-SAFE-2b-1a: proof-gate durable persistence (dormant)
+### S-EXEC-SAFE-4c: session risk-tripped (drawdown + cooldown)
 
-- **PR #86:** MERGED `bbbc729c06b559bbe3ccd04df229006974ab7ce5` (squash)
-  - 4 файла, +335/−0
-  - ExecutionProofDecision ORM + from_record + ProofDecisionRepository
-  - alembic 0024: down_revision=0023, reversible
-  - 8 tests: from_record, round-trip, serde, migration smoke
+- **PR #96:** MERGED `70119e9a86e3e20e27d70c2518a7ef31c07e6ea0` (squash)
+  - 7 файлов, +327/−4
+  - D1: reason_codes #25 SESSION_DRAWDOWN_TRIPPED, #26 SESSION_COOLDOWN_TRIPPED
+  - D2: SessionSnapshot drawdown_tripped + cooldown_tripped (default False)
+  - D3: checker #21 drawdown + #22 cooldown (reduce-only, mirror #20)
+  - D4: gate session_risk_probe + set + fail-closed
+  - D5: bootstrap.py zero diff
+  - D6: ADR-033 §3 landed 4c + StoplossGuard deferred
+  - D7: 11 checker + 6 gate = 17 new tests
+  - ruff 0 · format clean · mkdocs --strict 0 · pytest 1165 passed
 
-### S-EXEC-SAFE-2b-0: fail-closed for uncomputable notional (dormant)
+### S-EXEC-SAFE-4d: submit-rate exceeded (off-by-default, dormant)
 
-- **PR #85:** MERGED `aa7ff45881e73f45f710edae1eee5be6a47626b2` (squash)
-  - 4 файла, +81/−1
-  - NOTIONAL_UNCOMPUTABLE appended, rule 10 split, 4 unit + 1 Hypothesis
-  - Dormant: 0 refs outside proof/
-
-### S-EXEC-SAFE-2a: proof-gate pure checker + reason-codes + decision-record (dormant)
-
-- **PR #84:** MERGED `c953eca21ba05853d188f0155972ce52e17431a7` (squash)
-  - 12 файла, +996/−6
-  - `execution/proof/`: reason_codes, snapshot, decision, checker, __init__
-  - F-4: `ExecutionConfig.max_order_notional_usdt` float→Decimal
-  - 23 unit tests + 2 Hypothesis anti-drift tests
-  - icontract==2.7.3, hypothesis==6.156.6
-  - All gates G1–G8 confirmed
-
-### ADR-033 Execution Proof-Gate — doc-only draft
-
-- **PR #83:** MERGED `fa127da8d5aed9e1a38942652f8ea2a0462aafd7` (squash)
-  - 2 файла, +207/−1
-  - `docs/adr/033-execution-proof-gate.md` — Status: Proposed
-  - `docs/adr/README.md` — +1 line (033)
-  - mkdocs build --strict: 0 warnings; CI PASS
-
-### S-ADAPT-5b-2b: BybitExecutionAdapter + tests + ADR-032
-
-- **S-ADAPT-5b-2b:** MERGED PR #82 -> `09c399a51929a75d03fca1c8874b95719d17acb4` (squash)
-  - 4 файла, +866/−1 — Bybit adapter + tests + docs
-  - `bybit.py`: BybitExecutionAdapter(CcxtExchangeAdapter) — hooks: _build_client (ccxt.bybit, defaultType=spot), _build_order_params (clientOrderId), _is_duplicate_cid (12141/170141), get_market_rules (ccxt-normalized, limits.price==None guard)
-  - `test_bybit.py`: 44 tests (FakeBybitClient, protocol, constructor, place_order, dup-cid, get_market_rules, cancel/get/reconcile/balances)
-  - ADR-032: §h marked IMPLEMENTED; errata S-ADAPT-5b
-  - **make check:** ruff 0 · format clean · pyright 0 · pytest 1032 passed
-  - **GATE L1–L6:** all confirmed via ccxt introspection
-
-### S-ADAPT-5b-2a: _build_order_params hook + @abstractmethod
-
-- **S-ADAPT-5b-2a:** MERGED PR #81 -> `f2c82d52b8137494d6a56cbc2f543d5e737b63dc` (squash)
-  - 2 файла, +14/−3 — hook extraction + abstract marking
-  - `_build_order_params` abstract hook in base; `place_order` calls `self._build_order_params(req)`
-  - `get_market_rules` marked `@abstractmethod`
-  - **pytest:** 988 passed (baseline不变)
-
-### S-ADAPT-5b-1: CcxtExchangeAdapter base extraction
-
-- **S-ADAPT-5b-1:** MERGED PR #80 -> `f3139f16cf0f25db8818517436c6b1414e65f30c` (squash)
-  - 4 файла, +386/−279 — base class extraction
-  - `CcxtExchangeAdapter` — shared ccxt logic (error mapping, response building, state mapping, validate/quantize delegation)
-  - `BinanceExecutionAdapter(CcxtExchangeAdapter)` — thin subclass with venue-specific hooks
-  - **pytest:** 988 passed (baseline不变)
-
-### S-ADAPT-5a: duplicate-clientOrderId safety (previous session)
-
-- **S-ADAPT-5a:** MERGED PR #79 -> `b52bdbf43cbca2a397b169802fd3e2df51d292f9` (squash)
-
-### S-EXEC-SAFE-2b-1c: migration smoke — real up/down on 0024
-
-- **PR #88:** MERGED `9d195d51c9f0f58a4ae9c8a93acf7aa48cbc818a` (squash)
-  - 1 файл, +47/−7
-  - TestMigrationSmoke: real alembic upgrade/downgrade via Operations.context
-  - F-1: alembic 1.18.4 — no schema_translate_map kwarg; engine exec_options suffice
-  - Inspector caches has_table — must recreate after DDL
-  - 437 tests: all green
-
-### S-EXEC-SAFE-3c: open-order count cap (per-symbol, off-by-default)
-
-- **PR #91:** MERGED `79e9592f6a69e74bc87a7aaec23055363a4c7b99` (squash)
-  - 9 файлов, +453/−4
-  - D1: ExecutionConfig.proof_max_open_orders (int, default 0, CLAY_PROOF_MAX_OPEN_ORDERS)
-  - D2: OpenOrdersSnapshot frozen dataclass + count_for(symbol)
-  - D3: reason_codes #20 OPEN_ORDERS_SNAPSHOT_STALE, #21 OPEN_ORDERS_ABOVE_CAP
-  - D4: checker #16 freshness + #17 count-cap (LIMIT/STOP_LIMIT only, MARKET bypass)
-  - D5: gate + bootstrap wiring (double-off: 0 get_open_orders при обоих off)
-  - D6: ADR-033 §3 landed, errata, Status → Implemented, portfolio class closed
-  - D7: 9 checker + 1 Hypothesis + 3 gate tests (475 total, +13)
-  - ruff 0 · pyright 0 · pytest 475 · mkdocs --strict 0
-  - Frontend flaky re-run (known, App.test.tsx:1477)
-
-### S-EXEC-SAFE-4a: kill-switch invariant (off-by-default, dormant)
-
-- **PR #93:** MERGED `d2ce681e007cf08c95d5758d8301541e64159d65` (squash)
-  - 9 файлов, +280/−3
-  - D1: ExecutionConfig.proof_enforce_session (bool, default 0, CLAY_PROOF_ENFORCE_SESSION)
-  - D2: SessionSnapshot frozen dataclass (kill_switch_engaged + UTC guard)
-  - D3: reason_code #22 KILL_SWITCH_ENGAGED (append-only)
-  - D4: checker invariant #18 (session keyword, kill-switch engaged → DENY)
-  - D5: gate + bootstrap (enforce_session + kill_switch_probe + late-bind + fail-closed)
-  - D6: 5 checker + 6 gate + 1 Hypothesis tests (487 total, +12)
-  - ADR-033 §3 errata: session class started, kill-switch landed
-  - Fail-closed: armed+probe=None → engaged → DENY; probe raises → engaged → DENY
-  - Recon-D5: is_degraded() = local DB-read (not O(1) cached, not network)
-  - Cargo-debt: degraded-probe → O(1) in-memory heartbeat (future slice)
-  - ruff 0 · pyright 0 · pytest 487 · mkdocs --strict 0
+- **PR #97:** MERGED `edf057ea86e3e20e27d70c2518a7ef31c07e6ea0` (squash)
+  - 7 файлов, +233/−3
+  - D1: reason_code #27 SESSION_SUBMIT_RATE_EXCEEDED (append-only)
+  - D2: SessionSnapshot submit_rate_exceeded: bool = False
+  - D3: checker #23 submit-rate-exceeded (reduce-only)
+  - D4: gate session_submit_rate_probe + fail-closed
+  - D5: bootstrap.py zero diff
+  - D6: ADR-033 §3 landed 4d + errata
+  - D7: 6 checker + 6 gate = 12 new tests
+  - ruff 0 · format clean · mkdocs --strict 0 · pytest 1177 passed
 
 ## In Progress
 
@@ -126,13 +55,15 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (clay main)** | `d2ce681e007cf08c95d5758d8301541e64159d65` |
+| **HEAD (clay main)** | `edf057ea86e3e20e27d70c2518a7ef31c07e6ea0` |
 | **PR open** | нет |
-| **CI** | ✅ 53 PR merged total |
-| **pytest** | 487 passed (execution+api+db) |
+| **CI** | ✅ 56 PR merged total |
+| **pytest** | 1177 passed (full suite) |
 | **Adapter layer** | CcxtExchangeAdapter base + BinanceAdapter + BybitAdapter + cutover + resilience wrapper + CB — complete |
-| **Execution safety** | notional ✅, LiveExecutionClient ✅, degraded killswitch ✅, D9 matrix ✅, testnet-probe ✅, reconcile-before-retry ✅, circuit breaker ✅, dup-cid safety ✅, proof-gate ✅, portfolio ✅, kill-switch ✅ |
-| **ADR** | 032 accepted + errata; 033 Implemented (portfolio class closed, session class started) |
+| **Execution safety** | notional ✅, LiveExecutionClient ✅, degraded killswitch ✅, D9 matrix ✅, testnet-probe ✅, reconcile-before-retry ✅, circuit breaker ✅, dup-cid safety ✅, proof-gate ✅, portfolio ✅, kill-switch ✅, session-class ✅ |
+| **Proof-Gate session class** | #18 kill-switch ✅ · #19 HALTED ✅ · #20 REDUCING ✅ · #21 drawdown ✅ · #22 cooldown ✅ · #23 submit-rate ✅ — **CLOSED** |
+| **ADR** | 032 accepted + errata; 033 Implemented (portfolio class closed, session class closed) |
+| **reason_codes** | 27 (append-only, first 22 untouched since inception) |
 
 ## Next Step
 
