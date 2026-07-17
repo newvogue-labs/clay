@@ -200,6 +200,11 @@ def _check_invariants(
             ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED,
             not session.submit_rate_exceeded or req.side == OrderSide.SELL,
         )
+        # 24. duplicate intent: both sides deny (not a de-risk → no reduce-bypass)
+        _add(
+            ReasonCode.SESSION_DUPLICATE_INTENT,
+            not session.duplicate_intent,
+        )
     return results
 
 

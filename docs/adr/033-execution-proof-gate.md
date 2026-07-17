@@ -7,7 +7,7 @@ tags:
 
 # ADR-033: Execution Proof-Gate
 
-- **Status:** Implemented (per-order + portfolio invariants landed; session invariants landed)
+- **Status:** Implemented (per-order + portfolio invariants landed; session class CLOSED)
 - **Date:** 2026-07-14
 - **Depends on:** ADR-032 (Exchange Execution Adapter, Multi-Venue), ADR-025 (Execution Modes & Override Gate)
 - **References:** ADR-021 / ADR-029 (Session & Exposure Risk-Limits), ADR-030 & M278 (knowledge ≠ execution red line), S-LIVE-2/3/4 (notional guard, killswitch, arming)
@@ -110,7 +110,7 @@ ExecutionProofGate → ResilientExecutionAdapter → CcxtExchangeAdapter → ven
 - HALTED → all place denied; REDUCING → only SELL (spot-reduce) admitted — **Landed** in S-EXEC-SAFE-4b (decoupled SessionMode, reason-codes SESSION_HALTED/SESSION_REDUCE_ONLY, off-by-default, dormant)
 - cooldown / MaxDrawdown not tripped → reduce-only — **Landed** in S-EXEC-SAFE-4c (reason-codes SESSION_DRAWDOWN_TRIPPED/SESSION_COOLDOWN_TRIPPED, off-by-default, dormant)
 - StoplossGuard (per-signal ATR-stop) — deferred, отдельный трек
-- no duplicate intent
+- no duplicate intent — **Landed** in S-EXEC-SAFE-4e (reason-code SESSION_DUPLICATE_INTENT, both-sides deny, off-by-default, dormant)
 
 **Freshness (cross-cutting invariant):**
 
@@ -203,6 +203,7 @@ gate never replaces it.
 - **S-EXEC-SAFE-4b:** Decoupled SessionMode (NORMAL/REDUCING/HALTED) landed (off-by-default, dormant). Invariants #19 SESSION_HALTED + #20 SESSION_REDUCE_ONLY. Reason-codes #23/#24 append-only. Session class closed (ADR-033 §3).
 - **S-EXEC-SAFE-4c:** Session risk-tripped (drawdown + cooldown) landed (off-by-default, dormant). Invariants #21 SESSION_DRAWDOWN_TRIPPED + #22 SESSION_COOLDOWN_TRIPPED (reduce-only semantics). Reason-codes #25/#26 append-only. StoplossGuard (per-signal ATR-stop) deferred.
 - **S-EXEC-SAFE-4d:** Submit-rate exceeded landed (off-by-default, dormant). Invariant #23 SESSION_SUBMIT_RATE_EXCEEDED (reduce-only semantics, submit-only — modify/amend N/A). Reason-code #27 append-only.
+- **S-EXEC-SAFE-4e:** Duplicate-intent landed (off-by-default, dormant). Invariant #24 SESSION_DUPLICATE_INTENT (both-sides deny — not a de-risk, no reduce-bypass). Reason-code #28 append-only. Closes **session class**.
 
 ## Verification note (deps)
 

@@ -115,6 +115,7 @@ class SessionSnapshot:
     drawdown_tripped: bool = False
     cooldown_tripped: bool = False
     submit_rate_exceeded: bool = False
+    duplicate_intent: bool = False
 
     def __post_init__(self) -> None:
         if self.fetched_at.tzinfo is None:
