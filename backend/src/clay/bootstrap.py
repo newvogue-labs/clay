@@ -23,6 +23,7 @@ A3-A5 unit tests still passed).
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy.orm import sessionmaker
@@ -56,6 +57,7 @@ from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
 from clay.knowledge.service import KnowledgeService
 from clay.preflight.service import PreflightService
+from clay.reliability.heartbeat import DegradedHeartbeat
 from clay.reliability.service import ReliabilityService
 from clay.runtime.manager import RuntimeManager
 from clay.session_control.service import SessionControlService
@@ -365,6 +367,11 @@ def build_services(
         event_bus=event_bus,
         session_factory=session_factory,
     )
+    degraded_heartbeat = DegradedHeartbeat(
+        max_age=timedelta(
+            seconds=2 * scheduler_settings.reliability_recheck_interval_seconds
+        ),
+    )
     reliability_service = ReliabilityService(
         control_center_service=control_center_service,
         ai_control_service=ai_control_service,
@@ -374,6 +381,7 @@ def build_services(
         audit_writer=audit_writer,
         event_bus=event_bus,
         session_factory=session_factory,
+        degraded_heartbeat=degraded_heartbeat,
     )
 
     # A6: when a session_factory is provided, project the restored
@@ -391,15 +399,14 @@ def build_services(
     # the probe after ReliabilityService exists. session_factory=None
     # (legacy/unit path) → probe stays None → _is_degraded() returns False.
     if session_factory is not None:
-
-        def _degraded_probe() -> bool:
-            with session_factory() as session:
-                return (
+        with session_factory() as session:
+            degraded_heartbeat.write(
+                degraded=(
                     reliability_service.build_snapshot(session).summary.overall_status
                     == "degraded"
                 )
-
-        override_service.set_degraded_probe(_degraded_probe)
+            )
+        override_service.set_degraded_probe(degraded_heartbeat.is_degraded)
 
     alpha_readiness_service = AlphaReadinessService(
         workspace_service=workspace_service,
@@ -440,6 +447,7 @@ def build_services(
         "execution_config": execution_config,
         "execution_client": execution_client,
         "override_service": override_service,
+        "degraded_heartbeat": degraded_heartbeat,
     }
 
 

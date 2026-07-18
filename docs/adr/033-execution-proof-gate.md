@@ -231,3 +231,10 @@ on 3.14 before any "verified" status (G6).
 2. `build_session_risk_probe(session_factory, config_loader)` — zero-arg callable, reads fresh config per call. DB-error propagates (gate fail-closed → `(True, True)`).
 3. `proof_enforce_session_risk` — new `ExecutionConfig` flag, default OFF. Double-off: both `proof_enforce_session` AND `proof_enforce_session_risk` must be ON for probe binding. Identical live path when OFF.
 4. Schema unchanged — no migration required (data sourced from existing `demo_trade_records` via `DemoRepository`).
+
+## Errata (D-1, 2026-07-18)
+
+1. Kill-switch / OverrideService degraded-probe upgraded from per-call `build_snapshot` (DB-open + full reliability snapshot) to **O(1) in-memory heartbeat** (`reliability/heartbeat.py::DegradedHeartbeat`). Resolves the "not O(1) cached — addressed by future slice" note in S-EXEC-SAFE-4a errata.
+2. `DegradedHeartbeat` is written by `ReliabilityService.recheck` (B4 scheduler cadence) + one eager-seed at bootstrap. Fail-closed: cold (never written) and stale (writer too slow) both read as `degraded=True`.
+3. `max_age = 2 × reliability_recheck_interval_seconds` — allows one missed cadence before fail-closed.
+4. Tradeoff: when `reliability_enabled=False` (scheduler job disabled), heartbeat writer is only the boot-seed + any manual `POST /reliability/recheck` route. Without scheduler cadence, heartbeat eventually goes stale → `is_degraded()=True` → `is_live_eligible()=False` / kill-switch deny. Safe (fail-closed) but must be documented. Cross-ref: ADR-007 (B4 `reliability-recheck` scheduler job).

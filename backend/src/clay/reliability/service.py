@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
 from clay.core.clock import Clock, SystemClock
+from clay.reliability.heartbeat import DegradedHeartbeat
 from clay.control_center.models import ControlCenterSnapshot
 from clay.control_center.service import ControlCenterService
 from clay.demo_trading.models import DemoTradingSnapshot
@@ -42,6 +43,7 @@ class ReliabilityService:
         event_bus: EventBus,
         session_factory: sessionmaker | None = None,
         clock: Clock = SystemClock(),
+        degraded_heartbeat: DegradedHeartbeat | None = None,
     ) -> None:
         self.control_center_service = control_center_service
         self.ai_control_service = ai_control_service
@@ -52,6 +54,7 @@ class ReliabilityService:
         self.event_bus = event_bus
         self.session_factory = session_factory
         self._clock = clock
+        self._degraded_heartbeat = degraded_heartbeat
         # ``_last_rechecked_at`` is restored from the
         # ``ops.reliability_state`` singleton row when a ``session_factory``
         # is supplied. Without one (legacy callers and pre-A5 tests), the
@@ -159,6 +162,10 @@ class ReliabilityService:
                 last_rechecked_at=self._last_rechecked_at,
             )
         snapshot = self.build_snapshot(session)
+        if self._degraded_heartbeat is not None:
+            self._degraded_heartbeat.write(
+                degraded=snapshot.summary.overall_status == "degraded"
+            )
         if emit:
             self.emit_recheck_events(snapshot)
         return snapshot
