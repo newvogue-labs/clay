@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 import App from './App'
 
@@ -1473,21 +1473,25 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /session control/i })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: /hard preflight/i })).toBeInTheDocument()
 
-    fireEvent.click(await screen.findByRole('button', { name: /start session/i }))
+    // Scope to session-control-page to avoid matching the overview page's
+    // "Continue alpha path with Start session" button (aria-label ambiguity).
+    const page = screen.getByLabelText('session-control-page')
+
+    fireEvent.click(await within(page).findByRole('button', { name: /start session/i }))
     expect(await screen.findByText(/current pair: BTCUSDT/i)).toBeInTheDocument()
 
-    fireEvent.click(await screen.findByRole('button', { name: /review pair replacement/i }))
+    fireEvent.click(await within(page).findByRole('button', { name: /review pair replacement/i }))
     expect(await screen.findByText(/review replacement from BTCUSDT to SOLUSDT/i)).toBeInTheDocument()
 
-    fireEvent.click(await screen.findByRole('button', { name: /apply pair replacement/i }))
+    fireEvent.click(await within(page).findByRole('button', { name: /apply pair replacement/i }))
     expect(await screen.findByText(/current pair: SOLUSDT/i)).toBeInTheDocument()
 
-    fireEvent.click(await screen.findByRole('button', { name: /pause session/i }))
+    fireEvent.click(await within(page).findByRole('button', { name: /pause session/i }))
     expect(await screen.findByText(/lifecycle:/i)).toBeInTheDocument()
     expect((await screen.findAllByText(/paused/i)).length).toBeGreaterThan(0)
 
-    fireEvent.click(await screen.findByRole('button', { name: /resume session/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /complete session/i }))
+    fireEvent.click(await within(page).findByRole('button', { name: /resume session/i }))
+    fireEvent.click(await within(page).findByRole('button', { name: /complete session/i }))
     expect(await screen.findAllByText(/review/i)).not.toHaveLength(0)
   })
 
