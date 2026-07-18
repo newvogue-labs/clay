@@ -37,6 +37,8 @@ class ExecutionConfig:
     proof_enforce_session: bool = False
     proof_max_snapshot_age_seconds: int = 30
     proof_metadata_version: str = "v1"
+    proof_submit_rate_max: int = 0
+    proof_submit_rate_window_seconds: int = 0
 
     @classmethod
     def from_env(cls) -> ExecutionConfig:
@@ -75,4 +77,10 @@ class ExecutionConfig:
                 os.environ.get("CLAY_PROOF_MAX_SNAPSHOT_AGE_SECONDS", "30")
             ),
             proof_metadata_version=os.environ.get("CLAY_PROOF_METADATA_VERSION", "v1"),
+            proof_submit_rate_max=int(
+                os.environ.get("CLAY_PROOF_SUBMIT_RATE_MAX", "0")
+            ),
+            proof_submit_rate_window_seconds=int(
+                os.environ.get("CLAY_PROOF_SUBMIT_RATE_WINDOW_SECONDS", "0")
+            ),
         )

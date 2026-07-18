@@ -39,6 +39,7 @@ from clay.events.bus import EventBus
 from clay.execution.adapter.binance import BinanceExecutionAdapter
 from clay.execution.config import ExecutionConfig, environment_from_mode
 from clay.execution.proof.gate import ExecutionProofGate
+from clay.execution.proof.probe import build_submit_rate_probe
 from clay.execution.proof.snapshot import FreshnessPolicy
 from clay.execution.resilience import CircuitBreakerPolicy, ResilientExecutionAdapter
 from clay.execution.service import OverrideService
@@ -247,6 +248,24 @@ def build_services(
     # enforce_session=False (default) the probe is never called.
     if execution_client is not None and execution_config.proof_enforce_session:
         execution_client.set_kill_switch_probe(override_service.is_degraded)
+
+    # S-EXEC-SAFE-4d: late-bind the submit-rate probe into ExecutionProofGate.
+    # Probe wired post-construction; when enforce_session=False the probe is
+    # never called.  Both max>0 AND window>0 are required — 0 in either means
+    # the check is dormant (zero-diff live path).
+    if (
+        execution_client is not None
+        and execution_config.proof_enforce_session
+        and execution_config.proof_submit_rate_max > 0
+        and execution_config.proof_submit_rate_window_seconds > 0
+    ):
+        execution_client.set_session_submit_rate_probe(
+            build_submit_rate_probe(
+                session_factory,  # type: ignore[arg-type]
+                max_submits=execution_config.proof_submit_rate_max,
+                window_seconds=execution_config.proof_submit_rate_window_seconds,
+            ),
+        )
 
     control_center_service = ControlCenterService(
         runtime_manager=runtime_manager,
