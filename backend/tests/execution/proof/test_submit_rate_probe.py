@@ -5,9 +5,9 @@
   D2: ProofDecisionRepository.count_admitted_since — sliding window.
   D3: build_submit_rate_probe — пусто→False, count<max→False,
       count==max→True, count>max→True, DB exception propagates.
-  D4: Bootstrap wiring — probe set / not set по conditions.
-  D5: Double-off — enforce_session=False → probe never called.
-  D6: Gate integration — non-reduce denied, reduce bypass.
+  D4: Gate integration — non-reduce denied, reduce bypass.
+
+Bootstrap wiring tested in tests/integration/test_bootstrap_submit_rate_wiring.py (D-11 follow-up).
 """
 
 from __future__ import annotations
@@ -244,91 +244,6 @@ class TestBuildSubmitRateProbe:
             sqlite_session_factory, max_submits=3, window_seconds=3600
         )
         assert probe() is False
-
-
-# ── D4: Bootstrap wiring ──────────────────────────────────────────────
-
-
-class TestBootstrapSubmitRateWiring:
-    def test_probe_set_when_all_conditions_met(self) -> None:
-        """enforce_session=True + max>0 + window>0 → probe wired."""
-        mock_client = MagicMock()
-        enforce_session = True
-        submit_rate_max = 5
-        submit_rate_window = 60
-
-        wired = (
-            mock_client is not None
-            and enforce_session
-            and submit_rate_max > 0
-            and submit_rate_window > 0
-        )
-        assert wired is True
-        mock_client.set_session_submit_rate_probe(MagicMock())
-
-    def test_probe_not_wired_when_enforce_false(self) -> None:
-        """enforce_session=False → probe NOT wired (D5: double-off)."""
-        mock_client = MagicMock()
-        mock_client.set_session_submit_rate_probe = MagicMock()
-
-        # Simulate the wiring logic directly
-        enforce_session = False
-        submit_rate_max = 5
-        submit_rate_window = 60
-
-        wired = (
-            mock_client is not None
-            and enforce_session
-            and submit_rate_max > 0
-            and submit_rate_window > 0
-        )
-        assert wired is False
-        mock_client.set_session_submit_rate_probe.assert_not_called()
-
-    def test_probe_not_wired_when_max_zero(self) -> None:
-        """submit_rate_max=0 → dormant, probe NOT wired."""
-        mock_client = MagicMock()
-        enforce_session = True
-        submit_rate_max = 0
-        submit_rate_window = 60
-
-        wired = (
-            mock_client is not None
-            and enforce_session
-            and submit_rate_max > 0
-            and submit_rate_window > 0
-        )
-        assert wired is False
-
-    def test_probe_not_wired_when_window_zero(self) -> None:
-        """submit_rate_window_seconds=0 → dormant, probe NOT wired."""
-        mock_client = MagicMock()
-        enforce_session = True
-        submit_rate_max = 5
-        submit_rate_window = 0
-
-        wired = (
-            mock_client is not None
-            and enforce_session
-            and submit_rate_max > 0
-            and submit_rate_window > 0
-        )
-        assert wired is False
-
-    def test_probe_not_wired_when_client_none(self) -> None:
-        """execution_client=None → no wiring."""
-        mock_client = None
-        enforce_session = True
-        submit_rate_max = 5
-        submit_rate_window = 60
-
-        wired = (
-            mock_client is not None
-            and enforce_session
-            and submit_rate_max > 0
-            and submit_rate_window > 0
-        )
-        assert wired is False
 
 
 # ── D5+D6: Gate integration ───────────────────────────────────────────
