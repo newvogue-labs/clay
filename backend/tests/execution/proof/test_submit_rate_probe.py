@@ -76,6 +76,7 @@ def _make_record(**overrides: object) -> DecisionRecord:
     defaults: dict[str, object] = dict(
         decision=Decision.ADMIT,
         intent_hash="a" * 16,
+        semantic_hash="c" * 16,
         snapshot_hash="b" * 16,
         snapshot_ts=NOW,
         metadata_version="v1",

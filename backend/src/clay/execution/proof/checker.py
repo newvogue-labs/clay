@@ -50,6 +50,28 @@ def _intent_hash(req: OrderRequest) -> str:
     return hashlib.sha256(canon.encode()).hexdigest()[:16]
 
 
+def semantic_intent_hash(req: OrderRequest) -> str:
+    """Экономический хеш OrderRequest БЕЗ client_order_id (dedup-key, не idempotency-key).
+
+    Два запроса, отличающиеся ТОЛЬКО client_order_id, дают одинаковый hash.
+    Отличие в qty/price/side/tif/stop → разный hash.
+    Считается на quantized-объекте (тот же, на котором admit() считает intent_hash).
+    """
+    canon = json.dumps(
+        {
+            "symbol": req.symbol,
+            "side": str(req.side),
+            "order_type": str(req.order_type),
+            "quantity": str(req.quantity),
+            "time_in_force": str(req.time_in_force),
+            "price": str(req.price) if req.price is not None else None,
+            "stop_price": str(req.stop_price) if req.stop_price is not None else None,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(canon.encode()).hexdigest()[:16]
+
+
 def _check_invariants(
     *,
     req: OrderRequest,
@@ -248,6 +270,7 @@ def admit(
         return DecisionRecord(
             decision=decision,
             intent_hash=_intent_hash(intent),
+            semantic_hash=semantic_intent_hash(intent),
             snapshot_hash=snapshot.snapshot_hash,
             snapshot_ts=snapshot.fetched_at,
             metadata_version=snapshot.metadata_version,
@@ -263,6 +286,7 @@ def admit(
         return DecisionRecord(
             decision=Decision.DENY,
             intent_hash="",
+            semantic_hash="",
             snapshot_hash="",
             snapshot_ts=now_utc,
             metadata_version="",

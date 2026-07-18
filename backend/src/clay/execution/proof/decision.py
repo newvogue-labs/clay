@@ -33,6 +33,7 @@ class DecisionRecord:
 
     decision: Decision
     intent_hash: str  # канон OrderRequest (Decimal→str)
+    semantic_hash: str  # 经济 fingerprint БЕЗ client_order_id (D-8)
     snapshot_hash: str
     snapshot_ts: datetime
     metadata_version: str

@@ -216,3 +216,11 @@ on 3.14 before any "verified" status (G6).
 - Storage shape of the decision-record (reuse existing audit table vs dedicated).
 - `max_order_notional_usdt: float → Decimal` (F-4) — fold into S-EXEC-SAFE-2 or keep separate.
 - Exact reason-code enumeration (frozen at S-EXEC-SAFE-2, append-only thereafter).
+
+## Errata (D-8, 2026-07-18)
+
+1. `semantic_hash` = economic fingerprint, НЕ idempotency-key. Идемпотентность — на `client_order_id`; semantic_hash детектит дублирующие намерения с разными CID.
+2. `proof_duplicate_intent_window_seconds` = короткий double-fire guard (секунды), не trading-day store. 0 = off (dormant).
+3. hard-deny both-sides (#24 SESSION_DUPLICATE_INTENT, без reduce-bypass) оправдан только: off-by-default + машинный путь + CID-exemption + reconcile-before-retry. Attended-GUI был бы soft-warn (принятый trade-off).
+4. Слабость MARKET-хеша (нет цены) принята: symbol/side/qty/tif осмысленны для детекта.
+5. Provenance: research 2026-07-18 (gpt-5.6/minimax-m3/kimi-2.6/opus-4.8).

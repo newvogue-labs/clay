@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
@@ -270,3 +270,25 @@ class ProofDecisionRepository:
         )
         result = self.session.scalar(stmt)
         return int(result) if result is not None else 0
+
+    def exists_admitted_duplicate(
+        self,
+        *,
+        semantic_hash: str,
+        since: datetime,
+        exclude_client_order_id: str,
+    ) -> bool:
+        """Проверка是否存在 prior ADMIT с тем же semantic_hash и ДРУГИМ CID в окне.
+
+        CID-exemption: легит-retry с тем же client_order_id НЕ считается дублем.
+        """
+        stmt = select(
+            exists().where(
+                ExecutionProofDecision.decision == "ADMIT",
+                ExecutionProofDecision.semantic_hash == semantic_hash,
+                ExecutionProofDecision.created_at >= since,
+                ExecutionProofDecision.client_order_id != exclude_client_order_id,
+            )
+        )
+        result = self.session.scalar(stmt)
+        return bool(result) if result is not None else False

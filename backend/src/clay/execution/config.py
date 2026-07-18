@@ -39,6 +39,7 @@ class ExecutionConfig:
     proof_metadata_version: str = "v1"
     proof_submit_rate_max: int = 0
     proof_submit_rate_window_seconds: int = 0
+    proof_duplicate_intent_window_seconds: int = 0
 
     @classmethod
     def from_env(cls) -> ExecutionConfig:
@@ -82,5 +83,8 @@ class ExecutionConfig:
             ),
             proof_submit_rate_window_seconds=int(
                 os.environ.get("CLAY_PROOF_SUBMIT_RATE_WINDOW_SECONDS", "0")
+            ),
+            proof_duplicate_intent_window_seconds=int(
+                os.environ.get("CLAY_PROOF_DUPLICATE_INTENT_WINDOW_SECONDS", "0")
             ),
         )

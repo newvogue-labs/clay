@@ -495,8 +495,91 @@ class TestDeterminism:
         )
         assert r1.intent_hash != r2.intent_hash
 
+    def test_semantic_hash_stable(self) -> None:
+        req = _make_request()
+        r1 = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        r2 = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert r1.semantic_hash == r2.semantic_hash
 
-# ── Account portfolio invariants (off-by-default) ────────────────────────
+    def test_semantic_hash_cid_invariant(self) -> None:
+        """Два запроса, отличающиеся ТОЛЬКО client_order_id, дают одинаковый semantic_hash."""
+        r1 = admit(
+            intent=_make_request(client_order_id="cid-001"),
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        r2 = admit(
+            intent=_make_request(client_order_id="cid-002"),
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert r1.semantic_hash == r2.semantic_hash
+        # intent_hash при этом РАЗНЫЙ
+        assert r1.intent_hash != r2.intent_hash
+
+    def test_semantic_hash_differs_on_qty(self) -> None:
+        r1 = admit(
+            intent=_make_request(quantity=Decimal("0.1")),
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        r2 = admit(
+            intent=_make_request(quantity=Decimal("0.2")),
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert r1.semantic_hash != r2.semantic_hash
+
+    def test_semantic_hash_differs_on_side(self) -> None:
+        r1 = admit(
+            intent=_make_request(side=OrderSide.BUY),
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        r2 = admit(
+            intent=_make_request(side=OrderSide.SELL),
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert r1.semantic_hash != r2.semantic_hash
+
+    def test_fail_closed_semantic_hash_empty(self) -> None:
+        """EVAL_ERROR → semantic_hash='' (fail-closed)."""
+        req = _make_request()
+        bad_snapshot = "not-a-snapshot"  # type: ignore[arg-type]
+        rec = admit(
+            intent=req,
+            snapshot=bad_snapshot,  # type: ignore[arg-type]
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert rec.decision == Decision.DENY
+        assert rec.semantic_hash == ""
 
 
 def _make_account(**overrides: object) -> AccountSnapshot:

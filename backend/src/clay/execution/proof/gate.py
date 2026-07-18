@@ -66,7 +66,7 @@ class ExecutionProofGate:
         session_mode_probe: Callable[[], SessionMode] | None = None,
         session_risk_probe: Callable[[], tuple[bool, bool]] | None = None,
         session_submit_rate_probe: Callable[[], bool] | None = None,
-        session_duplicate_intent_probe: Callable[[], bool] | None = None,
+        session_duplicate_intent_probe: Callable[[OrderRequest], bool] | None = None,
     ) -> None:
         self._inner = inner
         self._session_factory = session_factory
@@ -99,7 +99,9 @@ class ExecutionProofGate:
         """Late-bind the session submit-rate probe."""
         self._session_submit_rate_probe = probe
 
-    def set_session_duplicate_intent_probe(self, probe: Callable[[], bool]) -> None:
+    def set_session_duplicate_intent_probe(
+        self, probe: Callable[[OrderRequest], bool]
+    ) -> None:
         """Late-bind the session duplicate-intent probe."""
         self._session_duplicate_intent_probe = probe
 
@@ -181,7 +183,7 @@ class ExecutionProofGate:
             # Resolve duplicate-intent (off-by-default: no probe → not duplicate)
             if self._session_duplicate_intent_probe is not None:
                 try:
-                    duplicate_intent = self._session_duplicate_intent_probe()
+                    duplicate_intent = self._session_duplicate_intent_probe(quantized)
                 except Exception:
                     logger.exception(
                         "session_duplicate_intent_probe failed (fail-closed → duplicate)"
