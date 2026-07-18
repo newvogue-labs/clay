@@ -59,6 +59,7 @@ from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
 from clay.runtime.manager import RuntimeManager
 from clay.session_control.service import SessionControlService
+from clay.session_control.session_risk import build_session_risk_probe
 from clay.session_review.service import SessionReviewService
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
@@ -281,6 +282,20 @@ def build_services(
             build_duplicate_intent_probe(
                 session_factory,  # type: ignore[arg-type]
                 window_seconds=execution_config.proof_duplicate_intent_window_seconds,
+            ),
+        )
+
+    # D-6: late-bind the session risk probe into ExecutionProofGate.
+    # Both flags must be ON; default OFF → probe not bound → identical live path.
+    if (
+        execution_client is not None
+        and execution_config.proof_enforce_session
+        and execution_config.proof_enforce_session_risk
+    ):
+        execution_client.set_session_risk_probe(
+            build_session_risk_probe(
+                session_factory,  # type: ignore[arg-type]
+                config_loader,
             ),
         )
 

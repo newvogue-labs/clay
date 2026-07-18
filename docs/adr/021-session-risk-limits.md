@@ -171,3 +171,9 @@ per_session_loss_warn_pct = 8.0
 - M211: `docs/mission-control/ev-gate-proof.md` — Scope & Limits (KNOWN GAP → resolved)
 - ADR-020: `docs/adr/020-position-sizing-kelly-ev-gate.md`
 - ADR-029: `docs/adr/029-capital-exposure-hard-block.md` — L4 hard-block upgrade
+
+## Errata (D-6, 2026-07-18)
+
+1. Drawdown/cooldown logic (L1/L2) extracted into standalone `session_control/session_risk.py::evaluate_session_risk` — SSOT for both `_build_preflight` and per-order gate probe.
+2. Per-order gate integration: `session_risk_probe` (ADR-033 §3, S-EXEC-SAFE-4c) now evaluates drawdown/cooldown via the same `evaluate_session_risk` function. Reason-codes #25/#26 unchanged.
+3. Schema unchanged — no migration. Data sourced from existing `demo_trade_records` via `DemoRepository`.

@@ -224,3 +224,10 @@ on 3.14 before any "verified" status (G6).
 3. hard-deny both-sides (#24 SESSION_DUPLICATE_INTENT, без reduce-bypass) оправдан только: off-by-default + машинный путь + CID-exemption + reconcile-before-retry. Attended-GUI был бы soft-warn (принятый trade-off).
 4. Слабость MARKET-хеша (нет цены) принята: symbol/side/qty/tif осмысленны для детекта.
 5. Provenance: research 2026-07-18 (gpt-5.6/minimax-m3/kimi-2.6/opus-4.8).
+
+## Errata (D-6, 2026-07-18)
+
+1. `session_risk_probe` (drawdown + cooldown) now wired via **SSOT-extract** from `_build_preflight` → `session_control/session_risk.py::evaluate_session_risk`. Single source of truth for both preflight checks and per-order gate.
+2. `build_session_risk_probe(session_factory, config_loader)` — zero-arg callable, reads fresh config per call. DB-error propagates (gate fail-closed → `(True, True)`).
+3. `proof_enforce_session_risk` — new `ExecutionConfig` flag, default OFF. Double-off: both `proof_enforce_session` AND `proof_enforce_session_risk` must be ON for probe binding. Identical live path when OFF.
+4. Schema unchanged — no migration required (data sourced from existing `demo_trade_records` via `DemoRepository`).

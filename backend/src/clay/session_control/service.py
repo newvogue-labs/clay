@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -591,19 +591,22 @@ class SessionControlService:
         demo_repo = DemoRepository(session)
 
         try:
-            window_records = demo_repo.list_resolved_window(
-                hours=limits_cfg.drawdown_window_hours, source_scope=scope
-            )
-            cum_pnl = round(sum(r.pnl_pct or 0.0 for r in window_records), 2)
-            loss_pct = abs(cum_pnl) if cum_pnl < 0 else 0.0
+            from clay.session_control.session_risk import evaluate_session_risk
 
-            if loss_pct >= limits_cfg.max_drawdown_pct:
+            risk = evaluate_session_risk(
+                session,
+                limits_cfg=limits_cfg,
+                now=self._clock.now(),
+                scope=scope,
+            )
+
+            if risk.drawdown_tripped:
                 checks.append(
                     SessionPreflightCheck(
                         check_id="risk-limit-drawdown",
                         label="Drawdown stop",
                         status="hard_fail",
-                        reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = -{loss_pct}% exceeds max drawdown of {limits_cfg.max_drawdown_pct}%.",
+                        reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = -{risk.loss_pct}% exceeds max drawdown of {limits_cfg.max_drawdown_pct}%.",
                         blocks_start=True,
                     )
                 )
@@ -613,66 +616,41 @@ class SessionControlService:
                         check_id="risk-limit-drawdown",
                         label="Drawdown stop",
                         status="ok",
-                        reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = {cum_pnl:+.2f}% within threshold.",
+                        reason=f"Cumulative P&L over last {limits_cfg.drawdown_window_hours}h = {risk.cum_pnl:+.2f}% within threshold.",
                         blocks_start=False,
                     )
                 )
 
-            ordered = demo_repo.list_ordered_recent(limit=50, source_scope=scope)
-            streak = 0
-            streak_ts: datetime | None = None
-            for r in ordered:
-                if (r.pnl_pct or 0.0) < 0 and r.outcome_status in {
-                    "matched",
-                    "missed",
-                    "late_matched",
-                    "mismatched",
-                }:
-                    streak += 1
-                    if streak_ts is None:
-                        streak_ts = r.recorded_at
-                else:
-                    break
-
-            now = self._clock.now()
-            if streak >= limits_cfg.max_consecutive_losses and streak_ts is not None:
-                if streak_ts.tzinfo is None:
-                    streak_ts = streak_ts.replace(tzinfo=UTC)
-                ahead = (streak_ts - now).total_seconds()
-                if ahead > 60:
-                    raise ValueError(
-                        f"clock desync: trade recorded_at={streak_ts.isoformat()} "
-                        f"ahead of clock now={now.isoformat()} by {ahead:.0f}s"
+            if (
+                risk.streak >= limits_cfg.max_consecutive_losses
+                and risk.cooldown_tripped
+            ):
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-cooldown",
+                        label="Consecutive loss cooldown",
+                        status="hard_fail",
+                        reason=f"{risk.streak} consecutive losses — cooldown active, {risk.cooldown_remaining_minutes} min remaining.",
+                        blocks_start=True,
                     )
-                elapsed_min = (now - streak_ts).total_seconds() / 60
-                if elapsed_min < limits_cfg.cooldown_minutes:
-                    remaining = int(limits_cfg.cooldown_minutes - elapsed_min)
-                    checks.append(
-                        SessionPreflightCheck(
-                            check_id="risk-limit-cooldown",
-                            label="Consecutive loss cooldown",
-                            status="hard_fail",
-                            reason=f"{streak} consecutive losses — cooldown active, {remaining} min remaining.",
-                            blocks_start=True,
-                        )
+                )
+            elif risk.streak >= limits_cfg.max_consecutive_losses:
+                checks.append(
+                    SessionPreflightCheck(
+                        check_id="risk-limit-cooldown",
+                        label="Consecutive loss cooldown",
+                        status="ok",
+                        reason=f"Consecutive loss check passed ({risk.streak} loss{'es' if risk.streak != 1 else ''} in streak, cooldown expired).",
+                        blocks_start=False,
                     )
-                else:
-                    checks.append(
-                        SessionPreflightCheck(
-                            check_id="risk-limit-cooldown",
-                            label="Consecutive loss cooldown",
-                            status="ok",
-                            reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak, cooldown expired).",
-                            blocks_start=False,
-                        )
-                    )
+                )
             else:
                 checks.append(
                     SessionPreflightCheck(
                         check_id="risk-limit-cooldown",
                         label="Consecutive loss cooldown",
                         status="ok",
-                        reason=f"Consecutive loss check passed ({streak} loss{'es' if streak != 1 else ''} in streak).",
+                        reason=f"Consecutive loss check passed ({risk.streak} loss{'es' if risk.streak != 1 else ''} in streak).",
                         blocks_start=False,
                     )
                 )
