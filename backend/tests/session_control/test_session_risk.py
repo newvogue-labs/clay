@@ -385,46 +385,6 @@ class TestGateSessionRiskIntegration:
         assert inner.place_order_called
 
 
-# ── Bootstrap wiring ─────────────────────────────────────────────────
-
-
-class TestBootstrapSessionRiskWiring:
-    def test_probe_bound_when_both_flags_on(self) -> None:
-        mock_client = MagicMock()
-        enforce_session = True
-        enforce_risk = True
-
-        wired = mock_client is not None and enforce_session and enforce_risk
-        assert wired is True
-        mock_client.set_session_risk_probe(MagicMock())
-
-    def test_probe_not_bound_when_enforce_session_off(self) -> None:
-        mock_client = MagicMock()
-        enforce_session = False
-        enforce_risk = True
-
-        wired = mock_client is not None and enforce_session and enforce_risk
-        assert wired is False
-        mock_client.set_session_risk_probe.assert_not_called()
-
-    def test_probe_not_bound_when_enforce_risk_off(self) -> None:
-        mock_client = MagicMock()
-        enforce_session = True
-        enforce_risk = False
-
-        wired = mock_client is not None and enforce_session and enforce_risk
-        assert wired is False
-        mock_client.set_session_risk_probe.assert_not_called()
-
-    def test_probe_not_bound_when_client_none(self) -> None:
-        mock_client = None
-        enforce_session = True
-        enforce_risk = True
-
-        wired = mock_client is not None and enforce_session and enforce_risk
-        assert wired is False
-
-
 # ── Config: ExecutionConfig.proof_enforce_session_risk ───────────────
 
 
