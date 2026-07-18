@@ -1,4 +1,4 @@
-# Отчёт за сессию (2026-07-16)
+# Отчёт за сессию (2026-07-16/17)
 
 ## Что сделано
 
@@ -44,12 +44,27 @@
   - ruff 0 · format clean · mkdocs --strict 0 · pytest 1177 passed
   - CI: backend ✅ frontend ✅
 
+### D-7: submit-rate probe wiring (activates dormant invariant)
+
+- **PR #99** -> MERGED `811b4852ab486c2d0655ee8b07e871a176900b5e` (squash)
+  - 5 файлов, +510
+  - D1: ExecutionConfig proof_submit_rate_max + proof_submit_rate_window_seconds (default 0/0 dormant)
+  - D2: ProofDecisionRepository.count_admitted_since(since) — sliding-window COUNT ADMIT
+  - D3: build_submit_rate_probe(session_factory, max_submits, window_seconds) — zero-arg probe
+  - D4: bootstrap.py late-bind: enforce_session AND max>0 AND window>0
+  - D5: double-off: enforce_session=False → probe never called, live path unchanged
+  - D6: gate integration: non-reduce BUY denied, reduce SELL bypasses (checker invariant)
+  - D7: 24 new tests (config + repo + probe + bootstrap + gate integration)
+  - pytest 1215 passed (+24) · ruff 0 · pyright 0
+  - CI: backend ✅ frontend ✅
+
 ## Итого за сессию
 
-- **56 PR** в clay (было 53, +3 за сессию)
-- **HEAD clay:** `edf057ea86e3e20e27d70c2518a7ef31c07e6ea0`
-- **pytest:** 1177 passed (было 1148/487 execution+api+db)
+- **57 PR** в clay (было 53, +4 за сессию)
+- **HEAD clay:** `811b4852ab486c2d0655ee8b07e871a176900b5e`
+- **pytest:** 1215 passed (было 1148)
 - **Session class:** CLOSED (#18 kill-switch + #19 HALTED + #20 REDUCING + #21 drawdown + #22 cooldown + #23 submit-rate)
+- **Submit-rate wiring:** dormant (PR #97) → wired (PR #99) — config → repo → probe → bootstrap
 - **ADR-033:** portfolio class closed + session class closed
-- **reason_codes:** 27 (было 22, +5 append-only)
-- **New tests this session:** 46 (17 + 17 + 12)
+- **reason_codes:** 27 (append-only)
+- **New tests this session:** 70 (17 + 17 + 12 + 24)

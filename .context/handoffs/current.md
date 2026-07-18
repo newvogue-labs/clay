@@ -1,17 +1,17 @@
 # Текущее задание
 
-## Статус: S-EXEC-SAFE-4a landed
+## Статус: D-7 submit-rate probe wiring MERGED
 
-**PR #93** merged `d2ce681e007cf08c95d5758d8301541e64159d65`. Kill-switch invariant (off-by-default, dormant). Session class started.
+**PR #99** merged `811b4852ab486c2d0655ee8b07e871a176900b5e`. Submit-rate probe wiring — dormant invariant now wired via config → repo → probe → bootstrap.
 
-## Сессия (2026-07-15/16)
+## Сессия (2026-07-16/17)
 
-- **S-EXEC-SAFE-4a** (PR #93): kill-switch invariant (#18), D1-D6
-  - 9 файлов, +280/−3
-  - 487 tests green (475 + 12 new)
-  - ADR-033: session class started, kill-switch landed
-  - Recon-D5: is_degraded() = local DB-read (not O(1))
-  - Fail-closed: armed+probe=None → engaged → DENY
+- **S-EXEC-SAFE-4a** (PR #93): kill-switch invariant (#18)
+- **S-EXEC-SAFE-4b** (PR #95): SessionMode (#19/#20)
+- **S-EXEC-SAFE-4c** (PR #96): risk-tripped (#21/#22)
+- **S-EXEC-SAFE-4d** (PR #97): submit-rate (#23)
+- **S-EXEC-SAFE-4e** (PR #98): duplicate-intent (#24) — **CLOSES SESSION CLASS**
+- **D-7** (PR #99): submit-rate probe wiring — **ACTIVATES DORMANT INVARIANT**
 
 ## Следующий шаг
 
@@ -19,4 +19,4 @@ S-LIVE-4 (открытие live mode) или Emma выбирает направ�
 
 ## HEAD
 
-`d2ce681e007cf08c95d5758d8301541e64159d65` (main)
+`811b4852ab486c2d0655ee8b07e871a176900b5e` (main)

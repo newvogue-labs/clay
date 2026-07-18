@@ -4,7 +4,7 @@
 
 ...
 
-## Завершено (текущая сессия — 2026-07-16)
+## Завершено (текущая сессия — 2026-07-16/17)
 
 ### S-EXEC-SAFE-4b: decoupled SessionMode (NORMAL/REDUCING/HALTED)
 
@@ -45,6 +45,20 @@
   - D7: 6 checker + 6 gate = 12 new tests
   - ruff 0 · format clean · mkdocs --strict 0 · pytest 1177 passed
 
+### D-7: submit-rate probe wiring (activates dormant invariant)
+
+- **PR #99:** MERGED `811b4852ab486c2d0655ee8b07e871a176900b5e` (squash)
+  - 5 файлов, +510
+  - D1: ExecutionConfig proof_submit_rate_max + proof_submit_rate_window_seconds (default 0/0 dormant)
+  - D2: ProofDecisionRepository.count_admitted_since(since) — sliding-window COUNT ADMIT
+  - D3: build_submit_rate_probe(session_factory, max_submits, window_seconds) — zero-arg probe
+  - D4: bootstrap.py late-bind: enforce_session AND max>0 AND window>0
+  - D5: double-off: enforce_session=False → probe never called, live path unchanged
+  - D6: gate integration: non-reduce BUY denied, reduce SELL bypasses (checker invariant)
+  - D7: 24 new tests (config + repo + probe + bootstrap + gate integration)
+  - pytest 1215 passed (+24) · ruff 0 · pyright 0
+  - CI: backend ✅ frontend ✅
+
 ## In Progress
 
 - **S-LIVE-4** — открытие live mode через from_env (разрешение mode-coercion)
@@ -55,10 +69,10 @@
 
 | Метрика | Значение |
 |---------|----------|
-| **HEAD (clay main)** | `edf057ea86e3e20e27d70c2518a7ef31c07e6ea0` |
+| **HEAD (clay main)** | `811b4852ab486c2d0655ee8b07e871a176900b5e` |
 | **PR open** | нет |
-| **CI** | ✅ 56 PR merged total |
-| **pytest** | 1177 passed (full suite) |
+| **CI** | ✅ 57 PR merged total |
+| **pytest** | 1215 passed (full suite) |
 | **Adapter layer** | CcxtExchangeAdapter base + BinanceAdapter + BybitAdapter + cutover + resilience wrapper + CB — complete |
 | **Execution safety** | notional ✅, LiveExecutionClient ✅, degraded killswitch ✅, D9 matrix ✅, testnet-probe ✅, reconcile-before-retry ✅, circuit breaker ✅, dup-cid safety ✅, proof-gate ✅, portfolio ✅, kill-switch ✅, session-class ✅ |
 | **Proof-Gate session class** | #18 kill-switch ✅ · #19 HALTED ✅ · #20 REDUCING ✅ · #21 drawdown ✅ · #22 cooldown ✅ · #23 submit-rate ✅ — **CLOSED** |
