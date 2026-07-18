@@ -261,3 +261,12 @@ class ProofDecisionRepository:
             .limit(1)
         )
         return self.session.scalar(stmt)
+
+    def count_admitted_since(self, *, since: datetime) -> int:
+        """Подсчёт ADMIT-решений с момента ``since`` (sliding window)."""
+        stmt = select(func.count()).where(
+            ExecutionProofDecision.decision == "ADMIT",
+            ExecutionProofDecision.created_at >= since,
+        )
+        result = self.session.scalar(stmt)
+        return int(result) if result is not None else 0
