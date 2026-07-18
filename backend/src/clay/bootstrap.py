@@ -39,7 +39,10 @@ from clay.events.bus import EventBus
 from clay.execution.adapter.binance import BinanceExecutionAdapter
 from clay.execution.config import ExecutionConfig, environment_from_mode
 from clay.execution.proof.gate import ExecutionProofGate
-from clay.execution.proof.probe import build_submit_rate_probe
+from clay.execution.proof.probe import (
+    build_duplicate_intent_probe,
+    build_submit_rate_probe,
+)
 from clay.execution.proof.snapshot import FreshnessPolicy
 from clay.execution.resilience import CircuitBreakerPolicy, ResilientExecutionAdapter
 from clay.execution.service import OverrideService
@@ -264,6 +267,20 @@ def build_services(
                 session_factory,  # type: ignore[arg-type]
                 max_submits=execution_config.proof_submit_rate_max,
                 window_seconds=execution_config.proof_submit_rate_window_seconds,
+            ),
+        )
+
+    # D-8: late-bind the duplicate-intent probe into ExecutionProofGate.
+    # Window=0 means dormant (no duplicate check). Requires enforce_session + execution_client.
+    if (
+        execution_client is not None
+        and execution_config.proof_enforce_session
+        and execution_config.proof_duplicate_intent_window_seconds > 0
+    ):
+        execution_client.set_session_duplicate_intent_probe(
+            build_duplicate_intent_probe(
+                session_factory,  # type: ignore[arg-type]
+                window_seconds=execution_config.proof_duplicate_intent_window_seconds,
             ),
         )
 

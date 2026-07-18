@@ -25,6 +25,7 @@ def _make_record(**overrides: object) -> DecisionRecord:
     defaults: dict[str, object] = dict(
         decision=Decision.ADMIT,
         intent_hash="a" * 16,
+        semantic_hash="c" * 16,
         snapshot_hash="b" * 16,
         snapshot_ts=NOW,
         metadata_version="v1",
@@ -48,6 +49,7 @@ class TestFromRecord:
         )
         assert orm.decision == "ADMIT"
         assert orm.intent_hash == "a" * 16
+        assert orm.semantic_hash == "c" * 16
         assert orm.symbol == "BTC/USDT"
         assert orm.client_order_id == "cid-001"
         assert orm.event_id is not None
@@ -202,3 +204,22 @@ class TestMigrationSmoke:
                 mig.downgrade()
 
             assert sa_inspect(conn).has_table("execution_proof_decisions") is False
+
+    def test_upgrade_0025_semantic_hash(self) -> None:
+        """Структурный smoke: 0025 загружается, revision chain корректна, upgrade/downgrade callable."""
+        import importlib.util
+        from pathlib import Path
+
+        path_0025 = (
+            Path(__file__).resolve().parents[2]
+            / "alembic/versions/0025_execution_proof_semantic_hash.py"
+        )
+        spec_0025 = importlib.util.spec_from_file_location("mig_0025", path_0025)
+        assert spec_0025 is not None and spec_0025.loader is not None
+        mig_0025 = importlib.util.module_from_spec(spec_0025)
+        spec_0025.loader.exec_module(mig_0025)
+
+        assert mig_0025.revision == "0025_proof_semantic_hash"
+        assert mig_0025.down_revision == "0024_execution_proof_decisions"
+        assert callable(mig_0025.upgrade)
+        assert callable(mig_0025.downgrade)

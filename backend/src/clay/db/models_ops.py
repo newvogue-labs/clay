@@ -238,12 +238,18 @@ class ExecutionProofDecision(Base):
             "decision",
             "created_at",
         ),
+        Index(
+            "ix_execution_proof_decisions_semantic_hash_created_at",
+            "semantic_hash",
+            "created_at",
+        ),
         {"schema": "ops"},
     )
 
     event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     decision: Mapped[str] = mapped_column(Text, nullable=False)
     intent_hash: Mapped[str] = mapped_column(String(16), nullable=False)
+    semantic_hash: Mapped[str | None] = mapped_column(String(16), nullable=True)
     snapshot_hash: Mapped[str] = mapped_column(String(16), nullable=False)
     snapshot_ts: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     metadata_version: Mapped[str] = mapped_column(Text, nullable=False)
@@ -273,6 +279,7 @@ class ExecutionProofDecision(Base):
             event_id=event_id or str(uuid4()),
             decision=record.decision.name,
             intent_hash=record.intent_hash,
+            semantic_hash=record.semantic_hash,
             snapshot_hash=record.snapshot_hash,
             snapshot_ts=record.snapshot_ts,
             metadata_version=record.metadata_version,
