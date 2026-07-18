@@ -7,7 +7,8 @@
   D6: ExecutionConfig defaults + from_env для duplicate_intent полей.
   D7: build_duplicate_intent_probe — True/False/fail-closed.
   D8: Gate integration — probe(quantized) wired; None→ok; raise→DENY; double-off.
-  D9: Bootstrap wiring — probe set / not set по conditions.
+
+Bootstrap wiring tested in tests/integration/test_bootstrap_duplicate_intent_wiring.py (D-11 follow-up).
 """
 
 from __future__ import annotations
@@ -609,46 +610,3 @@ class TestDuplicateIntentGateIntegration:
         called_with = di_probe.call_args[0][0]
         assert isinstance(called_with, OrderRequest)
         assert called_with.symbol == "BTC/USDT"
-
-
-# ── D9: Bootstrap wiring ──────────────────────────────────────────────
-
-
-class TestBootstrapDuplicateIntentWiring:
-    def test_probe_set_when_conditions_met(self) -> None:
-        """enforce_session=True + window>0 → probe wired."""
-        mock_client = MagicMock()
-        enforce_session = True
-        window_seconds = 30
-
-        wired = mock_client is not None and enforce_session and window_seconds > 0
-        assert wired is True
-        mock_client.set_session_duplicate_intent_probe(MagicMock())
-
-    def test_probe_not_wired_when_enforce_false(self) -> None:
-        """enforce_session=False → probe NOT wired (double-off)."""
-        mock_client = MagicMock()
-        enforce_session = False
-        window_seconds = 30
-
-        wired = mock_client is not None and enforce_session and window_seconds > 0
-        assert wired is False
-        mock_client.set_session_duplicate_intent_probe.assert_not_called()
-
-    def test_probe_not_wired_when_window_zero(self) -> None:
-        """window_seconds=0 → dormant, probe NOT wired."""
-        mock_client = MagicMock()
-        enforce_session = True
-        window_seconds = 0
-
-        wired = mock_client is not None and enforce_session and window_seconds > 0
-        assert wired is False
-
-    def test_probe_not_wired_when_client_none(self) -> None:
-        """execution_client=None → no wiring."""
-        mock_client = None
-        enforce_session = True
-        window_seconds = 30
-
-        wired = mock_client is not None and enforce_session and window_seconds > 0
-        assert wired is False
