@@ -41,6 +41,7 @@ class ExecutionConfig:
     proof_submit_rate_max: int = 0
     proof_submit_rate_window_seconds: int = 0
     proof_duplicate_intent_window_seconds: int = 0
+    order_ledger_enabled: bool = False
 
     @classmethod
     def from_env(cls) -> ExecutionConfig:
@@ -92,4 +93,8 @@ class ExecutionConfig:
             proof_duplicate_intent_window_seconds=int(
                 os.environ.get("CLAY_PROOF_DUPLICATE_INTENT_WINDOW_SECONDS", "0")
             ),
+            order_ledger_enabled=os.environ.get(
+                "CLAY_ORDER_LEDGER_ENABLED", "0"
+            ).lower()
+            in {"1", "true"},
         )

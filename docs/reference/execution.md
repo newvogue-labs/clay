@@ -67,13 +67,38 @@
       members:
         - MarketRules
 
-## Order Ledger Schema
+## Order Ledger
 
-Tables in the ``ops`` schema that form the foundation of the order journal.
-Schema + models only — not yet wired to any production code.
+Order Ledger — append-only event journal + current-state projection for
+order lifecycle tracking.  **Disabled by default** (`CLAY_ORDER_LEDGER_ENABLED=0`);
+not yet wired to any production code path.
 
-- ``order_events`` — append-only event journal (one row per state change)
-- ``order_current_state`` — current-state snapshot per order
-- ``fills`` — trade-level fill records
+### Schema (migration 0026)
+
+Tables in the `ops` schema:
+
+- `order_events` — append-only event journal (one row per state change)
+- `order_current_state` — current-state snapshot per order (optimistic-CAS via `version`)
+- `fills` — trade-level fill records
 
 ::: clay.db.models_orders
+
+### FSM States
+
+::: clay.execution.ledger.states
+
+### FSM Transitions
+
+::: clay.execution.ledger.fsm
+
+### Controller
+
+::: clay.execution.ledger.controller
+
+### Repository
+
+::: clay.execution.ledger.repository
+
+### Errors
+
+::: clay.execution.ledger.errors

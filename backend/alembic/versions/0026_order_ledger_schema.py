@@ -1,4 +1,4 @@
-"""order-ledger schema: order_events, order_current_state, fills (D-12b)
+"""order-ledger schema: order_events, order_current_state, fills (D-12a)
 
 Revision ID: 0026_order_ledger_schema
 Revises: 0025_proof_semantic_hash
@@ -29,7 +29,12 @@ def upgrade() -> None:
     # --- order_events (append-only journal) ---
     op.create_table(
         "order_events",
-        sa.Column("ledger_seq", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column(
+            "ledger_seq",
+            sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
+            primary_key=True,
+            autoincrement=True,
+        ),
         sa.Column("event_id", sa.String(36), nullable=False, unique=True),
         sa.Column("client_order_id", sa.String(64), nullable=False),
         sa.Column("venue_order_id", sa.String(64), nullable=True),
@@ -92,7 +97,12 @@ def upgrade() -> None:
     # --- fills (trade-level records) ---
     op.create_table(
         "fills",
-        sa.Column("fill_pk", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column(
+            "fill_pk",
+            sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
+            primary_key=True,
+            autoincrement=True,
+        ),
         sa.Column("venue", sa.String(32), nullable=False),
         sa.Column("trade_id", sa.String(64), nullable=False),
         sa.Column("venue_order_id", sa.String(64), nullable=False),

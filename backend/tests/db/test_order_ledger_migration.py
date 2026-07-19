@@ -15,7 +15,7 @@ from typing import Protocol, runtime_checkable
 import pytest
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import Inspector, create_engine, inspect
+from sqlalchemy import Inspector, create_engine, inspect, text
 from sqlalchemy.engine import Engine
 
 from clay.db.base import Base
@@ -180,3 +180,95 @@ class TestModelParity:
     def test_fills_venue_trade_id_unique(self, inspector: Inspector) -> None:
         uniques = _get_unique_constraints(inspector, "fills")
         assert any(uq == frozenset({"venue", "trade_id"}) for uq in uniques)
+
+
+# ---------------------------------------------------------------------------
+# INSERT coverage: auto-increment PKs on SQLite
+# ---------------------------------------------------------------------------
+
+
+class TestInsertAutoIncrement:
+    """Verify that auto-increment PKs (ledger_seq, fill_pk) work on SQLite.
+
+    Would fail on bare ``BigInteger`` PK (no rowid alias) —
+    the ``with_variant(Integer, "sqlite")`` fix makes this pass.
+    """
+
+    def test_order_events_ledger_seq_autoincrement(self) -> None:
+        migration = _load_migration()
+        engine = _make_sqlite_engine()
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn)
+            with Operations.context(ctx):
+                migration.upgrade()
+
+            # INSERT без явного ledger_seq
+            conn.execute(
+                text(
+                    "INSERT INTO order_events "
+                    "(event_id, client_order_id, venue, symbol, event_type, "
+                    "payload, created_at) "
+                    "VALUES ('ev-001', 'cid-001', 'binance', 'BTC/USDT', "
+                    "'intent', '{}', '2026-01-01T00:00:00Z')"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO order_events "
+                    "(event_id, client_order_id, venue, symbol, event_type, "
+                    "payload, created_at) "
+                    "VALUES ('ev-002', 'cid-002', 'binance', 'BTC/USDT', "
+                    "'intent', '{}', '2026-01-01T00:00:01Z')"
+                )
+            )
+            conn.commit()
+
+            rows = conn.execute(
+                text(
+                    "SELECT ledger_seq, event_id FROM order_events ORDER BY ledger_seq"
+                )
+            ).fetchall()
+            assert len(rows) == 2
+            # ledger_seq заполнился автоматически
+            assert rows[0][0] is not None
+            assert rows[1][0] is not None
+            # монотонно растёт
+            assert rows[1][0] > rows[0][0]
+        engine.dispose()
+
+    def test_fills_fill_pk_autoincrement(self) -> None:
+        migration = _load_migration()
+        engine = _make_sqlite_engine()
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn)
+            with Operations.context(ctx):
+                migration.upgrade()
+
+            conn.execute(
+                text(
+                    "INSERT INTO fills "
+                    "(venue, trade_id, venue_order_id, symbol, side, "
+                    "quantity, price, created_at) "
+                    "VALUES ('binance', 't-001', 'vo-001', 'BTC/USDT', "
+                    "'buy', '0.001', '50000', '2026-01-01T00:00:00Z')"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO fills "
+                    "(venue, trade_id, venue_order_id, symbol, side, "
+                    "quantity, price, created_at) "
+                    "VALUES ('binance', 't-002', 'vo-002', 'BTC/USDT', "
+                    "'buy', '0.002', '51000', '2026-01-01T00:00:01Z')"
+                )
+            )
+            conn.commit()
+
+            rows = conn.execute(
+                text("SELECT fill_pk, trade_id FROM fills ORDER BY fill_pk")
+            ).fetchall()
+            assert len(rows) == 2
+            assert rows[0][0] is not None
+            assert rows[1][0] is not None
+            assert rows[1][0] > rows[0][0]
+        engine.dispose()
