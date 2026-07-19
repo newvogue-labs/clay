@@ -1,4 +1,4 @@
-"""Order-ledger ORM models (D-12b).
+"""Order-ledger ORM models (D-12a).
 
 Three tables in ``ops`` schema that form the foundation of the order
 journal.  Not yet wired to any production code — schema + models + tests only.
@@ -42,7 +42,9 @@ class OrderEvent(Base):
     )
 
     ledger_seq: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, autoincrement=True
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
     )
     event_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
     client_order_id: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -102,7 +104,9 @@ class OrderFillRecord(Base):
     )
 
     fill_pk: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, autoincrement=True
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
     )
     venue: Mapped[str] = mapped_column(String(32), nullable=False)
     trade_id: Mapped[str] = mapped_column(String(64), nullable=False)
