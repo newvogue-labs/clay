@@ -42,6 +42,7 @@ from clay.execution.adapter.errors import (
     ConfigError,
     InsufficientFundsError,
     InvalidOrderError,
+    OrderNotFoundError,
     OrderRejectedError,
     TransientAdapterError,
 )
@@ -152,19 +153,12 @@ class CcxtExchangeAdapter:
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
         try:
             response = await self._client.fetch_order(id=venue_order_id, symbol=symbol)
-        except ccxt.OrderNotFound:
-            return OrderSnapshot(
-                client_order_id="",
-                venue_order_id=venue_order_id,
+        except ccxt.OrderNotFound as exc:
+            raise OrderNotFoundError(
+                f"order not found (venue_order_id={venue_order_id!r}, symbol={symbol!r})",
                 symbol=symbol,
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                state=OrderState.NEW,
-                quantity=Decimal("0"),
-                executed_qty=Decimal("0"),
-                price=None,
-                transact_time=0,
-            )
+                venue_order_id=venue_order_id,
+            ) from exc
         except ccxt.NetworkError as exc:
             raise TransientAdapterError(str(exc)) from exc
         except ccxt.AuthenticationError as exc:

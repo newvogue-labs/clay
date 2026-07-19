@@ -56,6 +56,24 @@ class OperationNotAllowedError(AdapterError):
     """
 
 
+class OrderNotFoundError(AdapterError):
+    """Venue reports the order does not exist.
+
+    Not retryable — the order was never placed or has been purged.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        symbol: str | None = None,
+        venue_order_id: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.symbol = symbol
+        self.venue_order_id = venue_order_id
+
+
 def is_retryable(exc: BaseException) -> bool:
     """Return ``True`` only for transient / retryable adapter errors."""
     return isinstance(exc, TransientAdapterError)

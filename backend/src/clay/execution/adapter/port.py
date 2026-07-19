@@ -42,7 +42,13 @@ class ExchangeAdapter(Protocol):
 
     async def cancel_order(self, symbol: str, venue_order_id: str) -> None: ...
 
-    async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot: ...
+    async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
+        """Fetch a single order by venue ID.
+
+        Raises ``OrderNotFoundError`` when the venue reports the order
+        does not exist.
+        """
+        ...
 
     async def get_open_orders(
         self, symbol: str | None = None

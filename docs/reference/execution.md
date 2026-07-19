@@ -57,6 +57,7 @@
         - InvalidOrderError
         - ConfigError
         - AmbiguousExecutionError
+        - OrderNotFoundError
         - is_retryable
 
 ## Market Rules
