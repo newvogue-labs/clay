@@ -17,6 +17,7 @@ from clay.db import (
     models_knowledge,
     models_market,
     models_ops,
+    models_orders,
     models_review,
     models_validation,
 )  # noqa: F401 — models imported for Alembic autogenerate target metadata
