@@ -44,3 +44,41 @@ controller.record_fills(
 | `OrderNotInLedgerError` | No projection for `client_order_id` |
 | `IllegalTransitionError` | FSM does not allow `current → to_state` |
 | `ConcurrencyConflictError` | `expected_version` does not match projection |
+
+## Order Reconcile Service — Venue-State Reconciliation
+
+Standalone service that compares exchange order states with ledger projections and heals FSM-legal drifts.
+
+### Overview
+
+- **Dormant by default** — no config flag, no bootstrap wiring, no production call-sites.
+- **Read-only adapter calls** — `reconcile_orders` + `get_open_orders` for venue truth.
+- **FSM-legal healing** — state drifts are healed via `controller.apply_transition`; illegal transitions are classified, not forced.
+- **No fills ingestion** — only order states are reconciled; fills, bookmarks, and scheduler are out of scope.
+
+### Mismatch Kinds
+
+| Kind | Fatal | Description |
+|------|-------|-------------|
+| `STATE_DRIFT` | no | Venue state differs from ledger; healed via FSM-legal transition |
+| `ILLEGAL_DRIFT` | yes | Venue state would require illegal FSM transition (e.g. INTENT→FILLED) |
+| `VENUE_ORPHAN` | yes | Venue order exists with no matching ledger projection |
+| `LEDGER_ORPHAN` | no | Active ledger projection has no matching venue order |
+
+### State Mapping
+
+| Venue `OrderState` | Ledger `LedgerState` |
+|--------------------|-----------------------|
+| `new` | `ACKNOWLEDGED` |
+| `partially_filled` | `PARTIALLY_FILLED` |
+| `filled` | `FILLED` |
+| `canceled` | `CANCELED` |
+| `rejected` | `REJECTED` |
+| `expired` | `EXPIRED` |
+
+### What This Service Does NOT Do
+
+- No fills ingestion (D-12a-3 covers that)
+- No cursor/bookmark tracking for incremental reconcile
+- No halt/pause mechanism on fatal mismatches
+- No bootstrap/startup/scheduler wiring — dormant only

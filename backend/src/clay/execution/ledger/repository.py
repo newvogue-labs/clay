@@ -8,6 +8,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from clay.db.models_orders import OrderCurrentState, OrderEvent, OrderFillRecord
+from clay.execution.ledger.states import TERMINAL_STATES
 
 
 class OrderLedgerRepository:
@@ -114,3 +115,34 @@ class OrderLedgerRepository:
             OrderFillRecord.client_order_id == client_order_id
         )
         return list(self.session.execute(stmt).scalars())
+
+    # ------------------------------------------------------------------
+    # D-12b-1: reconcile read-side
+    # ------------------------------------------------------------------
+
+    def list_active_projections(
+        self, venue: str | None = None
+    ) -> list[OrderCurrentState]:
+        """Вернуть проекции, чей lifecycle_state НЕ терминален.
+
+        При ``venue`` — фильтр по venue.
+        """
+        stmt = select(OrderCurrentState).where(
+            ~OrderCurrentState.lifecycle_state.in_([s.value for s in TERMINAL_STATES])
+        )
+        if venue is not None:
+            stmt = stmt.where(OrderCurrentState.venue == venue)
+        return list(self.session.execute(stmt).scalars())
+
+    def get_projection_by_venue_order_id(
+        self, venue: str, venue_order_id: str
+    ) -> OrderCurrentState | None:
+        """Найти проекцию по ``(venue, venue_order_id)``.
+
+        Использует существующий индекс ``ix_order_current_state_venue_venue_order_id``.
+        """
+        stmt = select(OrderCurrentState).where(
+            OrderCurrentState.venue == venue,
+            OrderCurrentState.venue_order_id == venue_order_id,
+        )
+        return self.session.execute(stmt).scalars().one_or_none()
