@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from clay.db.models_orders import OrderCurrentState, OrderEvent
+from clay.db.models_orders import OrderCurrentState, OrderEvent, OrderFillRecord
 
 
 class OrderLedgerRepository:
@@ -76,3 +76,41 @@ class OrderLedgerRepository:
         )
         result = self.session.execute(stmt)
         return result.rowcount  # type: ignore[return-value]
+
+    # ------------------------------------------------------------------
+    # D-12a-3: fill-record methods
+    # ------------------------------------------------------------------
+
+    def existing_trade_ids(self, venue: str, trade_ids: list[str]) -> set[str]:
+        """Вернуть подмножество ``trade_id``, уже присутствующих в ``fills``.
+
+        На вход — список trade_id для проверки. На выход — те, что уже
+        есть в таблице ``OrderFillRecord`` для данного ``venue``.
+        """
+        if not trade_ids:
+            return set()
+        stmt = select(OrderFillRecord.trade_id).where(
+            OrderFillRecord.venue == venue,
+            OrderFillRecord.trade_id.in_(trade_ids),
+        )
+        return set(self.session.execute(stmt).scalars())
+
+    def insert_fills(self, records: list[OrderFillRecord]) -> None:
+        """Батч-вставка ``OrderFillRecord``.
+
+         Все записи должны быть уникальны по ``(venue, trade_id)`` —
+        caller обязан отфильтровать дубли через :meth:`existing_trade_ids`.
+        """
+        self.session.add_all(records)
+        self.session.flush()
+
+    def get_fill_quantities(self, client_order_id: str) -> list[str]:
+        """Вернуть все ``quantity`` (Text) для данного ордера.
+
+        Суммирование происходит в приложении (Decimal), а не через
+        серверный ``SUM`` по Text-колонке.
+        """
+        stmt = select(OrderFillRecord.quantity).where(
+            OrderFillRecord.client_order_id == client_order_id
+        )
+        return list(self.session.execute(stmt).scalars())
