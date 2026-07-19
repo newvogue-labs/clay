@@ -81,9 +81,7 @@ class OrderLedgerRepository:
     # D-12a-3: fill-record methods
     # ------------------------------------------------------------------
 
-    def existing_trade_ids(
-        self, venue: str, trade_ids: list[str]
-    ) -> set[str]:
+    def existing_trade_ids(self, venue: str, trade_ids: list[str]) -> set[str]:
         """Вернуть подмножество ``trade_id``, уже присутствующих в ``fills``.
 
         На вход — список trade_id для проверки. На выход — те, что уже
@@ -91,20 +89,17 @@ class OrderLedgerRepository:
         """
         if not trade_ids:
             return set()
-        stmt = (
-            select(OrderFillRecord.trade_id)
-            .where(
-                OrderFillRecord.venue == venue,
-                OrderFillRecord.trade_id.in_(trade_ids),
-            )
+        stmt = select(OrderFillRecord.trade_id).where(
+            OrderFillRecord.venue == venue,
+            OrderFillRecord.trade_id.in_(trade_ids),
         )
         return set(self.session.execute(stmt).scalars())
 
     def insert_fills(self, records: list[OrderFillRecord]) -> None:
         """Батч-вставка ``OrderFillRecord``.
 
-        Все записи должны быть уникальны по ``(venue, trade_id)`` —
-       caller обязан отфильтровать дубли через :meth:`existing_trade_ids`.
+         Все записи должны быть уникальны по ``(venue, trade_id)`` —
+        caller обязан отфильтровать дубли через :meth:`existing_trade_ids`.
         """
         self.session.add_all(records)
         self.session.flush()
@@ -115,8 +110,7 @@ class OrderLedgerRepository:
         Суммирование происходит в приложении (Decimal), а не через
         серверный ``SUM`` по Text-колонке.
         """
-        stmt = (
-            select(OrderFillRecord.quantity)
-            .where(OrderFillRecord.client_order_id == client_order_id)
+        stmt = select(OrderFillRecord.quantity).where(
+            OrderFillRecord.client_order_id == client_order_id
         )
         return list(self.session.execute(stmt).scalars())

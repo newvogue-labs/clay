@@ -437,7 +437,9 @@ class TestRecordFills:
             events = conn.execute(
                 text("SELECT event_type FROM order_events ORDER BY ledger_seq")
             ).fetchall()
-            assert len(events) == 5  # intent + submitting + acknowledged + partially_filled + fill_record
+            assert (
+                len(events) == 5
+            )  # intent + submitting + acknowledged + partially_filled + fill_record
 
     # D5: идемпотентность — повторный батч → no-op
     def test_idempotent_noop(
@@ -599,9 +601,7 @@ class TestRecordFills:
             count = conn.execute(text("SELECT COUNT(*) FROM fills")).scalar()
             assert count == 0
 
-            events = conn.execute(
-                text("SELECT COUNT(*) FROM order_events")
-            ).scalar()
+            events = conn.execute(text("SELECT COUNT(*) FROM order_events")).scalar()
             assert events == 4  # intent + submitting + acknowledged + partially_filled
 
         with ctrl._session_factory() as s:
