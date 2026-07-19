@@ -9,13 +9,14 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from clay.db.models_orders import OrderCurrentState, OrderEvent
-from clay.execution.adapter.domain import OrderRequest
+from clay.db.models_orders import OrderCurrentState, OrderEvent, OrderFillRecord
+from clay.execution.adapter.domain import Fill, OrderRequest
 from clay.execution.ledger.errors import (
     ConcurrencyConflictError,
     DuplicateOrderIntentError,
@@ -184,6 +185,137 @@ class OrderLedgerController:
                 updated_at=now,
                 venue_order_id=venue_order_id,
                 filled_qty=filled_qty,
+            )
+            if rc != 1:
+                s.rollback()
+                raise ConcurrencyConflictError(
+                    f"CAS failed for client_order_id={client_order_id!r}, "
+                    f"expected_version={expected_version}"
+                )
+            s.commit()
+
+        return repo.get_projection(client_order_id)  # type: ignore[return-value]
+
+    def record_fills(
+        self,
+        *,
+        client_order_id: str,
+        fills: list[Fill],
+        to_state: LedgerState,
+        expected_version: int,
+    ) -> OrderCurrentState:
+        """Записать trade-fills с дедупом и пересчётом ``filled``.
+
+        Атомарная транзакция (7 шагов):
+
+        1. Загрузить проекцию по ``client_order_id`` → ``OrderNotInLedgerError``.
+        2. ``venue`` из проекции.
+        3. Дедуп: оставить только недостающие ``(venue, trade_id)``.
+        4. Батч-вставка ``OrderFillRecord`` для недостающих.
+        5. Пересчёт ``filled`` = сумма ``Decimal`` по всем ``quantity`` ордера.
+        6. Append lifecycle-события ``order_events``.
+        7. CAS-переход в ``to_state`` с FSM + ``expected_version``.
+
+        D5 — идемпотентность:
+        - Если после дедупа новых fills ``нет`` И ``to_state`` == текущее
+          состояние → no-op (без вставок, события, роста ``version``).
+        - Если новые fills есть → событие пишем всегда, включая
+          ``PARTIALLY_FILLED → PARTIALLY_FILLED``.
+
+        D6 — контроллер НЕ выводит терминальный ``FILLED``:
+        ``to_state`` всегда приходит параметром, контроллер только
+        энфорсит FSM-легальность.
+        """
+        now = self._now_fn()
+
+        with self._session_factory() as s:
+            repo = OrderLedgerRepository(s)
+
+            # --- Шаг 1: загрузка проекции ---
+            proj = repo.get_projection(client_order_id)
+            if proj is None:
+                raise OrderNotInLedgerError(
+                    f"No projection for client_order_id={client_order_id!r}"
+                )
+
+            # --- Шаг 2: venue из проекции ---
+            venue = proj.venue
+
+            # --- Шаг 3: дедуп ---
+            incoming_ids = [f.trade_id for f in fills]
+            existing = repo.existing_trade_ids(venue, incoming_ids)
+            missing_fills = [f for f in fills if f.trade_id not in existing]
+
+            from_state = LedgerState(proj.lifecycle_state)
+
+            # --- FSM-проверка (до любых мутаций) ---
+            if not is_legal_transition(from_state, to_state):
+                raise IllegalTransitionError(from_state, to_state)
+
+            # --- D5: идемпотентность ---
+            if not missing_fills and to_state == from_state:
+                # No-op: ничего не меняем
+                return proj  # type: ignore[return-value]
+
+            # --- Шаг 4: батч-вставка ---
+            now_utc = now
+            if missing_fills:
+                records = [
+                    OrderFillRecord(
+                        venue=venue,
+                        trade_id=f.trade_id,
+                        venue_order_id=f.venue_order_id,
+                        client_order_id=client_order_id,
+                        symbol=f.symbol,
+                        side=str(f.side),
+                        quantity=str(f.quantity),
+                        price=str(f.price),
+                        commission=str(f.commission),
+                        commission_asset=f.commission_asset,
+                        transact_time=f.transact_time,
+                        created_at=now_utc,
+                    )
+                    for f in missing_fills
+                ]
+                repo.insert_fills(records)
+
+            # --- Шаг 5: пересчёт filled ---
+            all_quantities = repo.get_fill_quantities(client_order_id)
+            filled = sum((Decimal(q) for q in all_quantities), Decimal("0"))
+            filled_str = str(filled)
+
+            # --- Шаг 6: lifecycle-событие ---
+            event_id = str(uuid4())
+            event = OrderEvent(
+                event_id=event_id,
+                client_order_id=client_order_id,
+                venue_order_id=missing_fills[0].venue_order_id
+                if missing_fills
+                else None,
+                venue=venue,
+                symbol=proj.symbol,
+                event_type=to_state,
+                semantic_hash=proj.semantic_hash,
+                payload=json.dumps(
+                    {
+                        "fills_count": len(missing_fills),
+                        "filled_qty": filled_str,
+                        "idempotent": len(missing_fills) == 0,
+                    },
+                    sort_keys=True,
+                ),
+                created_at=now_utc,
+            )
+            repo.append_event(event)
+
+            # --- Шаг 7: CAS-переход ---
+            rc = repo.cas_update_projection(
+                client_order_id=client_order_id,
+                expected_version=expected_version,
+                lifecycle_state=to_state,
+                last_event_id=event_id,
+                updated_at=now_utc,
+                filled_qty=filled_str,
             )
             if rc != 1:
                 s.rollback()

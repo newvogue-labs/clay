@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from clay.db import models_orders  # noqa: F401 — register tables in Base.metadata
 from clay.db.base import Base
 from clay.db.session import SQLITE_SCHEMA_TRANSLATE_MAP
-from clay.execution.adapter.domain import OrderRequest
+from clay.execution.adapter.domain import Fill, OrderRequest
 from clay.execution.adapter.enums import OrderSide, OrderType, TimeInForce
 from clay.execution.ledger.controller import OrderLedgerController
 from clay.execution.ledger.errors import (
@@ -338,3 +338,276 @@ class TestSemanticHash:
                 select(OrderEvent).where(OrderEvent.event_id == proj.last_event_id)
             ).one()
             assert ev.semantic_hash == semantic_intent_hash(req)
+
+
+# ---------------------------------------------------------------------------
+# record_fills (D-12a-3)
+# ---------------------------------------------------------------------------
+
+
+def _make_fill(
+    *,
+    trade_id: str = "t-001",
+    venue_order_id: str = "v-ord-001",
+    symbol: str = "BTC/USDT",
+    side: OrderSide = OrderSide.BUY,
+    quantity: Decimal = Decimal("0.001"),
+    price: Decimal = Decimal("50000"),
+    commission: Decimal = Decimal("0.000001"),
+    commission_asset: str = "BTC",
+    transact_time: int = 1721395200000,
+) -> Fill:
+    return Fill(
+        trade_id=trade_id,
+        venue_order_id=venue_order_id,
+        symbol=symbol,
+        side=side,
+        quantity=quantity,
+        price=price,
+        commission=commission,
+        commission_asset=commission_asset,
+        transact_time=transact_time,
+    )
+
+
+class TestRecordFills:
+    """D-12a-3: record_fills — happy path, idempotency, errors, accuracy."""
+
+    def _setup_to_partially_filled(
+        self,
+        ctrl: OrderLedgerController,
+        *,
+        cid: str = "clay-test-001",
+    ) -> None:
+        """Записать intent → submitting → acknowledged → partially_filled."""
+        req = _make_request(client_order_id=cid)
+        ctrl.record_intent(request=req, venue="binance")
+        ctrl.apply_transition(
+            client_order_id=cid,
+            expected_version=0,
+            to_state=LedgerState.SUBMITTING,
+        )
+        ctrl.apply_transition(
+            client_order_id=cid,
+            expected_version=1,
+            to_state=LedgerState.ACKNOWLEDGED,
+        )
+        ctrl.apply_transition(
+            client_order_id=cid,
+            expected_version=2,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            filled_qty="0",
+        )
+
+    # happy path: 7 шагов атомарно
+    def test_happy_partial_fill(
+        self,
+        ctrl: OrderLedgerController,
+        engine: Engine,
+    ) -> None:
+        self._setup_to_partially_filled(ctrl)
+
+        fills = [
+            _make_fill(trade_id="t-001", quantity=Decimal("0.0003")),
+            _make_fill(trade_id="t-002", quantity=Decimal("0.0005")),
+        ]
+
+        proj = ctrl.record_fills(
+            client_order_id="clay-test-001",
+            fills=fills,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            expected_version=3,
+        )
+
+        assert proj.lifecycle_state == LedgerState.PARTIALLY_FILLED
+        assert proj.filled_qty == "0.0008"
+        assert proj.version == 4
+
+        # 2 fill-записи в БД
+        with engine.connect() as conn:
+            from sqlalchemy import text
+
+            count = conn.execute(text("SELECT COUNT(*) FROM fills")).scalar()
+            assert count == 2
+
+        # Событие appended
+        with engine.connect() as conn:
+            from sqlalchemy import text
+
+            events = conn.execute(
+                text("SELECT event_type FROM order_events ORDER BY ledger_seq")
+            ).fetchall()
+            assert len(events) == 5  # intent + submitting + acknowledged + partially_filled + fill_record
+
+    # D5: идемпотентность — повторный батч → no-op
+    def test_idempotent_noop(
+        self,
+        ctrl: OrderLedgerController,
+        engine: Engine,
+    ) -> None:
+        self._setup_to_partially_filled(ctrl)
+
+        fills = [_make_fill(trade_id="t-001", quantity=Decimal("0.0003"))]
+
+        # Первый вызов — записывает
+        proj1 = ctrl.record_fills(
+            client_order_id="clay-test-001",
+            fills=fills,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            expected_version=3,
+        )
+        assert proj1.version == 4
+        assert proj1.filled_qty == "0.0003"
+
+        # Второй вызов — no-op (same to_state, same fills)
+        proj2 = ctrl.record_fills(
+            client_order_id="clay-test-001",
+            fills=fills,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            expected_version=4,
+        )
+        assert proj2.version == 4  # не изменился
+        assert proj2.filled_qty == "0.0003"  # не изменился
+
+        # В БД ровно 1 fill-запись
+        with engine.connect() as conn:
+            from sqlalchemy import text
+
+            count = conn.execute(text("SELECT COUNT(*) FROM fills")).scalar()
+            assert count == 1
+
+    # OrderNotInLedgerError при отсутствии проекции
+    def test_missing_projection_raises(
+        self,
+        ctrl: OrderLedgerController,
+    ) -> None:
+        fills = [_make_fill()]
+        with pytest.raises(OrderNotInLedgerError):
+            ctrl.record_fills(
+                client_order_id="nonexistent",
+                fills=fills,
+                to_state=LedgerState.PARTIALLY_FILLED,
+                expected_version=0,
+            )
+
+    # CAS-конфликт на устаревшем expected_version
+    def test_cas_conflict(
+        self,
+        ctrl: OrderLedgerController,
+    ) -> None:
+        self._setup_to_partially_filled(ctrl)
+
+        fills = [_make_fill(trade_id="t-001")]
+
+        with pytest.raises(ConcurrencyConflictError):
+            ctrl.record_fills(
+                client_order_id="clay-test-001",
+                fills=fills,
+                to_state=LedgerState.PARTIALLY_FILLED,
+                expected_version=99,  # устаревший
+            )
+
+    # Точность Decimal-суммы на нескольких fills
+    def test_decimal_sum_accuracy(
+        self,
+        ctrl: OrderLedgerController,
+    ) -> None:
+        self._setup_to_partially_filled(ctrl)
+
+        fills = [
+            _make_fill(trade_id="t-001", quantity=Decimal("0.0001")),
+            _make_fill(trade_id="t-002", quantity=Decimal("0.0002")),
+            _make_fill(trade_id="t-003", quantity=Decimal("0.0003")),
+        ]
+
+        proj = ctrl.record_fills(
+            client_order_id="clay-test-001",
+            fills=fills,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            expected_version=3,
+        )
+
+        assert proj.filled_qty == "0.0006"
+
+    # Легальность self-transition PARTIALLY_FILLED → PARTIALLY_FILLED
+    def test_self_transition_legal(
+        self,
+        ctrl: OrderLedgerController,
+    ) -> None:
+        self._setup_to_partially_filled(ctrl)
+
+        fills1 = [_make_fill(trade_id="t-001", quantity=Decimal("0.0003"))]
+        proj1 = ctrl.record_fills(
+            client_order_id="clay-test-001",
+            fills=fills1,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            expected_version=3,
+        )
+        assert proj1.lifecycle_state == LedgerState.PARTIALLY_FILLED
+
+        fills2 = [_make_fill(trade_id="t-002", quantity=Decimal("0.0002"))]
+        proj2 = ctrl.record_fills(
+            client_order_id="clay-test-001",
+            fills=fills2,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            expected_version=4,
+        )
+        assert proj2.lifecycle_state == LedgerState.PARTIALLY_FILLED
+        assert proj2.filled_qty == "0.0005"
+
+    # D6: controller не выводит терминальный FILLED
+    def test_does_not_terminate_filled(
+        self,
+        ctrl: OrderLedgerController,
+    ) -> None:
+        self._setup_to_partially_filled(ctrl)
+
+        fills = [_make_fill(trade_id="t-001", quantity=Decimal("0.001"))]
+        proj = ctrl.record_fills(
+            client_order_id="clay-test-001",
+            fills=fills,
+            to_state=LedgerState.PARTIALLY_FILLED,
+            expected_version=3,
+        )
+        # to_state задан вызывающим, контроллер не сам решает
+        assert proj.lifecycle_state == LedgerState.PARTIALLY_FILLED
+
+    # Нелегальный переход: PARTIALLY_FILLED → REJECTED
+    def test_illegal_transition_raises(
+        self,
+        ctrl: OrderLedgerController,
+        engine: Engine,
+    ) -> None:
+        self._setup_to_partially_filled(ctrl)
+
+        fills = [_make_fill(trade_id="t-001")]
+
+        with pytest.raises(IllegalTransitionError) as exc_info:
+            ctrl.record_fills(
+                client_order_id="clay-test-001",
+                fills=fills,
+                to_state=LedgerState.REJECTED,
+                expected_version=3,
+            )
+        assert exc_info.value.from_state == LedgerState.PARTIALLY_FILLED
+        assert exc_info.value.to_state == LedgerState.REJECTED
+
+        # 0 fill-строк, нет нового события, version не изменился
+        with engine.connect() as conn:
+            from sqlalchemy import text
+
+            count = conn.execute(text("SELECT COUNT(*) FROM fills")).scalar()
+            assert count == 0
+
+            events = conn.execute(
+                text("SELECT COUNT(*) FROM order_events")
+            ).scalar()
+            assert events == 4  # intent + submitting + acknowledged + partially_filled
+
+        with ctrl._session_factory() as s:
+            from clay.execution.ledger.repository import OrderLedgerRepository
+
+            repo = OrderLedgerRepository(s)
+            proj = repo.get_projection("clay-test-001")
+            assert proj is not None
+            assert proj.version == 3
