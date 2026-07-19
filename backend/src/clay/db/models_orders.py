@@ -120,3 +120,34 @@ class OrderFillRecord(Base):
     commission_asset: Mapped[str | None] = mapped_column(String(32), nullable=True)
     transact_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+
+
+class ReconcileBookmark(Base):
+    """Durable cursor for reconcile fill-ingestion.
+
+    One row per ``(venue, entity_type, symbol)`` triple.
+    Tracks the last processed trade_id and timestamp for incremental replay.
+    """
+
+    __tablename__ = "reconcile_bookmark"
+    __table_args__ = (
+        UniqueConstraint(
+            "venue",
+            "entity_type",
+            "symbol",
+            name="uq_reconcile_bookmark_venue_entity_symbol",
+        ),
+        {"schema": "ops"},
+    )
+
+    bookmark_pk: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
+    venue: Mapped[str] = mapped_column(String(32), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    last_trade_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_timestamp: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)

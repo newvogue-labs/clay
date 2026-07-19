@@ -13,7 +13,7 @@ from typing import Protocol
 
 from sqlalchemy.orm import sessionmaker
 
-from clay.execution.adapter.domain import OrderSnapshot
+from clay.execution.adapter.domain import Fill, OrderSnapshot
 from clay.execution.adapter.enums import OrderState
 from clay.db.models_orders import OrderCurrentState
 from clay.execution.ledger.controller import OrderLedgerController
@@ -109,6 +109,10 @@ class ReconcileAdapter(Protocol):
         self, symbol: str | None = None
     ) -> list[OrderSnapshot]: ...
 
+    async def get_my_trades(
+        self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
+    ) -> list[Fill]: ...
+
 
 # ---------------------------------------------------------------------------
 # D4: service
@@ -134,19 +138,22 @@ class OrderReconcileService:
         self._adapter = adapter
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
 
-    async def reconcile_symbol(self, symbol: str, since: datetime) -> ReconcileReport:
+    async def reconcile_symbol(
+        self, symbol: str, since: datetime, *, venue: str
+    ) -> ReconcileReport:
         """Сверить venue-истину с ledger для одного ``symbol``.
 
         Алгоритм:
         1) venue truth = reconcile_orders ∪ get_open_orders (dedup по venue_order_id)
         2) активные проекции = list_active_projections()
-        3) матч venue-снапшотов к проекциям
-        4) невстреченные проекции → LEDGER_ORPHAN
-        5) вернуть ReconcileReport
+        3) матч venue-снапшотов к проекциям (heal через record_fills для fill-bearing)
+        4) fills с venue_order_id без проекции → LEDGER_ORPHAN
+        5) невстреченные проекции → LEDGER_ORPHAN
+        6) upsert bookmark → вернуть ReconcileReport
         """
         report = ReconcileReport()
 
-        # --- Шаг 1: venue truth ---
+        # --- Шаг 1: venue truth (order-states) ---
         reconcile_snapshots = await self._adapter.reconcile_orders(symbol, since)
         open_snapshots = await self._adapter.get_open_orders(symbol)
 
@@ -158,7 +165,22 @@ class OrderReconcileService:
             if existing is None or _venue_more_advanced(snap.state, existing.state):
                 venue_by_void[snap.venue_order_id] = snap
 
-        # --- Шаг 2: активные проекции ---
+        # --- Шаг 2: fills ingestion (cursor-based) ---
+        with self._session_factory() as s:
+            repo = OrderLedgerRepository(s)
+            bookmark = repo.get_reconcile_bookmark(
+                venue=venue, entity_type="fills", symbol=symbol
+            )
+            from_id = bookmark.last_trade_id if bookmark else None
+
+        fills_raw = await self._adapter.get_my_trades(
+            symbol, since=since, from_id=from_id
+        )
+        fills_by_voi: dict[str, list[Fill]] = {}
+        for f in fills_raw:
+            fills_by_voi.setdefault(f.venue_order_id, []).append(f)
+
+        # --- Шаг 3: активные проекции ---
         with self._session_factory() as s:
             repo = OrderLedgerRepository(s)
             active = repo.list_active_projections()
@@ -171,10 +193,9 @@ class OrderReconcileService:
             if p.venue_order_id is not None:
                 proj_by_void[p.venue_order_id] = p
 
-        # --- Шаг 3: матч venue-снапшотов ---
+        # --- Шаг 4: матч venue-снапшотов ---
         matched_cids: set[str] = set()
         for snap in venue_by_void.values():
-            # Приоритет: match по client_order_id, иначе по (venue, venue_order_id)
             proj = proj_by_cid.get(snap.client_order_id)
             if proj is None:
                 void_proj = proj_by_void.get(snap.venue_order_id)
@@ -189,21 +210,36 @@ class OrderReconcileService:
                 if target == current:
                     continue
 
-                # Heal через controller
+                fills_for_voi = fills_by_voi.get(snap.venue_order_id, [])
                 try:
                     controller = OrderLedgerController(
                         self._session_factory, now_fn=self._now_fn
                     )
-                    controller.apply_transition(
-                        client_order_id=proj.client_order_id,
-                        expected_version=proj.version,
-                        to_state=target,
-                        venue_order_id=snap.venue_order_id,
-                        payload={
-                            "reason_code": "STATE_DRIFT",
-                            "source": "reconcile",
-                        },
-                    )
+                    if (
+                        target
+                        in {
+                            LedgerState.PARTIALLY_FILLED,
+                            LedgerState.FILLED,
+                        }
+                        and fills_for_voi
+                    ):
+                        controller.record_fills(
+                            client_order_id=proj.client_order_id,
+                            fills=fills_for_voi,
+                            to_state=target,
+                            expected_version=proj.version,
+                        )
+                    else:
+                        controller.apply_transition(
+                            client_order_id=proj.client_order_id,
+                            expected_version=proj.version,
+                            to_state=target,
+                            venue_order_id=snap.venue_order_id,
+                            payload={
+                                "reason_code": "STATE_DRIFT",
+                                "source": "reconcile",
+                            },
+                        )
                     report.healed.append(proj.client_order_id)
                 except IllegalTransitionError:
                     report.mismatches.append(
@@ -224,7 +260,22 @@ class OrderReconcileService:
                     )
                 )
 
-        # --- Шаг 4: активные проекции, невстреченные ---
+        # --- Шаг 5: orphan fills (venue_order_id без проекции) ---
+        for voi, fills_for_voi in fills_by_voi.items():
+            if voi in proj_by_void:
+                continue
+            matched_void = any(s.venue_order_id == voi for s in venue_by_void.values())
+            if not matched_void:
+                report.mismatches.append(
+                    Mismatch(
+                        kind=ReconcileMismatchKind.LEDGER_ORPHAN,
+                        client_order_id=None,
+                        venue_order_id=voi,
+                        detail=f"fill on unknown order {voi}",
+                    )
+                )
+
+        # --- Шаг 6: невстреченные проекции ---
         for proj in active:
             if proj.client_order_id not in matched_cids:
                 report.mismatches.append(
@@ -235,6 +286,25 @@ class OrderReconcileService:
                         detail=f"active projection {proj.client_order_id} not in venue",
                     )
                 )
+
+        # --- Шаг 7: upsert bookmark ---
+        # Fills уже закоммичены в шаге 4; record_fills дедупит по UNIQUE(venue,trade_id),
+        # поэтому повторный прогон безопасен. Ошибка → пробрасываем (наблюдаемый fail-closed):
+        # курсор не продвинут, следующий прогон перечитает эти трейды.
+        if fills_raw:
+            max_trade_id = max(f.trade_id for f in fills_raw)
+            max_ts = max(f.transact_time for f in fills_raw)
+            with self._session_factory() as s:
+                repo = OrderLedgerRepository(s)
+                repo.upsert_reconcile_bookmark(
+                    venue=venue,
+                    entity_type="fills",
+                    symbol=symbol,
+                    last_trade_id=max_trade_id,
+                    last_timestamp=max_ts,
+                    now=self._now_fn(),
+                )
+                s.commit()
 
         return report
 
