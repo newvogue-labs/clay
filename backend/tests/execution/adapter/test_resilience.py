@@ -39,6 +39,7 @@ from clay.execution.adapter.errors import (
     InsufficientFundsError,
     InvalidOrderError,
     OperationNotAllowedError,
+    OrderNotFoundError,
     OrderRejectedError,
     TransientAdapterError,
 )
@@ -492,6 +493,45 @@ class TestReadRetry:
         result = resilient.quantize_order(req, rules)
 
         assert result == req
+
+
+# ---------------------------------------------------------------------------
+# OrderNotFoundError propagation — no retry, no CB trip
+# ---------------------------------------------------------------------------
+
+
+class TestOrderNotFoundErrorPropagation:
+    @pytest.mark.anyio
+    async def test_order_not_found_propagates_without_retry(self) -> None:
+        """OrderNotFoundError from inner → immediate propagation, no retry."""
+        inner = FakeInnerAdapter()
+        inner.set_get_order_effect(
+            OrderNotFoundError("not found", symbol="BTCUSDT", venue_order_id="v-1")
+        )
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+
+        with pytest.raises(OrderNotFoundError, match="not found"):
+            await resilient.get_order("BTCUSDT", "v-1")
+
+        assert inner._get_order_calls == 1
+
+    @pytest.mark.anyio
+    async def test_order_not_found_does_not_trip_cb(self) -> None:
+        """OrderNotFoundError does NOT trip the circuit breaker."""
+        from clay.execution.resilience import _CBState
+
+        inner = FakeInnerAdapter()
+        inner.set_get_order_effect(
+            OrderNotFoundError("not found", symbol="BTCUSDT", venue_order_id="v-1")
+        )
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=_cb_policy(threshold=1, reset_s="999")
+        )  # type: ignore[arg-type]
+
+        with pytest.raises(OrderNotFoundError):
+            await resilient.get_order("BTCUSDT", "v-1")
+
+        assert resilient._cb.state == _CBState.CLOSED
 
 
 # ---------------------------------------------------------------------------

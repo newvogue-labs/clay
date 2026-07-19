@@ -29,6 +29,7 @@ from clay.execution.adapter.errors import (
     ConfigError,
     InsufficientFundsError,
     InvalidOrderError,
+    OrderNotFoundError,
     OrderRejectedError,
     TransientAdapterError,
 )
@@ -544,14 +545,15 @@ class TestGetOrder:
         assert isinstance(snap.executed_qty, Decimal)
 
     @pytest.mark.anyio
-    async def test_not_found_returns_empty_snapshot(self) -> None:
+    async def test_not_found_raises_order_not_found(self) -> None:
         client = FakeBinanceClient()
         adapter = _adapter(client)
 
-        snap = await adapter.get_order("BTCUSDT", "nonexistent")
+        with pytest.raises(OrderNotFoundError) as exc_info:
+            await adapter.get_order("BTCUSDT", "nonexistent")
 
-        assert snap.venue_order_id == "nonexistent"
-        assert snap.quantity == Decimal("0")
+        assert exc_info.value.venue_order_id == "nonexistent"
+        assert exc_info.value.symbol == "BTCUSDT"
 
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
