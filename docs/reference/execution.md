@@ -66,3 +66,14 @@
     options:
       members:
         - MarketRules
+
+## Order Ledger Schema
+
+Tables in the ``ops`` schema that form the foundation of the order journal.
+Schema + models only — not yet wired to any production code.
+
+- ``order_events`` — append-only event journal (one row per state change)
+- ``order_current_state`` — current-state snapshot per order
+- ``fills`` — trade-level fill records
+
+::: clay.db.models_orders
