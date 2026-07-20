@@ -349,9 +349,7 @@ class ResilientExecutionAdapter:
     ) -> list[Fill]:
         return await self._cb.call(
             lambda: self._retry_transient(
-                lambda: self._inner.get_my_trades(
-                    symbol, since=since, from_id=from_id
-                )
+                lambda: self._inner.get_my_trades(symbol, since=since, from_id=from_id)
             )
         )
 
