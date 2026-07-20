@@ -19,7 +19,7 @@ from clay.execution.adapter.domain import (
     OrderRequest,
     OrderSnapshot,
 )
-from clay.execution.adapter.enums import Environment
+from clay.execution.adapter.enums import CancelResult, Environment
 from clay.execution.adapter.rules import MarketRules
 
 
@@ -41,7 +41,9 @@ class ExchangeAdapter(Protocol):
 
     async def place_order(self, req: OrderRequest) -> OrderAck: ...
 
-    async def cancel_order(self, symbol: str, venue_order_id: str) -> None: ...
+    async def cancel_order(
+        self, symbol: str, venue_order_id: str
+    ) -> CancelResult: ...
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
         """Fetch a single order by venue ID.
@@ -68,5 +70,15 @@ class ExchangeAdapter(Protocol):
 
         ``from_id`` — venue-курсор пагинации (id последнего обработанного трейда).
         ``since`` — fallback/инициализация (ms-imestamp начала окна).
+        """
+        ...
+
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        """Resolve order by client_order_id (for projections with venue_order_id=None).
+
+        Returns OrderSnapshot if found, None if not found.
+        Implemented per-venue: Binance uses origClientOrderId, Bybit uses orderLinkId.
         """
         ...

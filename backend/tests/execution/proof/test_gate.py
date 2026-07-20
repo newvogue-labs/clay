@@ -15,6 +15,7 @@ from clay.execution.adapter.domain import (
     OrderSnapshot,
 )
 from clay.execution.adapter.enums import (
+    CancelResult,
     Environment,
     OrderSide,
     OrderState,
@@ -92,8 +93,10 @@ class FakeInner:
             fills=(),
         )
 
-    async def cancel_order(self, symbol: str, venue_order_id: str) -> None:
-        pass
+    async def cancel_order(
+        self, symbol: str, venue_order_id: str
+    ) -> CancelResult:
+        return CancelResult.CANCELED
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
         raise NotImplementedError

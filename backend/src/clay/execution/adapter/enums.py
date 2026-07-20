@@ -39,9 +39,19 @@ class OrderState(StrEnum):
     CANCELED = "canceled"
     REJECTED = "rejected"
     EXPIRED = "expired"
+    UNKNOWN = "unknown"
 
 
 class PrecisionMode(StrEnum):
     TICK_SIZE = "tick_size"
     SIGNIFICANT_DIGITS = "significant_digits"
     DECIMAL_PLACES = "decimal_places"
+
+
+class CancelResult(StrEnum):
+    """Result status for cancel_order (F-D12-3)."""
+
+    CANCELED = "canceled"
+    ALREADY_GONE = "already_gone"
+    FILLED = "filled"
+    NOT_FOUND = "not_found"

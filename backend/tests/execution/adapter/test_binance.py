@@ -17,6 +17,7 @@ from clay.execution.adapter.binance import (
 from clay.execution.adapter.ccxt_base import _map_state
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
+    CancelResult,
     Environment,
     OrderSide,
     OrderState,
@@ -235,8 +236,8 @@ class TestMapState:
     def test_expired(self) -> None:
         assert _map_state("expired", Decimal("0")) == OrderState.EXPIRED
 
-    def test_unknown_defaults_to_new(self) -> None:
-        assert _map_state("weird_status", Decimal("0")) == OrderState.NEW
+    def test_unknown_defaults_to_unknown(self) -> None:
+        assert _map_state("weird_status", Decimal("0")) == OrderState.UNKNOWN
 
 
 # ---------------------------------------------------------------------------
@@ -492,14 +493,16 @@ class TestCancelOrder:
         client._orders["v-1"] = {"id": "v-1"}
         adapter = _adapter(client)
 
-        await adapter.cancel_order("BTCUSDT", "v-1")  # no raise
+        result = await adapter.cancel_order("BTCUSDT", "v-1")
+        assert result == CancelResult.CANCELED
 
     @pytest.mark.anyio
-    async def test_order_not_found_silent(self) -> None:
+    async def test_order_not_found_returns_not_found(self) -> None:
         client = FakeBinanceClient()
         adapter = _adapter(client)
 
-        await adapter.cancel_order("BTCUSDT", "nonexistent")  # no raise
+        result = await adapter.cancel_order("BTCUSDT", "nonexistent")
+        assert result == CancelResult.NOT_FOUND
 
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
