@@ -15,6 +15,7 @@ from clay.execution.adapter.bybit import (
 )
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
+    CancelResult,
     Environment,
     OrderSide,
     OrderState,
@@ -523,15 +524,16 @@ class TestCancelOrder:
         client._orders["o-1"] = {"id": "o-1"}
         adapter = _adapter(client)
 
-        await adapter.cancel_order("BTCUSDT", "o-1")
+        result = await adapter.cancel_order("BTCUSDT", "o-1")
+        assert result == CancelResult.CANCELED
 
     @pytest.mark.anyio
-    async def test_order_not_found_silent(self) -> None:
+    async def test_order_not_found_returns_not_found(self) -> None:
         client = FakeBybitClient()
         adapter = _adapter(client)
 
-        # Should not raise
-        await adapter.cancel_order("BTCUSDT", "nonexistent")
+        result = await adapter.cancel_order("BTCUSDT", "nonexistent")
+        assert result == CancelResult.NOT_FOUND
 
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:

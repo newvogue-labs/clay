@@ -31,6 +31,7 @@ from clay.execution.adapter.domain import (
     OrderSnapshot,
 )
 from clay.execution.adapter.enums import (
+    CancelResult,
     Environment,
     OrderSide,
     OrderState,
@@ -138,11 +139,12 @@ class CcxtExchangeAdapter:
             req.client_order_id, cast("dict[str, Any]", response)
         )
 
-    async def cancel_order(self, symbol: str, venue_order_id: str) -> None:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         try:
             await self._client.cancel_order(id=venue_order_id, symbol=symbol)
+            return CancelResult.CANCELED
         except ccxt.OrderNotFound:
-            return
+            return CancelResult.NOT_FOUND
         except ccxt.NetworkError as exc:
             raise TransientAdapterError(str(exc)) from exc
         except ccxt.AuthenticationError as exc:
@@ -244,6 +246,37 @@ class CcxtExchangeAdapter:
             raise OrderRejectedError(str(exc)) from exc
 
         return [_fill_from_my_trade(cast("dict[str, Any]", t)) for t in trades]
+
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        """Resolve order by client_order_id.
+
+        Default implementation: search through open orders and reconcile history.
+        Subclasses may override with venue-specific optimised paths.
+        """
+        # Try open orders first (fast path)
+        try:
+            open_orders = await self.get_open_orders(symbol)
+            for snap in open_orders:
+                if snap.client_order_id == client_order_id:
+                    return snap
+        except Exception:
+            pass
+
+        # Fallback: search reconcile history (slower path)
+        try:
+            from datetime import timedelta
+
+            since = datetime.now() - timedelta(hours=24)
+            reconcile_orders = await self.reconcile_orders(symbol, since)
+            for snap in reconcile_orders:
+                if snap.client_order_id == client_order_id:
+                    return snap
+        except Exception:
+            pass
+
+        return None
 
     async def close(self) -> None:
         await self._client.close()
@@ -377,7 +410,8 @@ def _map_state(status: str, filled: Decimal) -> OrderState:
     """Map ccxt order status to domain ``OrderState``.
 
     ``open`` with ``filled > 0`` -> ``PARTIALLY_FILLED``.
+    Unknown statuses map to ``UNKNOWN`` (not ``NEW``) — F-D12-2.
     """
     if status == "open":
         return OrderState.PARTIALLY_FILLED if filled > 0 else OrderState.NEW
-    return _STATE_MAP.get(status, OrderState.NEW)
+    return _STATE_MAP.get(status, OrderState.UNKNOWN)

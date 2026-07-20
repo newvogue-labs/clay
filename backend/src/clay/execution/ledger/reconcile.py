@@ -45,6 +45,7 @@ def map_venue_state(state: OrderState) -> LedgerState:
         OrderState.CANCELED: LedgerState.CANCELED,
         OrderState.REJECTED: LedgerState.REJECTED,
         OrderState.EXPIRED: LedgerState.EXPIRED,
+        OrderState.UNKNOWN: LedgerState.UNKNOWN,
     }
     return _MAP[state]
 
@@ -325,8 +326,10 @@ def _venue_more_advanced(a: OrderState, b: OrderState) -> bool:
     """Определить, является ли ``a`` более продвинутым/терминальным, чем ``b``.
 
     Терминальные состояния всегда «выше»; среди остальных — ``filled > partially_filled > new``.
+    UNKNOWN xếp cuối (less advanced).
     """
     _RANK: dict[OrderState, int] = {
+        OrderState.UNKNOWN: -1,
         OrderState.NEW: 0,
         OrderState.PARTIALLY_FILLED: 1,
         OrderState.FILLED: 2,
@@ -334,4 +337,4 @@ def _venue_more_advanced(a: OrderState, b: OrderState) -> bool:
         OrderState.REJECTED: 2,
         OrderState.EXPIRED: 2,
     }
-    return _RANK[a] > _RANK[b]
+    return _RANK.get(a, -1) > _RANK.get(b, -1)

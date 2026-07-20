@@ -19,7 +19,7 @@ from clay.execution.adapter.domain import (
     OrderRequest,
     OrderSnapshot,
 )
-from clay.execution.adapter.enums import Environment
+from clay.execution.adapter.enums import CancelResult, Environment
 from clay.execution.adapter.rules import MarketRules
 from clay.execution.proof.checker import admit
 from clay.execution.proof.decision import Decision, DecisionRecord
@@ -225,7 +225,7 @@ class ExecutionProofGate:
             raise ProofGateDeniedError(record.reason_codes)
         return await self._inner.place_order(quantized)
 
-    async def cancel_order(self, symbol: str, venue_order_id: str) -> None:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         return await self._inner.cancel_order(symbol, venue_order_id)
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
@@ -241,6 +241,11 @@ class ExecutionProofGate:
 
     async def get_balances(self) -> list[BalanceSnapshot]:
         return await self._inner.get_balances()
+
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        return await self._inner.get_by_client_order_id(symbol, client_order_id)
 
     def _persist(
         self,

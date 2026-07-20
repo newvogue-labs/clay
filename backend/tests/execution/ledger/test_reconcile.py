@@ -174,6 +174,9 @@ class TestMapVenueState:
     def test_expired(self) -> None:
         assert map_venue_state(OrderState.EXPIRED) == LedgerState.EXPIRED
 
+    def test_unknown(self) -> None:
+        assert map_venue_state(OrderState.UNKNOWN) == LedgerState.UNKNOWN
+
 
 # ---------------------------------------------------------------------------
 # D4: reconcile_symbol

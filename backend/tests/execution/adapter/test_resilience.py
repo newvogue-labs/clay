@@ -26,6 +26,7 @@ from clay.execution.adapter.domain import (
     OrderSnapshot,
 )
 from clay.execution.adapter.enums import (
+    CancelResult,
     Environment,
     OrderSide,
     OrderState,
@@ -137,12 +138,13 @@ class FakeInnerAdapter:
             return eff
         return _make_ack(req)
 
-    async def cancel_order(self, symbol: str, venue_order_id: str) -> None:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         self._cancel_order_calls += 1
         if self._cancel_order_effects:
             eff = self._cancel_order_effects.pop(0)
             if isinstance(eff, BaseException):
                 raise eff
+        return CancelResult.CANCELED
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
         self._get_order_calls += 1
@@ -186,6 +188,11 @@ class FakeInnerAdapter:
         self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
     ) -> list[Fill]:
         return []
+
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        return None
 
 
 # ---------------------------------------------------------------------------

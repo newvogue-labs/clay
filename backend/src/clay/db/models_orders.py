@@ -11,6 +11,7 @@ journal.  Not yet wired to any production code — schema + models + tests only.
 
 from datetime import datetime
 
+import sqlalchemy as sa
 from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -151,3 +152,31 @@ class ReconcileBookmark(Base):
     last_trade_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_timestamp: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+
+
+class HaltLatch(Base):
+    """Durable halt-latch for execution-gate (D-12d D4).
+
+    One row — singleton pattern (select-then-upsert, SQLite-portable).
+    When ``engaged=True``, execution gate denies all ``place_order``
+    calls (SessionMode.HALTED). Reset is manual-only (operator action),
+    audit-logged. A clean reconcile tick does NOT disengage the latch.
+    """
+
+    __tablename__ = "halt_latch"
+    __table_args__ = ({"schema": "ops"},)
+
+    latch_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
+    engaged: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        nullable=False,
+        server_default="0",
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    engaged_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    reset_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    reset_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

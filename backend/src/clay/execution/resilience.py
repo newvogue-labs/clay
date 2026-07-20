@@ -25,7 +25,7 @@ from clay.execution.adapter.domain import (
     OrderRequest,
     OrderSnapshot,
 )
-from clay.execution.adapter.enums import Environment
+from clay.execution.adapter.enums import CancelResult, Environment
 from clay.execution.adapter.errors import (
     AmbiguousExecutionError,
     CircuitOpenError,
@@ -303,7 +303,7 @@ class ResilientExecutionAdapter:
 
     # -- order-plane: cancel via CB → retry ---------------------------------
 
-    async def cancel_order(self, symbol: str, venue_order_id: str) -> None:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         """Cancel with CB + bounded transient retry (order-plane, venue-sticky)."""
         return await self._cb.call(
             lambda: self._retry_transient(
@@ -350,6 +350,15 @@ class ResilientExecutionAdapter:
         return await self._cb.call(
             lambda: self._retry_transient(
                 lambda: self._inner.get_my_trades(symbol, since=since, from_id=from_id)
+            )
+        )
+
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        return await self._cb.call(
+            lambda: self._retry_transient(
+                lambda: self._inner.get_by_client_order_id(symbol, client_order_id)
             )
         )
 

@@ -73,6 +73,8 @@ class OrderReconcileJob:
         self._cache: tuple[bool, int] | None = None
         # Episode flag for on_error anti-flood; reset on success.
         self._failing: bool = False
+        # D-12d D8: transition-gated fatal audit (write on transition, not every tick)
+        self._was_fatal: bool = False
 
     async def run(self) -> None:
         """Execute one reconcile-cycle tick. See class docstring."""
@@ -108,21 +110,6 @@ class OrderReconcileJob:
                 total_mismatches += len(report.mismatches)
                 if report.has_fatal:
                     any_fatal = True
-                    self._audit_writer.write(
-                        "reconcile.fatal_mismatch",
-                        {
-                            "venue": venue,
-                            "symbol": symbol,
-                            "mismatches": [
-                                {
-                                    "kind": m.kind.value,
-                                    "detail": m.detail,
-                                }
-                                for m in report.mismatches
-                                if m.kind.value in {"illegal_drift", "venue_orphan"}
-                            ],
-                        },
-                    )
             except Exception:
                 logger.exception(
                     "clay.scheduler: reconcile_symbol failed for %s/%s",
@@ -130,6 +117,25 @@ class OrderReconcileJob:
                     symbol,
                 )
                 raise
+
+        # D-12d D8: transition-gated fatal audit (write on transition, not every tick)
+        if any_fatal and not self._was_fatal:
+            # Transition: non-fatal → fatal — write audit ONCE per transition
+            self._audit_writer.write(
+                "reconcile.fatal_mismatch",
+                {
+                    "any_fatal": True,
+                    "total_mismatches": total_mismatches,
+                    "pairs_reconciled": len(pairs),
+                },
+            )
+        elif not any_fatal and self._was_fatal:
+            # Transition: fatal → non-fatal — log recovery
+            logger.info(
+                "reconcile: fatal mismatch cleared after %d ticks",
+                total_mismatches,
+            )
+        self._was_fatal = any_fatal
 
         # Step 4: anti-flood transition diff.
         # B4 #11: a successful tick closes the failing episode so a
