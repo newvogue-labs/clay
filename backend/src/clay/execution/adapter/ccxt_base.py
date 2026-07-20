@@ -119,8 +119,9 @@ class CcxtExchangeAdapter:
         except ccxt.InvalidOrder as exc:
             if self._is_duplicate_cid(exc):
                 raise AmbiguousExecutionError(
-                    f"duplicate clientOrderId ({self._dup_cid_code}): order may "
-                    f"already exist, reconcile required (cid={req.client_order_id!r})"
+                    f"duplicate clientOrderId: order may already exist, "
+                    f"reconcile required (cid={req.client_order_id!r}); "
+                    f"venue error: {exc}"
                 ) from exc
             raise InvalidOrderError(str(exc)) from exc
         except ccxt.NetworkError as exc:
@@ -130,8 +131,9 @@ class CcxtExchangeAdapter:
         except ccxt.ExchangeError as exc:
             if self._is_duplicate_cid(exc):
                 raise AmbiguousExecutionError(
-                    f"duplicate clientOrderId ({self._dup_cid_code}): order may "
-                    f"already exist, reconcile required (cid={req.client_order_id!r})"
+                    f"duplicate clientOrderId: order may already exist, "
+                    f"reconcile required (cid={req.client_order_id!r}); "
+                    f"venue error: {exc}"
                 ) from exc
             raise OrderRejectedError(str(exc)) from exc
 
@@ -292,8 +294,6 @@ class CcxtExchangeAdapter:
     def _is_duplicate_cid(self, exc: Exception) -> bool:
         """Detect venue-specific duplicate clientOrderId error."""
         ...
-
-    _dup_cid_code: ClassVar[str] = ""
 
     @abstractmethod
     def _build_order_params(self, req: OrderRequest) -> dict[str, Any]:

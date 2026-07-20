@@ -486,6 +486,49 @@ class TestPlaceOrderDuplicateCid:
             await adapter.place_order(_make_request())
 
 
+# ---------------------------------------------------------------------------
+# D4-regression: message contains actual venue error text
+# ---------------------------------------------------------------------------
+
+
+_DUPLICATE_CID_TEXT_MSG = (
+    "binance POST https://api.binance.com/api/v3/order 400 "
+    '{"code":-4116,"msg":"DUPLICATED_CLIENT_ORDER_ID"}'
+)
+
+
+class TestDuplicateCidMessageRegression:
+    """Verify AmbiguousExecutionError message contains venue error text."""
+
+    @pytest.mark.anyio
+    async def test_duplicated_client_order_id_in_message(self) -> None:
+        """DUPLICATED_CLIENT_ORDER_ID → message contains the venue error string."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.ExchangeError(_DUPLICATE_CID_TEXT_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(
+            AmbiguousExecutionError, match="DUPLICATED_CLIENT_ORDER_ID"
+        ) as exc_info:
+            await adapter.place_order(_make_request())
+        msg = str(exc_info.value)
+        assert "cid=" in msg
+
+    @pytest.mark.anyio
+    async def test_4116_still_ambiguous(self) -> None:
+        """-4116 path still raises AmbiguousExecutionError (regression guard)."""
+        client = FakeBinanceClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_FUTURES_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="-4116"):
+            await adapter.place_order(_make_request())
+
+
 class TestCancelOrder:
     @pytest.mark.anyio
     async def test_happy_path(self) -> None:
