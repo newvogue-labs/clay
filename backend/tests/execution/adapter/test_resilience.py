@@ -178,7 +178,6 @@ class FakeInnerAdapter:
         if self._get_balances_effects:
             eff = self._get_balances_effects.pop(0)
             if isinstance(eff, BaseException):
-
                 raise eff
             return eff
         return []
