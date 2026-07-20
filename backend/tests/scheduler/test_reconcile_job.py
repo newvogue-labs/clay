@@ -393,9 +393,7 @@ async def test_fatal_wiring_calls_on_fatal_report(tmp_path: Path) -> None:
     wiring = MagicMock()
     wiring.on_fatal_report.return_value = True
 
-    job, _, _, _ = _make_job(
-        tmp_path, reconcile_service=svc, projections=[proj]
-    )
+    job, _, _, _ = _make_job(tmp_path, reconcile_service=svc, projections=[proj])
     job._fatal_halt_wiring = wiring
 
     with patch("clay.scheduler.reconcile_job.OrderLedgerRepository") as MockRepo:
@@ -438,9 +436,7 @@ async def test_fatal_wiring_none_no_crash(tmp_path: Path) -> None:
     proj.venue = "binance"
     proj.symbol = "BTCUSDT"
 
-    job, _, _, _ = _make_job(
-        tmp_path, reconcile_service=svc, projections=[proj]
-    )
+    job, _, _, _ = _make_job(tmp_path, reconcile_service=svc, projections=[proj])
     # wiring is None (default)
 
     with patch("clay.scheduler.reconcile_job.OrderLedgerRepository") as MockRepo:
@@ -479,9 +475,7 @@ async def test_clean_report_does_not_call_wiring(tmp_path: Path) -> None:
 
     wiring = MagicMock()
 
-    job, _, _, _ = _make_job(
-        tmp_path, reconcile_service=svc, projections=[proj]
-    )
+    job, _, _, _ = _make_job(tmp_path, reconcile_service=svc, projections=[proj])
     job._fatal_halt_wiring = wiring
 
     with patch("clay.scheduler.reconcile_job.OrderLedgerRepository") as MockRepo:
