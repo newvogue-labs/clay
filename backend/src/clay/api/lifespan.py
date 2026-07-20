@@ -62,6 +62,7 @@ from clay.bootstrap import (
     ingestion_settings as _ingestion_settings,
     knowledge_service as _knowledge_service,
     market_ingestion_service as _market_ingestion_service,
+    override_service as _override_service,
     registry as _registry,
     reliability_service as _reliability_service,
     scheduler_settings,
@@ -79,6 +80,7 @@ from clay.llm import LLMAdapter
 from clay.settings.llm import LLMSettings
 from clay.scheduler.ai_agent_job import AIAgentCycleJob
 from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
+from clay.scheduler.reconcile_job import OrderReconcileJob
 from clay.scheduler.prompts import CHIEF_AGENT_SYSTEM_PROMPT
 from clay.scheduler.service import ClayScheduler
 from clay.settings.ollama import OllamaSettings
@@ -169,6 +171,71 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 knowledge_mode=scheduler_settings.ai_agent_knowledge_mode,
                 signal_engine_service=_signal_engine_service,
             )
+        reconcile_job: OrderReconcileJob | None = None
+        if scheduler_settings.reconcile_enabled:
+            from clay.execution.adapter.binance import BinanceExecutionAdapter
+            from clay.execution.config import ExecutionConfig, environment_from_mode
+            from clay.execution.ledger.reconcile import OrderReconcileService
+            from clay.execution.resilience import ResilientExecutionAdapter
+
+            reconcile_cfg = ExecutionConfig.from_env()
+            reconcile_env = environment_from_mode(reconcile_cfg.mode)
+            if (
+                reconcile_env is None
+                or not reconcile_cfg.api_key
+                or not reconcile_cfg.api_secret
+                or reconcile_cfg.mode == "live"
+            ):
+                logger.warning(
+                    "clay.lifespan: reconcile_enabled=True but testnet "
+                    "credentials not available or mode=%s — "
+                    "reconcile job NOT built (testnet-only)",
+                    reconcile_cfg.mode,
+                )
+            else:
+                inner_adapter = BinanceExecutionAdapter(
+                    environment=reconcile_env,
+                    api_key=reconcile_cfg.api_key,
+                    api_secret=reconcile_cfg.api_secret,
+                )
+                resilient_adapter = ResilientExecutionAdapter(inner_adapter)
+                reconcile_svc = OrderReconcileService(
+                    _session_factory, resilient_adapter
+                )
+                reconcile_job = OrderReconcileJob(
+                    reconcile_service=reconcile_svc,
+                    session_factory=_session_factory,
+                    audit_writer=_audit_writer,
+                    event_bus=_event_bus,
+                    lookback_seconds=scheduler_settings.reconcile_lookback_seconds,
+                )
+
+                # D-12c: wire pre-arm reconcile hook into OverrideService.
+                async def _pre_arm_hook() -> bool:
+                    """Iterate active projections, reconcile each, return True if fatal."""
+                    from clay.execution.ledger.repository import OrderLedgerRepository
+
+                    with _session_factory() as session:
+                        repo = OrderLedgerRepository(session)
+                        active = repo.list_active_projections()
+                    pairs: set[tuple[str, str]] = set()
+                    for p in active:
+                        if p.venue and p.symbol:
+                            pairs.add((p.venue, p.symbol))
+                    from datetime import timedelta as _td
+
+                    since = reconcile_svc._now_fn() - _td(
+                        seconds=scheduler_settings.reconcile_lookback_seconds
+                    )
+                    for venue, symbol in sorted(pairs):
+                        report = await reconcile_svc.reconcile_symbol(
+                            symbol, since, venue=venue
+                        )
+                        if report.has_fatal:
+                            return True
+                    return False
+
+                _override_service.set_pre_arm_reconcile(_pre_arm_hook)
         if scheduler_settings.enabled:
             scheduler = ClayScheduler(
                 settings=scheduler_settings,
@@ -181,6 +248,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 ingestion_cycle_service=_ingestion_cycle_service,
                 ai_agent_cycle_job=ai_agent_cycle_job,
                 provider_pool_reconcile_job=provider_pool_reconcile_job,
+                reconcile_job=reconcile_job,
             )
             scheduler.start()
             app.state.scheduler = scheduler

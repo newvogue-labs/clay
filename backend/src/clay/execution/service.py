@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -76,6 +76,7 @@ class OverrideService:
         self._execution_config = execution_config
         self._state: _OverrideState = _OverrideState()
         self._degraded_probe: Callable[[], bool] | None = degraded_probe
+        self._pre_arm_reconcile: Callable[[], Awaitable[bool]] | None = None
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
@@ -94,6 +95,15 @@ class OverrideService:
         since ``OverrideService`` is built earlier in the dependency order.
         """
         self._degraded_probe = probe
+
+    def set_pre_arm_reconcile(self, hook: Callable[[], Awaitable[bool]]) -> None:
+        """Late-bind the pre-arm reconcile hook (D-12c).
+
+        Called from lifespan after ``OrderReconcileService`` is constructed.
+        The hook is an async callable that returns ``True`` if fatal
+        mismatches were found (arm denied), ``False`` if clean.
+        """
+        self._pre_arm_reconcile = hook
 
     async def request_override(
         self,
@@ -156,12 +166,39 @@ class OverrideService:
 
         Preconditions ( enforced):
         - current status == "pending"
+
+        D-12c: if a pre-arm reconcile hook is set, it is called before
+        confirmation. Fatal mismatches → deny (ExecutionConfigError).
+        Hook exceptions → fail-closed (deny).
         """
         if self._state.status != "pending":
             raise ExecutionConfigError(
                 f"confirm rejected: override not pending "
                 f"(status={self._state.status!r})"
             )
+
+        # D-12c: pre-arm reconcile check (before flipping to confirmed).
+        if self._pre_arm_reconcile is not None:
+            try:
+                fatal = await self._pre_arm_reconcile()
+            except Exception:
+                logger.warning(
+                    "pre_arm_reconcile hook raised; failing closed (deny)",
+                    exc_info=True,
+                )
+                fatal = True
+            if fatal:
+                override_id = self._state.override_id
+                assert override_id is not None
+                await self._append_audit(
+                    override_id=override_id,
+                    actor=actor,
+                    action="arm_denied_reconcile",
+                    mode_before=None,
+                    mode_after=None,
+                    reason="reconcile found fatal mismatch",
+                )
+                raise ExecutionConfigError("arm denied: reconcile found fatal mismatch")
 
         override_id = self._state.override_id
         assert override_id is not None  # invariant: set whenever status != None

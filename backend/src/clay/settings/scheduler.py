@@ -101,6 +101,18 @@ class SchedulerSettings(BaseSettings):
     # (5 minutes). Sync job on ThreadPoolExecutor.
     provider_pool_reconcile_interval_seconds: int = 300
 
+    # D-12c: gate for the ``reconcile-cycle`` job. ``False`` skips
+    # registration (default ``False`` — opt-in only, testnet-only).
+    reconcile_enabled: bool = False
+
+    # D-12c: interval for the ``reconcile-cycle`` job. Default 300s
+    # (5 minutes). Async job on the event loop.
+    reconcile_interval_seconds: int = 300
+
+    # D-12c: lookback window for ``reconcile_symbol`` since parameter.
+    # Default 3600s (1 hour).
+    reconcile_lookback_seconds: int = 3600
+
     # MP2: readiness stale-threshold in seconds. Default 120 (2 × default
     # ingestion_cycle_interval). Used by ``/health/ready`` to classify
     # ingest-freshness as stale. Overridable via
