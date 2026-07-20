@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import create_engine
@@ -180,4 +181,131 @@ class TestStartupReconciliation:
 
         result = await startup.run_startup_reconciliation()
 
+        assert result is False
+
+
+# === D-15: fatal_halt_wiring integration ===
+
+
+class TestStartupReconciliationFatalWiring:
+    """D-15: StartupReconciliation wires fatal reports to halt-latch."""
+
+    @pytest.mark.asyncio
+    async def test_fatal_engages_latch(self, session_factory) -> None:
+        """Fatal report → halt-latch engaged via wiring."""
+        from clay.execution.ledger.fatal_halt import FatalHaltWiring
+        from clay.execution.ledger.halt_latch import HaltLatchRepository
+
+        _create_projection(session_factory, cid="cid-001", state=LedgerState.UNKNOWN)
+
+        # Adapter that returns a fatal report
+        adapter = FakeReconcileAdapter()
+        reconcile_service = OrderReconcileService(
+            session_factory=session_factory,
+            adapter=adapter,
+        )
+
+        wiring = FatalHaltWiring(session_factory=session_factory)
+
+        startup = StartupReconciliation(
+            session_factory=session_factory,
+            reconcile_service=reconcile_service,
+            fatal_halt_wiring=wiring,
+        )
+
+        # Make reconcile_symbol return a fatal report
+        from clay.execution.ledger.reconcile import (
+            Mismatch,
+            ReconcileMismatchKind,
+            ReconcileReport,
+        )
+
+        fatal_report = ReconcileReport(
+            mismatches=[
+                Mismatch(
+                    kind=ReconcileMismatchKind.ILLEGAL_DRIFT,
+                    client_order_id="cid-001",
+                    venue_order_id="void-001",
+                    detail="test fatal",
+                )
+            ]
+        )
+
+        async def _fatal_reconcile(
+            symbol: str, since: datetime, *, venue: str
+        ) -> ReconcileReport:
+            return fatal_report
+
+        reconcile_service.reconcile_symbol = _fatal_reconcile  # type: ignore[method-assign]
+
+        result = await startup.run_startup_reconciliation()
+
+        # Latch should be engaged
+        with session_factory() as s:
+            repo = HaltLatchRepository(s)
+            assert repo.is_engaged() is True
+
+        # Return False because has_fatal
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_escalated_engages_latch(self, session_factory) -> None:
+        """Age-escalated UNKNOWNs → halt-latch engaged via wiring."""
+        from unittest.mock import AsyncMock, MagicMock as MockMagic
+
+        from clay.execution.ledger.fatal_halt import FatalHaltWiring
+        from clay.execution.ledger.halt_latch import HaltLatchRepository
+
+        _create_projection(session_factory, cid="cid-001", state=LedgerState.UNKNOWN)
+
+        adapter = FakeReconcileAdapter()
+        reconcile_service = OrderReconcileService(
+            session_factory=session_factory,
+            adapter=adapter,
+        )
+
+        wiring = FatalHaltWiring(session_factory=session_factory)
+
+        # Create a mock unknown_resolver that returns escalated (async method)
+        mock_resolver = MockMagic()
+        resolver_report = MockMagic()
+        resolver_report.escalated_to_fatal = ["cid-001"]
+        mock_resolver.resolve_symbol = AsyncMock(return_value=resolver_report)
+
+        startup = StartupReconciliation(
+            session_factory=session_factory,
+            reconcile_service=reconcile_service,
+            unknown_resolver=mock_resolver,
+            fatal_halt_wiring=wiring,
+        )
+
+        result = await startup.run_startup_reconciliation()
+
+        # Latch should be engaged
+        with session_factory() as s:
+            repo = HaltLatchRepository(s)
+            assert repo.is_engaged() is True
+
+        # Return False because escalated_to_fatal
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_wiring_none_no_crash(self, session_factory) -> None:
+        """fatal_halt_wiring=None → no crash on fatal report."""
+        _create_projection(session_factory, cid="cid-001", state=LedgerState.UNKNOWN)
+
+        adapter = FakeReconcileAdapter()
+        reconcile_service = OrderReconcileService(
+            session_factory=session_factory,
+            adapter=adapter,
+        )
+
+        startup = StartupReconciliation(
+            session_factory=session_factory,
+            reconcile_service=reconcile_service,
+            # fatal_halt_wiring=None (default)
+        )
+
+        # reconcile will fail (adapter returns None type) → returns False
+        result = await startup.run_startup_reconciliation()
         assert result is False

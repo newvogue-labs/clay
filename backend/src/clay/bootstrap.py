@@ -44,6 +44,7 @@ from clay.execution.proof.probe import (
     build_duplicate_intent_probe,
     build_submit_rate_probe,
 )
+from clay.execution.ledger.halt_probe import build_halt_latch_mode_probe
 from clay.execution.proof.snapshot import FreshnessPolicy
 from clay.execution.resilience import CircuitBreakerPolicy, ResilientExecutionAdapter
 from clay.execution.service import OverrideService
@@ -298,6 +299,20 @@ def build_services(
             build_session_risk_probe(
                 session_factory,  # type: ignore[arg-type]
                 config_loader,
+            ),
+        )
+
+    # D-15: late-bind the halt-latch mode probe into ExecutionProofGate.
+    # Requires enforce_session + enforce_halt_latch; default OFF → probe not
+    # bound → SessionMode.NORMAL → live path byte-identical.
+    if (
+        execution_client is not None
+        and execution_config.proof_enforce_session
+        and execution_config.proof_enforce_halt_latch
+    ):
+        execution_client.set_session_mode_probe(
+            build_halt_latch_mode_probe(
+                session_factory,  # type: ignore[arg-type]
             ),
         )
 

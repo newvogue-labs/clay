@@ -101,3 +101,44 @@ class TestHaltLatch:
         repo.engage(reason="fatal_mismatch", now=now)
         # Simulate clean tick — should not call disengage
         assert repo.is_engaged() is True
+
+
+class TestHaltLatchSurvivesDispose:
+    """D-15: latch survives engine dispose via file-based SQLite."""
+
+    def test_latch_survives_engine_dispose(self, tmp_path) -> None:
+        """Engage via engine#1 → dispose → fresh engine#2 → is_engaged True."""
+        db_path = tmp_path / "halt.db"
+        db_url = f"sqlite:///{db_path}"
+
+        # Engine #1: create schema, engage latch
+        engine1 = create_engine(
+            db_url,
+            connect_args={"check_same_thread": False},
+            execution_options={"schema_translate_map": SQLITE_SCHEMA_TRANSLATE_MAP},
+        )
+        Base.metadata.create_all(engine1)
+        factory1 = sessionmaker(bind=engine1)
+
+        now = datetime.now(UTC)
+        with factory1() as s:
+            repo = HaltLatchRepository(s)
+            repo.engage(reason="fatal_mismatch_test", now=now)
+            s.commit()
+        engine1.dispose()
+
+        # Engine #2: fresh connection to same file, verify latch persisted
+        engine2 = create_engine(
+            db_url,
+            connect_args={"check_same_thread": False},
+            execution_options={"schema_translate_map": SQLITE_SCHEMA_TRANSLATE_MAP},
+        )
+        factory2 = sessionmaker(bind=engine2)
+
+        with factory2() as s:
+            repo2 = HaltLatchRepository(s)
+            assert repo2.is_engaged() is True
+            latch = repo2.get_latch()
+            assert latch is not None
+            assert latch.reason == "fatal_mismatch_test"
+        engine2.dispose()

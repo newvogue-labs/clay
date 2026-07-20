@@ -12,6 +12,8 @@ Acceptance criteria:
 7. ``test_on_error_does_not_mutate_session_scheduler`` — failure isolated.
 8. ``test_failure_success_failure_audits_twice`` — _failing reset on success.
 9. ``test_dormant_when_disabled`` — reconcile_enabled=False → job not registered.
+10. D-15: ``test_fatal_wiring_calls_on_fatal_report`` — fatal report triggers wiring.
+11. D-15: ``test_fatal_wiring_none_no_crash`` — wiring=None → no crash.
 """
 
 from __future__ import annotations
@@ -368,3 +370,127 @@ async def test_failure_success_failure_audits_twice(tmp_path: Path) -> None:
         if e["event_type"] == "reconcile.cycle_failed"
     ]
     assert len(failed) == 2
+
+
+# === D-15: fatal_halt_wiring tests ===
+
+
+@pytest.mark.anyio
+async def test_fatal_wiring_calls_on_fatal_report(tmp_path: Path) -> None:
+    """D-15: fatal report → wiring.on_fatal_report called + latch engaged."""
+    from unittest.mock import MagicMock
+
+    from clay.execution.ledger.reconcile import (
+        Mismatch,
+        ReconcileMismatchKind,
+    )
+
+    svc = FakeReconcileService()
+    proj = MagicMock()
+    proj.venue = "binance"
+    proj.symbol = "BTCUSDT"
+
+    wiring = MagicMock()
+    wiring.on_fatal_report.return_value = True
+
+    job, _, _, _ = _make_job(
+        tmp_path, reconcile_service=svc, projections=[proj]
+    )
+    job._fatal_halt_wiring = wiring
+
+    with patch("clay.scheduler.reconcile_job.OrderLedgerRepository") as MockRepo:
+        mock_repo = MagicMock()
+        mock_repo.list_active_projections.return_value = [proj]
+        MockRepo.return_value = mock_repo
+
+        # First run — seed
+        await job.run()
+
+        # Fatal mismatch
+        svc.reconcile_results["binance:BTCUSDT"] = ReconcileReport(
+            mismatches=[
+                Mismatch(
+                    kind=ReconcileMismatchKind.ILLEGAL_DRIFT,
+                    client_order_id="test-cid",
+                    venue_order_id="v-001",
+                    detail="INTENT -> FILLED illegal",
+                )
+            ]
+        )
+        await job.run()
+
+    wiring.on_fatal_report.assert_called_once()
+    call_kwargs = wiring.on_fatal_report.call_args
+    assert call_kwargs.kwargs["venue"] == "binance"
+    assert call_kwargs.kwargs["symbol"] == "BTCUSDT"
+
+
+@pytest.mark.anyio
+async def test_fatal_wiring_none_no_crash(tmp_path: Path) -> None:
+    """D-15: wiring=None → no crash on fatal report."""
+    from clay.execution.ledger.reconcile import (
+        Mismatch,
+        ReconcileMismatchKind,
+    )
+
+    svc = FakeReconcileService()
+    proj = MagicMock()
+    proj.venue = "binance"
+    proj.symbol = "BTCUSDT"
+
+    job, _, _, _ = _make_job(
+        tmp_path, reconcile_service=svc, projections=[proj]
+    )
+    # wiring is None (default)
+
+    with patch("clay.scheduler.reconcile_job.OrderLedgerRepository") as MockRepo:
+        mock_repo = MagicMock()
+        mock_repo.list_active_projections.return_value = [proj]
+        MockRepo.return_value = mock_repo
+
+        # First run — seed
+        await job.run()
+
+        # Fatal mismatch — should not crash
+        svc.reconcile_results["binance:BTCUSDT"] = ReconcileReport(
+            mismatches=[
+                Mismatch(
+                    kind=ReconcileMismatchKind.ILLEGAL_DRIFT,
+                    client_order_id="test-cid",
+                    venue_order_id="v-001",
+                    detail="INTENT -> FILLED illegal",
+                )
+            ]
+        )
+        await job.run()
+
+    # No crash — test passes if no exception raised
+
+
+@pytest.mark.anyio
+async def test_clean_report_does_not_call_wiring(tmp_path: Path) -> None:
+    """D-15: clean report → wiring.on_fatal_report NOT called."""
+    from unittest.mock import MagicMock
+
+    svc = FakeReconcileService()
+    proj = MagicMock()
+    proj.venue = "binance"
+    proj.symbol = "BTCUSDT"
+
+    wiring = MagicMock()
+
+    job, _, _, _ = _make_job(
+        tmp_path, reconcile_service=svc, projections=[proj]
+    )
+    job._fatal_halt_wiring = wiring
+
+    with patch("clay.scheduler.reconcile_job.OrderLedgerRepository") as MockRepo:
+        mock_repo = MagicMock()
+        mock_repo.list_active_projections.return_value = [proj]
+        MockRepo.return_value = mock_repo
+
+        # Seed + clean tick
+        await job.run()
+        await job.run()
+
+    wiring.on_fatal_report.assert_not_called()

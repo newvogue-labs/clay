@@ -20,6 +20,8 @@ from clay.execution.ledger.unknown_resolver import UnknownResolver
 if TYPE_CHECKING:
     from sqlalchemy.orm import sessionmaker
 
+    from clay.execution.ledger.fatal_halt import FatalHaltWiring
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +39,13 @@ class StartupReconciliation:
         reconcile_service: OrderReconcileService,
         unknown_resolver: UnknownResolver | None = None,
         now_fn: Callable[[], datetime] | None = None,
+        fatal_halt_wiring: FatalHaltWiring | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._reconcile_service = reconcile_service
         self._unknown_resolver = unknown_resolver
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
+        self._fatal_halt_wiring = fatal_halt_wiring
 
     async def run_startup_reconciliation(self) -> bool:
         """Run startup reconciliation before gate opens.
@@ -85,6 +89,11 @@ class StartupReconciliation:
                 )
                 if report.has_fatal:
                     any_fatal = True
+                    # D-15: engage halt-latch when wiring is bound
+                    if self._fatal_halt_wiring is not None:
+                        self._fatal_halt_wiring.on_fatal_report(
+                            report, venue=venue, symbol=symbol
+                        )
                     logger.warning(
                         "startup_reconciliation: fatal mismatch for %s/%s",
                         venue,
@@ -106,6 +115,13 @@ class StartupReconciliation:
                     report = await self._unknown_resolver.resolve_symbol(symbol, venue)
                     if report.escalated_to_fatal:
                         any_fatal = True
+                        # D-15: engage halt-latch on age-escalation when wiring is bound
+                        if self._fatal_halt_wiring is not None:
+                            self._fatal_halt_wiring.on_escalated_fatal(
+                                venue=venue,
+                                symbol=symbol,
+                                escalated_cids=report.escalated_to_fatal,
+                            )
                 except Exception:
                     logger.exception(
                         "startup_reconciliation: unknown-resolver failed for %s/%s",

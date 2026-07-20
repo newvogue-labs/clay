@@ -78,13 +78,13 @@ Standalone service that compares exchange order states with ledger projections a
 
 ### What This Service Does NOT Do
 
-- No halt/pause mechanism on fatal mismatches
+- ~~No halt/pause mechanism on fatal mismatches~~ — **Wired in D-15** (`CLAY_PROOF_ENFORCE_HALT_LATCH=true`). Fatal mismatches now engage the durable halt-latch via `FatalHaltWiring`, halting execution globally.
 
 ### Reconcile Scheduling (D-12c)
 
 The reconcile service is wired into two call-sites — both dormant by default (opt-in, testnet-only):
 
-1. **Periodic scheduler job** — `OrderReconcileJob` (async, `CLAY_SCHEDULER_RECONCILE_ENABLED=true`). Iterates active projections, reconciles each `(venue, symbol)` pair, emits `reconcile.cycle` audit/bus on state transitions. Fatal mismatches are signalled via `reconcile.fatal_mismatch` audit only — no halt/pause.
+1. **Periodic scheduler job** — `OrderReconcileJob` (async, `CLAY_SCHEDULER_RECONCILE_ENABLED=true`). Iterates active projections, reconciles each `(venue, symbol)` pair, emits `reconcile.cycle` audit/bus on state transitions. Fatal mismatches engage the durable halt-latch via `fatal_halt_wiring` when bound (D-15).
 
 2. **Pre-arm reconcile hook** — `OverrideService.set_pre_arm_reconcile()`. Called before `confirm_override` flips `pending → confirmed`. If fatal mismatches are found, the arm is denied (`ExecutionConfigError`). Hook exceptions → fail-closed (deny).
 
@@ -99,6 +99,23 @@ The reconcile service is wired into two call-sites — both dormant by default (
 **Testnet-only constraint:** The adapter is only built when `mode != "live"` and testnet API keys are present. In live mode or without keys, the reconcile job is silently not built.
 
 **Bookmark cursor fix (D-12c):** The bookmark now advances only to the latest *ingested* fill (the one actually written via `record_fills`), not the latest raw fill from the venue. This prevents skipping fills when orphan fills are present ahead of the cursor.
+
+### Halt-Latch Enforcement (D-15)
+
+The FATAL→halt enforcement loop is now wired (D-12d signal-only → D-15 enforced). Requires two flags:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAY_PROOF_ENFORCE_SESSION` | `false` | Master gate for all session-mode probes |
+| `CLAY_PROOF_ENFORCE_HALT_LATCH` | `false` | Enable halt-latch mode probe + fatal_halt_wiring |
+
+**Wiring sites:**
+- **bootstrap.py** — late-binds `halt_probe` into `ExecutionProofGate.session_mode_probe` when both flags ON. Default OFF → `SessionMode.NORMAL` → live path byte-identical.
+- **reconcile_job.py** — `fatal_halt_wiring` param → `on_fatal_report` per-pair when `report.has_fatal`.
+- **startup_reconciliation.py** — `fatal_halt_wiring` param → `on_fatal_report` + `on_escalated_fatal`.
+- **lifespan.py** — builds `FatalHaltWiring` when `proof_enforce_halt_latch` is ON.
+
+**Not doing:** Narrow per-symbol halt (future slice).
 
 ### Fills Reconcile (D-12b-2)
 
