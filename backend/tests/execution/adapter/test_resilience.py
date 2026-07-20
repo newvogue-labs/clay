@@ -189,6 +189,11 @@ class FakeInnerAdapter:
     ) -> list[Fill]:
         return []
 
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Helpers

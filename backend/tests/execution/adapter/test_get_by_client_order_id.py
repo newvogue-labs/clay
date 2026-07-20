@@ -9,6 +9,7 @@ import pytest
 
 from clay.execution.adapter.domain import OrderSnapshot
 from clay.execution.adapter.enums import (
+    Environment,
     OrderSide,
     OrderState,
     OrderType,
@@ -41,7 +42,7 @@ class _StubCcxtAdapter(CcxtExchangeAdapter):
     """Minimal stub for testing get_by_client_order_id."""
 
     def __init__(self) -> None:
-        self.environment = None
+        self.environment = Environment.PAPER
         self._open_orders: list[OrderSnapshot] = []
         self._reconcile_orders: list[OrderSnapshot] = []
 
