@@ -280,8 +280,8 @@ async def test_fatal_mismatch_emits_signal(tmp_path: Path) -> None:
     events = _read_audit_events(audit_writer)
     fatal = [e for e in events if e["event_type"] == "reconcile.fatal_mismatch"]
     assert len(fatal) == 1
-    assert fatal[0]["payload"]["venue"] == "binance"
-    assert fatal[0]["payload"]["symbol"] == "BTC/USDT"
+    assert fatal[0]["payload"]["any_fatal"] is True
+    assert fatal[0]["payload"]["pairs_reconciled"] == 1
 
 
 @pytest.mark.anyio
