@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import create_engine
@@ -21,10 +19,7 @@ from clay.execution.adapter.enums import (
     OrderSide,
     OrderState,
     OrderType,
-    TimeInForce,
 )
-from clay.execution.ledger.controller import OrderLedgerController
-from clay.execution.ledger.reconcile import ReconcileAdapter
 from clay.execution.ledger.states import LedgerState
 from clay.execution.ledger.unknown_resolver import (
     UnknownResolver,
@@ -265,7 +260,7 @@ class TestUnknownResolver:
             config=UnknownResolverConfig(max_polls=1),
         )
 
-        report = await resolver.resolve_symbol("BTCUSDT", "bybit")
+        await resolver.resolve_symbol("BTCUSDT", "bybit")
 
         # Verify resolver never called place_order
         assert not hasattr(adapter, 'place_order') or not callable(getattr(adapter, 'place_order', None))

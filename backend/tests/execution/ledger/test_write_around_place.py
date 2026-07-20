@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import create_engine
@@ -27,9 +26,7 @@ from clay.execution.adapter.errors import (
     AmbiguousExecutionError,
     OrderRejectedError,
 )
-from clay.execution.ledger.controller import OrderLedgerController
 from clay.execution.ledger.errors import DuplicateOrderIntentError
-from clay.execution.ledger.reconcile import map_venue_state
 from clay.execution.ledger.states import LedgerState
 from clay.execution.ledger.write_around_place import WriteAroundPlace
 

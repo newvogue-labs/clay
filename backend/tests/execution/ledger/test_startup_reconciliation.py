@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine
@@ -15,15 +14,9 @@ from clay.db import models_orders  # noqa: F401 — register tables
 from clay.db.base import Base
 from clay.db.session import SQLITE_SCHEMA_TRANSLATE_MAP
 from clay.execution.adapter.domain import OrderSnapshot
-from clay.execution.adapter.enums import (
-    OrderSide,
-    OrderState,
-    OrderType,
-)
-from clay.execution.ledger.reconcile import ReconcileAdapter, OrderReconcileService
+from clay.execution.ledger.reconcile import OrderReconcileService
 from clay.execution.ledger.states import LedgerState
 from clay.execution.ledger.startup_reconciliation import StartupReconciliation
-from clay.execution.ledger.unknown_resolver import UnknownResolver
 
 
 def _make_engine() -> Engine:
