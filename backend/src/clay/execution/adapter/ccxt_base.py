@@ -139,9 +139,7 @@ class CcxtExchangeAdapter:
             req.client_order_id, cast("dict[str, Any]", response)
         )
 
-    async def cancel_order(
-        self, symbol: str, venue_order_id: str
-    ) -> CancelResult:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         try:
             await self._client.cancel_order(id=venue_order_id, symbol=symbol)
             return CancelResult.CANCELED
@@ -269,6 +267,7 @@ class CcxtExchangeAdapter:
         # Fallback: search reconcile history (slower path)
         try:
             from datetime import timedelta
+
             since = datetime.now() - timedelta(hours=24)
             reconcile_orders = await self.reconcile_orders(symbol, since)
             for snap in reconcile_orders:

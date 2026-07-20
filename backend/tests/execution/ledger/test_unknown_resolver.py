@@ -114,16 +114,12 @@ def _create_unknown_projection(session_factory, *, cid: str = "test-cid-001") ->
 
 class TestUnknownResolver:
     @pytest.mark.asyncio
-    async def test_resolve_unknown_to_filled(
-        self, session_factory
-    ) -> None:
+    async def test_resolve_unknown_to_filled(self, session_factory) -> None:
         """UNKNOWN projection with venue match → FILLED."""
         _create_unknown_projection(session_factory)
 
         adapter = FakeReconcileAdapter()
-        adapter.reconcile_result = [
-            _make_snapshot(state=OrderState.FILLED)
-        ]
+        adapter.reconcile_result = [_make_snapshot(state=OrderState.FILLED)]
 
         resolver = UnknownResolver(
             session_factory=session_factory,
@@ -141,17 +137,19 @@ class TestUnknownResolver:
             from sqlalchemy import select
             from clay.db.models_orders import OrderCurrentState
 
-            proj = s.execute(
-                select(OrderCurrentState).where(
-                    OrderCurrentState.client_order_id == "test-cid-001"
+            proj = (
+                s.execute(
+                    select(OrderCurrentState).where(
+                        OrderCurrentState.client_order_id == "test-cid-001"
+                    )
                 )
-            ).scalars().one()
+                .scalars()
+                .one()
+            )
             assert proj.lifecycle_state == LedgerState.FILLED.value
 
     @pytest.mark.asyncio
-    async def test_poll_budget_exhausted_stays_unknown(
-        self, session_factory
-    ) -> None:
+    async def test_poll_budget_exhausted_stays_unknown(self, session_factory) -> None:
         """No venue match after budget → still UNKNOWN."""
         _create_unknown_projection(session_factory)
 
@@ -171,9 +169,7 @@ class TestUnknownResolver:
         assert adapter.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_escalation_to_fatal(
-        self, session_factory
-    ) -> None:
+    async def test_escalation_to_fatal(self, session_factory) -> None:
         """UNKNOWN age > escalation_seconds → FATAL."""
         # Create projection with old updated_at
         from clay.db.models_orders import OrderCurrentState
@@ -208,9 +204,7 @@ class TestUnknownResolver:
         assert adapter.call_count == 0  # no poll needed
 
     @pytest.mark.asyncio
-    async def test_no_venue_order_id_stays_unknown(
-        self, session_factory
-    ) -> None:
+    async def test_no_venue_order_id_stays_unknown(self, session_factory) -> None:
         """Projection without venue_order_id → can't poll, stays UNKNOWN."""
         from clay.db.models_orders import OrderCurrentState
 
@@ -243,16 +237,12 @@ class TestUnknownResolver:
         assert adapter.call_count == 0
 
     @pytest.mark.asyncio
-    async def test_zero_place_order_calls(
-        self, session_factory
-    ) -> None:
+    async def test_zero_place_order_calls(self, session_factory) -> None:
         """Resolver NEVER calls place_order — only polls."""
         _create_unknown_projection(session_factory)
 
         adapter = FakeReconcileAdapter()
-        adapter.reconcile_result = [
-            _make_snapshot(state=OrderState.NEW)
-        ]
+        adapter.reconcile_result = [_make_snapshot(state=OrderState.NEW)]
 
         resolver = UnknownResolver(
             session_factory=session_factory,
@@ -263,4 +253,6 @@ class TestUnknownResolver:
         await resolver.resolve_symbol("BTCUSDT", "bybit")
 
         # Verify resolver never called place_order
-        assert not hasattr(adapter, 'place_order') or not callable(getattr(adapter, 'place_order', None))
+        assert not hasattr(adapter, "place_order") or not callable(
+            getattr(adapter, "place_order", None)
+        )

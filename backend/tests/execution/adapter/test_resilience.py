@@ -138,9 +138,7 @@ class FakeInnerAdapter:
             return eff
         return _make_ack(req)
 
-    async def cancel_order(
-        self, symbol: str, venue_order_id: str
-    ) -> CancelResult:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         self._cancel_order_calls += 1
         if self._cancel_order_effects:
             eff = self._cancel_order_effects.pop(0)

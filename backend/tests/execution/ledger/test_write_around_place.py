@@ -115,11 +115,15 @@ class TestWriteAroundPlace:
             from sqlalchemy import select
             from clay.db.models_orders import OrderCurrentState
 
-            proj = s.execute(
-                select(OrderCurrentState).where(
-                    OrderCurrentState.client_order_id == "test-cid-001"
+            proj = (
+                s.execute(
+                    select(OrderCurrentState).where(
+                        OrderCurrentState.client_order_id == "test-cid-001"
+                    )
                 )
-            ).scalars().one()
+                .scalars()
+                .one()
+            )
             assert proj.lifecycle_state == LedgerState.ACKNOWLEDGED.value
             assert proj.venue_order_id == "venue-001"
 
@@ -140,11 +144,15 @@ class TestWriteAroundPlace:
             from sqlalchemy import select
             from clay.db.models_orders import OrderCurrentState
 
-            proj = s.execute(
-                select(OrderCurrentState).where(
-                    OrderCurrentState.client_order_id == "test-cid-001"
+            proj = (
+                s.execute(
+                    select(OrderCurrentState).where(
+                        OrderCurrentState.client_order_id == "test-cid-001"
+                    )
                 )
-            ).scalars().one()
+                .scalars()
+                .one()
+            )
             assert proj.lifecycle_state == LedgerState.UNKNOWN.value
 
     @pytest.mark.asyncio
@@ -164,11 +172,15 @@ class TestWriteAroundPlace:
             from sqlalchemy import select
             from clay.db.models_orders import OrderCurrentState
 
-            proj = s.execute(
-                select(OrderCurrentState).where(
-                    OrderCurrentState.client_order_id == "test-cid-001"
+            proj = (
+                s.execute(
+                    select(OrderCurrentState).where(
+                        OrderCurrentState.client_order_id == "test-cid-001"
+                    )
                 )
-            ).scalars().one()
+                .scalars()
+                .one()
+            )
             assert proj.lifecycle_state == LedgerState.REJECTED.value
 
     @pytest.mark.asyncio
@@ -204,9 +216,13 @@ class TestWriteAroundPlace:
             from sqlalchemy import select
             from clay.db.models_orders import OrderCurrentState
 
-            proj = s.execute(
-                select(OrderCurrentState).where(
-                    OrderCurrentState.client_order_id == "test-cid-001"
+            proj = (
+                s.execute(
+                    select(OrderCurrentState).where(
+                        OrderCurrentState.client_order_id == "test-cid-001"
+                    )
                 )
-            ).scalars().one()
+                .scalars()
+                .one()
+            )
             assert proj.lifecycle_state == LedgerState.SUBMITTING.value

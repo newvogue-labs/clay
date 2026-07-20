@@ -164,9 +164,7 @@ class HaltLatch(Base):
     """
 
     __tablename__ = "halt_latch"
-    __table_args__ = (
-        {"schema": "ops"},
-    )
+    __table_args__ = ({"schema": "ops"},)
 
     latch_id: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer, "sqlite"),

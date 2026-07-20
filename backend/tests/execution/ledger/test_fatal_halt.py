@@ -46,7 +46,9 @@ def wiring(session_factory):
 
 
 class TestFatalHaltWiring:
-    def test_fatal_engages_latch(self, session_factory, wiring: FatalHaltWiring) -> None:
+    def test_fatal_engages_latch(
+        self, session_factory, wiring: FatalHaltWiring
+    ) -> None:
         """Fatal report → latch engaged."""
         report = ReconcileReport(
             mismatches=[

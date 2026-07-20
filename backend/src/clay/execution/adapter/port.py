@@ -41,9 +41,7 @@ class ExchangeAdapter(Protocol):
 
     async def place_order(self, req: OrderRequest) -> OrderAck: ...
 
-    async def cancel_order(
-        self, symbol: str, venue_order_id: str
-    ) -> CancelResult: ...
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult: ...
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:
         """Fetch a single order by venue ID.

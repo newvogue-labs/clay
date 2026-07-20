@@ -36,7 +36,9 @@ class FakeReconcileAdapter:
         self.open_orders_result: list[OrderSnapshot] = []
         self.trades_result = []
 
-    async def reconcile_orders(self, symbol: str, since: datetime) -> list[OrderSnapshot]:
+    async def reconcile_orders(
+        self, symbol: str, since: datetime
+    ) -> list[OrderSnapshot]:
         return self.reconcile_result
 
     async def get_open_orders(self, symbol=None) -> list[OrderSnapshot]:

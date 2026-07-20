@@ -303,9 +303,7 @@ class ResilientExecutionAdapter:
 
     # -- order-plane: cancel via CB → retry ---------------------------------
 
-    async def cancel_order(
-        self, symbol: str, venue_order_id: str
-    ) -> CancelResult:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         """Cancel with CB + bounded transient retry (order-plane, venue-sticky)."""
         return await self._cb.call(
             lambda: self._retry_transient(

@@ -93,9 +93,7 @@ class FakeInner:
             fills=(),
         )
 
-    async def cancel_order(
-        self, symbol: str, venue_order_id: str
-    ) -> CancelResult:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         return CancelResult.CANCELED
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:

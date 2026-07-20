@@ -77,9 +77,7 @@ class WriteAroundPlace:
 
         Raises DuplicateOrderIntentError on duplicate client_order_id.
         """
-        controller = OrderLedgerController(
-            self._session_factory, now_fn=self._now_fn
-        )
+        controller = OrderLedgerController(self._session_factory, now_fn=self._now_fn)
 
         # Step 1: record_intent (creates INTENT projection)
         controller.record_intent(
@@ -90,6 +88,7 @@ class WriteAroundPlace:
         # Re-read version from DB (record_intent commits, detaching the object)
         with self._session_factory() as s:
             from clay.execution.ledger.repository import OrderLedgerRepository
+
             repo = OrderLedgerRepository(s)
             proj = repo.get_projection(client_order_id)
             current_version = proj.version if proj is not None else 0
@@ -110,6 +109,7 @@ class WriteAroundPlace:
             # Already in SUBMITTING (idempotent) — re-read version
             with self._session_factory() as s:
                 from clay.execution.ledger.repository import OrderLedgerRepository
+
                 repo = OrderLedgerRepository(s)
                 proj = repo.get_projection(client_order_id)
                 if proj is not None:

@@ -225,9 +225,7 @@ class ExecutionProofGate:
             raise ProofGateDeniedError(record.reason_codes)
         return await self._inner.place_order(quantized)
 
-    async def cancel_order(
-        self, symbol: str, venue_order_id: str
-    ) -> CancelResult:
+    async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         return await self._inner.cancel_order(symbol, venue_order_id)
 
     async def get_order(self, symbol: str, venue_order_id: str) -> OrderSnapshot:

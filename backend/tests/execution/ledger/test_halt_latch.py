@@ -95,9 +95,7 @@ class TestHaltLatch:
         new_repo = HaltLatchRepository(session)
         assert new_repo.is_engaged() is True
 
-    def test_clean_tick_does_not_disengage(
-        self, repo: HaltLatchRepository
-    ) -> None:
+    def test_clean_tick_does_not_disengage(self, repo: HaltLatchRepository) -> None:
         """A clean reconcile tick does NOT disengage the latch."""
         now = datetime.now(UTC)
         repo.engage(reason="fatal_mismatch", now=now)

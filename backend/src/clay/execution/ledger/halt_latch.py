@@ -25,9 +25,7 @@ class HaltLatchRepository:
 
     def get_latch(self) -> HaltLatch | None:
         """Retrieve the singleton halt-latch row (or None if not yet created)."""
-        return self.session.execute(
-            select(HaltLatch)
-        ).scalars().one_or_none()
+        return self.session.execute(select(HaltLatch)).scalars().one_or_none()
 
     def ensure_latch(self) -> HaltLatch:
         """Get or create the singleton halt-latch row.
