@@ -20,6 +20,7 @@ from typing import TypeVar
 
 from clay.execution.adapter.domain import (
     BalanceSnapshot,
+    Fill,
     OrderAck,
     OrderRequest,
     OrderSnapshot,
@@ -341,6 +342,17 @@ class ResilientExecutionAdapter:
     async def get_balances(self) -> list[BalanceSnapshot]:
         return await self._cb.call(
             lambda: self._retry_transient(lambda: self._inner.get_balances())
+        )
+
+    async def get_my_trades(
+        self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
+    ) -> list[Fill]:
+        return await self._cb.call(
+            lambda: self._retry_transient(
+                lambda: self._inner.get_my_trades(
+                    symbol, since=since, from_id=from_id
+                )
+            )
         )
 
     # -- private helpers ----------------------------------------------------
