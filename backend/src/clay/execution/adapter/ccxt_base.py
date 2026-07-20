@@ -221,6 +221,30 @@ class CcxtExchangeAdapter:
             )
         return balances
 
+    async def get_my_trades(
+        self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
+    ) -> list[Fill]:
+        """Fetch account trades via ccxt ``fetch_my_trades``.
+
+        Error-map mirrors read-ops: Network→Transient, Auth→Config, Exchange→Rejected.
+        """
+        params: dict[str, Any] = {}
+        if from_id is not None:
+            params["fromId"] = from_id
+        since_ms = int(since.timestamp() * 1000) if since is not None else None
+        try:
+            trades = await self._client.fetch_my_trades(
+                symbol=symbol, since=since_ms, params=params
+            )
+        except ccxt.NetworkError as exc:
+            raise TransientAdapterError(str(exc)) from exc
+        except ccxt.AuthenticationError as exc:
+            raise ConfigError(str(exc)) from exc
+        except ccxt.ExchangeError as exc:
+            raise OrderRejectedError(str(exc)) from exc
+
+        return [_fill_from_my_trade(cast("dict[str, Any]", t)) for t in trades]
+
     async def close(self) -> None:
         await self._client.close()
 
@@ -327,6 +351,26 @@ def _dec(val: Any) -> Decimal:
     if not s:
         return Decimal("0")
     return Decimal(s)
+
+
+def _fill_from_my_trade(trade: dict[str, Any]) -> Fill:
+    """Map ccxt unified ``fetch_my_trades`` item → domain ``Fill``.
+
+    Separate from ``_fills_from_trades`` (order-embedded shape).
+    ``fee`` dict uses ``cost``/``currency`` keys.
+    """
+    fee = trade.get("fee") or {}
+    return Fill(
+        trade_id=str(trade.get("id", "")),
+        venue_order_id=str(trade.get("order") or ""),
+        symbol=str(trade.get("symbol", "")),
+        side=OrderSide(str(trade.get("side", "buy"))),
+        quantity=_dec(trade.get("amount")),
+        price=_dec(trade.get("price")),
+        commission=_dec(fee.get("cost")),
+        commission_asset=str(fee.get("currency") or ""),
+        transact_time=int(trade.get("timestamp") or 0),
+    )
 
 
 def _map_state(status: str, filled: Decimal) -> OrderState:

@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from clay.db import models_orders  # noqa: F401 — register tables
 from clay.db.base import Base
 from clay.db.session import SQLITE_SCHEMA_TRANSLATE_MAP
-from clay.execution.adapter.domain import OrderRequest, OrderSnapshot
+from clay.execution.adapter.domain import Fill, OrderRequest, OrderSnapshot
 from clay.execution.adapter.enums import (
     OrderSide,
     OrderState,
@@ -94,6 +94,7 @@ class FakeAdapter(ReconcileAdapter):
     def __init__(self) -> None:
         self.reconcile_result: list[OrderSnapshot] = []
         self.open_result: list[OrderSnapshot] = []
+        self.trades_result: list[Fill] = []
 
     async def reconcile_orders(
         self, symbol: str, since: datetime
@@ -102,6 +103,11 @@ class FakeAdapter(ReconcileAdapter):
 
     async def get_open_orders(self, symbol: str | None = None) -> list[OrderSnapshot]:
         return self.open_result
+
+    async def get_my_trades(
+        self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
+    ) -> list[Fill]:
+        return self.trades_result
 
 
 @pytest.fixture()
@@ -204,7 +210,7 @@ class TestReconcileSymbol:
         adapter.reconcile_result = [_make_snapshot(state=OrderState.PARTIALLY_FILLED)]
 
         report = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
 
         assert "clay-test-001" in report.healed
@@ -232,13 +238,13 @@ class TestReconcileSymbol:
         adapter.reconcile_result = [_make_snapshot(state=OrderState.PARTIALLY_FILLED)]
 
         report1 = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
         assert len(report1.healed) == 1
 
         # Second run — same venue state, already PARTIALLY_FILLED
         report2 = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
         assert len(report2.healed) == 0
 
@@ -258,7 +264,7 @@ class TestReconcileSymbol:
         adapter.reconcile_result = [_make_snapshot(state=OrderState.FILLED)]
 
         report = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
 
         assert report.has_fatal
@@ -299,7 +305,7 @@ class TestReconcileSymbol:
         ]
 
         report = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
 
         assert report.has_fatal
@@ -323,7 +329,7 @@ class TestReconcileSymbol:
         adapter.reconcile_result = []
 
         report = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
 
         assert not report.has_fatal
@@ -350,7 +356,7 @@ class TestReconcileSymbol:
         adapter.reconcile_result = [_make_snapshot(state=OrderState.FILLED)]
 
         report = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
 
         # ILLEGAL_DRIFT, not a raised exception
@@ -376,7 +382,7 @@ class TestReconcileSymbol:
         adapter.reconcile_result = [_make_snapshot(state=OrderState.FILLED)]
 
         report = await svc.reconcile_symbol(
-            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC)
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
         )
 
         assert "clay-test-001" in report.healed

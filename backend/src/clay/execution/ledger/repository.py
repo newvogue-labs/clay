@@ -7,7 +7,12 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from clay.db.models_orders import OrderCurrentState, OrderEvent, OrderFillRecord
+from clay.db.models_orders import (
+    OrderCurrentState,
+    OrderEvent,
+    OrderFillRecord,
+    ReconcileBookmark,
+)
 from clay.execution.ledger.states import TERMINAL_STATES
 
 
@@ -146,3 +151,52 @@ class OrderLedgerRepository:
             OrderCurrentState.venue_order_id == venue_order_id,
         )
         return self.session.execute(stmt).scalars().one_or_none()
+
+    # ------------------------------------------------------------------
+    # D-12b-2: reconcile bookmark
+    # ------------------------------------------------------------------
+
+    def get_reconcile_bookmark(
+        self, *, venue: str, entity_type: str, symbol: str
+    ) -> ReconcileBookmark | None:
+        """Получить bookmark ``(venue, entity_type, symbol)``."""
+        stmt = select(ReconcileBookmark).where(
+            ReconcileBookmark.venue == venue,
+            ReconcileBookmark.entity_type == entity_type,
+            ReconcileBookmark.symbol == symbol,
+        )
+        return self.session.execute(stmt).scalars().one_or_none()
+
+    def upsert_reconcile_bookmark(
+        self,
+        *,
+        venue: str,
+        entity_type: str,
+        symbol: str,
+        last_trade_id: str,
+        last_timestamp: int,
+        now: datetime,
+    ) -> None:
+        """Insert или update bookmark для ``(venue, entity_type, symbol)``.
+
+        SQLite-portable: select-then-update-or-insert, commit на вызывающем.
+        """
+        existing = self.get_reconcile_bookmark(
+            venue=venue, entity_type=entity_type, symbol=symbol
+        )
+        if existing is not None:
+            existing.last_trade_id = last_trade_id
+            existing.last_timestamp = last_timestamp
+            existing.updated_at = now
+        else:
+            self.session.add(
+                ReconcileBookmark(
+                    venue=venue,
+                    entity_type=entity_type,
+                    symbol=symbol,
+                    last_trade_id=last_trade_id,
+                    last_timestamp=last_timestamp,
+                    updated_at=now,
+                )
+            )
+        self.session.flush()

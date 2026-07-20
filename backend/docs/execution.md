@@ -52,9 +52,9 @@ Standalone service that compares exchange order states with ledger projections a
 ### Overview
 
 - **Dormant by default** — no config flag, no bootstrap wiring, no production call-sites.
-- **Read-only adapter calls** — `reconcile_orders` + `get_open_orders` for venue truth.
-- **FSM-legal healing** — state drifts are healed via `controller.apply_transition`; illegal transitions are classified, not forced.
-- **No fills ingestion** — only order states are reconciled; fills, bookmarks, and scheduler are out of scope.
+- **Read-only adapter calls** — `reconcile_orders` + `get_open_orders` for order-state truth; `get_my_trades` for fills ingestion.
+- **FSM-legal healing** — state drifts are healed via `controller.apply_transition` (order-states) or `controller.record_fills` (fill-bearing states). Illegal transitions are classified, not forced.
+- **Durable cursor** — `reconcile_bookmark` table tracks last processed trade_id per `(venue, entity_type, symbol)` for incremental replay.
 
 ### Mismatch Kinds
 
@@ -78,7 +78,17 @@ Standalone service that compares exchange order states with ledger projections a
 
 ### What This Service Does NOT Do
 
-- No fills ingestion (D-12a-3 covers that)
-- No cursor/bookmark tracking for incremental reconcile
 - No halt/pause mechanism on fatal mismatches
 - No bootstrap/startup/scheduler wiring — dormant only
+
+### Fills Reconcile (D-12b-2)
+
+Ingests venue trades via `get_my_trades` cursor (`fromId` + `since`) and writes them to the journal through `record_fills`.
+
+- **Cursor** — `reconcile_bookmark` (migration 0027): `(venue, entity_type, symbol)` → `last_trade_id`, `last_timestamp`. Updated only after successful ingestion.
+- **Dedup** — `record_fills` deduplicates on `UNIQUE(venue, trade_id)` before insert; `filled_qty` is recalculated as Decimal sum.
+- **Heal** — for `PARTIALLY_FILLED`/`FILLED` targets with available fills → `record_fills` (FSM-legal, CAS-safe). For other states → `apply_transition`.
+- **Fail-closed** — if `get_my_trades` throws, bookmark is not advanced; next run re-reads from last cursor.
+- **Orphan fills** — fills with `venue_order_id` matching no projection → `LEDGER_ORPHAN` (signal-only, not fatal).
+
+**Not doing:** Bybit execId pagination / scheduler / halt / bootstrap wiring.

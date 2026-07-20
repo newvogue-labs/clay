@@ -20,6 +20,7 @@ import pytest
 
 from clay.execution.adapter.domain import (
     BalanceSnapshot,
+    Fill,
     OrderAck,
     OrderRequest,
     OrderSnapshot,
@@ -179,6 +180,11 @@ class FakeInnerAdapter:
             if isinstance(eff, BaseException):
                 raise eff
             return eff
+        return []
+
+    async def get_my_trades(
+        self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
+    ) -> list[Fill]:
         return []
 
 

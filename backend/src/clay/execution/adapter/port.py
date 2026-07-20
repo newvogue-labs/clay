@@ -14,6 +14,7 @@ from typing import Protocol, runtime_checkable
 
 from clay.execution.adapter.domain import (
     BalanceSnapshot,
+    Fill,
     OrderAck,
     OrderRequest,
     OrderSnapshot,
@@ -59,3 +60,13 @@ class ExchangeAdapter(Protocol):
     ) -> list[OrderSnapshot]: ...
 
     async def get_balances(self) -> list[BalanceSnapshot]: ...
+
+    async def get_my_trades(
+        self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
+    ) -> list[Fill]:
+        """Вернуть трейды аккаунта по символу.
+
+        ``from_id`` — venue-курсор пагинации (id последнего обработанного трейда).
+        ``since`` — fallback/инициализация (ms-imestamp начала окна).
+        """
+        ...

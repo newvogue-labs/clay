@@ -95,6 +95,11 @@ class FakeAdapter:
             )
         ]
 
+    async def get_my_trades(
+        self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
+    ) -> list:
+        return []
+
 
 # ---------------------------------------------------------------------------
 # Protocol check
