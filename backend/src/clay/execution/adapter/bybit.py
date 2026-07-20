@@ -72,8 +72,6 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
         {TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK}
     )
 
-    _dup_cid_code: ClassVar[str] = "12141"
-
     def __init__(
         self,
         environment: Environment,

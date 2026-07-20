@@ -472,7 +472,7 @@ class TestPlaceOrderDuplicateCid:
         )  # type: ignore[assignment]
         adapter = _adapter(client)
 
-        with pytest.raises(AmbiguousExecutionError, match="12141"):
+        with pytest.raises(AmbiguousExecutionError, match="170141"):
             await adapter.place_order(_make_request())
 
     @pytest.mark.anyio
@@ -509,6 +509,42 @@ class TestPlaceOrderDuplicateCid:
         adapter = _adapter(client)
 
         with pytest.raises(OrderRejectedError):
+            await adapter.place_order(_make_request())
+
+
+# ---------------------------------------------------------------------------
+# D4-regression: message contains actual venue error, not hardcoded code
+# ---------------------------------------------------------------------------
+
+
+class TestDuplicateCidMessageRegression:
+    """Verify AmbiguousExecutionError message contains venue error text."""
+
+    @pytest.mark.anyio
+    async def test_linear_170141_not_fake_12141(self) -> None:
+        """170141 error → message contains '170141', cid=, NOT '12141'."""
+        client = FakeBybitClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_LINEAR_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="170141") as exc_info:
+            await adapter.place_order(_make_request())
+        msg = str(exc_info.value)
+        assert "cid=" in msg
+        assert "12141" not in msg
+
+    @pytest.mark.anyio
+    async def test_spot_12141_still_ambiguous(self) -> None:
+        """12141 path still raises AmbiguousExecutionError (regression guard)."""
+        client = FakeBybitClient()
+        client.create_order = AsyncMock(
+            side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_SPOT_MSG)
+        )  # type: ignore[assignment]
+        adapter = _adapter(client)
+
+        with pytest.raises(AmbiguousExecutionError, match="12141"):
             await adapter.place_order(_make_request())
 
 

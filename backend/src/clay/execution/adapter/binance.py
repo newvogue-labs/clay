@@ -66,8 +66,6 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
         {TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK}
     )
 
-    _dup_cid_code: ClassVar[str] = "-4116"
-
     def __init__(
         self,
         environment: Environment,
