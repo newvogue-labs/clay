@@ -80,6 +80,7 @@ from clay.llm import LLMAdapter
 from clay.settings.llm import LLMSettings
 from clay.scheduler.ai_agent_job import AIAgentCycleJob
 from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
+from clay.execution.ledger.fatal_halt import FatalHaltWiring
 from clay.scheduler.reconcile_job import OrderReconcileJob
 from clay.scheduler.prompts import CHIEF_AGENT_SYSTEM_PROMPT
 from clay.scheduler.service import ClayScheduler
@@ -202,12 +203,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 reconcile_svc = OrderReconcileService(
                     _session_factory, resilient_adapter
                 )
+                # D-15: build FatalHaltWiring when halt-latch enforcement is ON
+                fatal_halt_wiring: FatalHaltWiring | None = None
+                if reconcile_cfg.proof_enforce_halt_latch:
+                    fatal_halt_wiring = FatalHaltWiring(
+                        session_factory=_session_factory,
+                    )
                 reconcile_job = OrderReconcileJob(
                     reconcile_service=reconcile_svc,
                     session_factory=_session_factory,
                     audit_writer=_audit_writer,
                     event_bus=_event_bus,
                     lookback_seconds=scheduler_settings.reconcile_lookback_seconds,
+                    fatal_halt_wiring=fatal_halt_wiring,
                 )
 
                 # D-12c: wire pre-arm reconcile hook into OverrideService.

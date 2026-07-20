@@ -3,8 +3,8 @@
 Async coroutine registered with ``ClayScheduler._arun_safely``.
 Iterates active order projections, reconciles each ``(venue, symbol)``
 pair against venue truth, and emits ``reconcile.cycle`` events on
-state transitions. Fatal mismatches are signalled via audit only —
-no halt/pause (latched-halt is a future slice).
+state transitions. Fatal mismatches engage the durable halt-latch
+via ``FatalHaltWiring`` (D-15) when wired.
 
 Dormant by default (``CLAY_SCHEDULER_RECONCILE_ENABLED=false``).
 """
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     from clay.audit.writer import AuditWriter
     from clay.events.bus import EventBus
+    from clay.execution.ledger.fatal_halt import FatalHaltWiring
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ class OrderReconcileJob:
         event_bus: EventBus,
         lookback_seconds: int = 3600,
         now_fn: Callable[[], datetime] | None = None,
+        fatal_halt_wiring: FatalHaltWiring | None = None,
     ) -> None:
         self._reconcile_service = reconcile_service
         self._session_factory = session_factory
@@ -69,6 +71,7 @@ class OrderReconcileJob:
         self._event_bus = event_bus
         self._lookback_seconds = lookback_seconds
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
+        self._fatal_halt_wiring = fatal_halt_wiring
         # Anti-flood: (any_fatal, total_mismatches). First-run seed.
         self._cache: tuple[bool, int] | None = None
         # Episode flag for on_error anti-flood; reset on success.
@@ -110,6 +113,11 @@ class OrderReconcileJob:
                 total_mismatches += len(report.mismatches)
                 if report.has_fatal:
                     any_fatal = True
+                    # D-15: engage halt-latch when wiring is bound
+                    if self._fatal_halt_wiring is not None:
+                        self._fatal_halt_wiring.on_fatal_report(
+                            report, venue=venue, symbol=symbol
+                        )
             except Exception:
                 logger.exception(
                     "clay.scheduler: reconcile_symbol failed for %s/%s",
