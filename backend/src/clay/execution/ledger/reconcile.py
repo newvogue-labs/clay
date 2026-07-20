@@ -195,6 +195,7 @@ class OrderReconcileService:
 
         # --- Шаг 4: матч venue-снапшотов ---
         matched_cids: set[str] = set()
+        ingested_fills: list[Fill] = []
         for snap in venue_by_void.values():
             proj = proj_by_cid.get(snap.client_order_id)
             if proj is None:
@@ -229,6 +230,7 @@ class OrderReconcileService:
                             to_state=target,
                             expected_version=proj.version,
                         )
+                        ingested_fills.extend(fills_for_voi)
                     else:
                         controller.apply_transition(
                             client_order_id=proj.client_order_id,
@@ -288,23 +290,33 @@ class OrderReconcileService:
                 )
 
         # --- Шаг 7: upsert bookmark ---
-        # Fills уже закоммичены в шаге 4; record_fills дедупит по UNIQUE(venue,trade_id),
-        # поэтому повторный прогон безопасен. Ошибка → пробрасываем (наблюдаемый fail-closed):
-        # курсор не продвинут, следующий прогон перечитает эти трейды.
-        if fills_raw:
-            max_trade_id = max(f.trade_id for f in fills_raw)
-            max_ts = max(f.transact_time for f in fills_raw)
+        # D-12c fix: advance cursor only to the latest *ingested* fill
+        # (the ones actually written via record_fills). This prevents
+        # skipping fills on the next run when orphan fills are present.
+        if ingested_fills:
+            anchor = max(ingested_fills, key=lambda f: f.transact_time)
             with self._session_factory() as s:
                 repo = OrderLedgerRepository(s)
                 repo.upsert_reconcile_bookmark(
                     venue=venue,
                     entity_type="fills",
                     symbol=symbol,
-                    last_trade_id=max_trade_id,
-                    last_timestamp=max_ts,
+                    last_trade_id=anchor.trade_id,
+                    last_timestamp=anchor.transact_time,
                     now=self._now_fn(),
                 )
                 s.commit()
+        elif fills_raw:
+            # fills_raw non-empty but all orphan → do NOT advance bookmark
+            # (next run re-fetches them). Signal-only mismatch.
+            report.mismatches.append(
+                Mismatch(
+                    kind=ReconcileMismatchKind.LEDGER_ORPHAN,
+                    client_order_id=None,
+                    venue_order_id=None,
+                    detail="cursor_not_advanced: orphan fills ahead",
+                )
+            )
 
         return report
 

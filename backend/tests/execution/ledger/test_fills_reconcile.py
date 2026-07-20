@@ -582,3 +582,128 @@ class TestFillsReconcile:
             proj = repo.get_projection("clay-test-001")
             assert proj is not None
             assert proj.version == 2  # unchanged from acknowledged
+
+    # D-12c: bookmark advances only to max-ingested fill
+    @pytest.mark.asyncio()
+    async def test_bookmark_advances_to_max_ingested(
+        self,
+        svc: OrderReconcileService,
+        ctrl: OrderLedgerController,
+        adapter: FakeAdapter,
+        sf: sessionmaker,  # type: ignore[type-arg]
+    ) -> None:
+        """When fills_raw has fills for multiple orders, but only some
+        are ingested (matched to projections), bookmark advances only
+        to the max ingested fill, not max fills_raw."""
+        self._setup_to_acknowledged(ctrl, cid="clay-test-001")
+        adapter.reconcile_result = [_make_snapshot(state=OrderState.PARTIALLY_FILLED)]
+
+        # Two fills: one for the known order, one orphan
+        adapter.trades_result = [
+            _make_fill(
+                trade_id="t-ingested",
+                venue_order_id="v-ord-001",
+                transact_time=1721396000000,  # earlier
+            ),
+            _make_fill(
+                trade_id="t-orphan",
+                venue_order_id="v-orphan-999",
+                transact_time=1721397000000,  # later, but orphan
+            ),
+        ]
+
+        await svc.reconcile_symbol(
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
+        )
+
+        # Bookmark should be at the ingested fill, not the orphan
+        with sf() as s:
+            repo = OrderLedgerRepository(s)
+            bm = repo.get_reconcile_bookmark(
+                venue="binance", entity_type="fills", symbol="BTC/USDT"
+            )
+            assert bm is not None
+            assert bm.last_trade_id == "t-ingested"
+            assert bm.last_timestamp == 1721396000000
+
+    # D-12c: orphan-only fills → bookmark NOT advanced + signal
+    @pytest.mark.asyncio()
+    async def test_bookmark_not_advanced_on_orphan_only(
+        self,
+        svc: OrderReconcileService,
+        ctrl: OrderLedgerController,
+        adapter: FakeAdapter,
+        sf: sessionmaker,  # type: ignore[type-arg]
+    ) -> None:
+        """When fills_raw has only orphan fills (no projection match),
+        bookmark is NOT advanced and a signal mismatch is added."""
+        self._setup_to_acknowledged(ctrl, cid="clay-test-001")
+        # No venue state to heal → no record_fills called
+        adapter.reconcile_result = [_make_snapshot(state=OrderState.NEW)]
+
+        # Only orphan fills
+        adapter.trades_result = [
+            _make_fill(
+                trade_id="t-orphan-1",
+                venue_order_id="v-orphan-999",
+                transact_time=1721397000000,
+            ),
+        ]
+
+        report = await svc.reconcile_symbol(
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
+        )
+
+        # Bookmark should NOT be advanced
+        with sf() as s:
+            repo = OrderLedgerRepository(s)
+            bm = repo.get_reconcile_bookmark(
+                venue="binance", entity_type="fills", symbol="BTC/USDT"
+            )
+            assert bm is None
+
+        # Signal mismatch present
+        signal = [m for m in report.mismatches if "cursor_not_advanced" in m.detail]
+        assert len(signal) == 1
+
+    # D-12c: repeat run re-fetches orphan fills
+    @pytest.mark.asyncio()
+    async def test_repeat_run_refetches_orphans(
+        self,
+        svc: OrderReconcileService,
+        ctrl: OrderLedgerController,
+        adapter: FakeAdapter,
+        sf: sessionmaker,  # type: ignore[type-arg]
+    ) -> None:
+        """After orphan-only run (bookmark not advanced), next run
+        re-fetches the same fills from the venue."""
+        self._setup_to_acknowledged(ctrl, cid="clay-test-001")
+        adapter.reconcile_result = [_make_snapshot(state=OrderState.NEW)]
+
+        # First run: orphan fills
+        adapter.trades_result = [
+            _make_fill(
+                trade_id="t-orphan-1",
+                venue_order_id="v-orphan-999",
+                transact_time=1721397000000,
+            ),
+        ]
+        await svc.reconcile_symbol(
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
+        )
+
+        # Second run: same orphan fills (bookmark not advanced, so from_id=None)
+        adapter.trades_result = [
+            _make_fill(
+                trade_id="t-orphan-1",
+                venue_order_id="v-orphan-999",
+                transact_time=1721397000000,
+            ),
+        ]
+        report2 = await svc.reconcile_symbol(
+            "BTC/USDT", datetime(2026, 1, 1, tzinfo=UTC), venue="binance"
+        )
+
+        # Should still see the orphan signal (not skipped by bookmark)
+        signal = [m for m in report2.mismatches if "cursor_not_advanced" in m.detail]
+        assert len(signal) == 1

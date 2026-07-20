@@ -58,6 +58,7 @@ def _make_scheduler(
     session_factory: Any = None,
     ingestion_cycle_service: Any = None,
     provider_pool_reconcile_job: ProviderPoolReconcileJob | None = None,
+    reconcile_job: Any = None,
 ) -> tuple[
     ClayScheduler,
     ServiceRegistry,
@@ -98,6 +99,7 @@ def _make_scheduler(
         session_factory=session_factory,
         ingestion_cycle_service=ingestion_cycle_service,
         provider_pool_reconcile_job=provider_pool_reconcile_job,
+        reconcile_job=reconcile_job,
     )
     return (
         scheduler,
@@ -758,3 +760,90 @@ async def test_scheduler_started_jobs_includes_provider_pool_reconcile(
         assert "provider-pool-reconcile" in started["payload"]["jobs"]
     finally:
         scheduler.shutdown(wait=True)
+
+
+# ── D-12c: reconcile-cycle dormant + enabled ─────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_reconcile_cycle_dormant_when_disabled(tmp_path: Path) -> None:
+    """D-12c: reconcile_enabled=False → job NOT registered, no audit."""
+    settings = SchedulerSettings(
+        enabled=True,
+        reconcile_enabled=False,
+    )
+    scheduler, _, audit_writer, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+    )
+    scheduler.start()
+
+    try:
+        assert scheduler._apscheduler.get_job("reconcile-cycle") is None
+        started = next(
+            e
+            for e in _read_audit_events(audit_writer)
+            if e["event_type"] == "scheduler.started"
+        )
+        assert "reconcile-cycle" not in started["payload"]["jobs"]
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+@pytest.mark.anyio
+async def test_reconcile_cycle_enabled_registers_job(tmp_path: Path) -> None:
+    """D-12c: reconcile_enabled=True + job dep → registered."""
+    from clay.scheduler.reconcile_job import OrderReconcileJob
+
+    settings = SchedulerSettings(
+        enabled=True,
+        reconcile_enabled=True,
+    )
+    mock_job = MagicMock(spec=OrderReconcileJob)
+    scheduler, _, audit_writer, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+        reconcile_job=mock_job,
+    )
+    scheduler.start()
+
+    try:
+        assert scheduler._apscheduler.get_job("reconcile-cycle") is not None
+        started = next(
+            e
+            for e in _read_audit_events(audit_writer)
+            if e["event_type"] == "scheduler.started"
+        )
+        assert "reconcile-cycle" in started["payload"]["jobs"]
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+@pytest.mark.anyio
+async def test_reconcile_cycle_enabled_no_dep_loud_skip(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """D-12c: reconcile_enabled=True but job=None → warning + no registration."""
+    import logging as _logging
+
+    settings = SchedulerSettings(
+        enabled=True,
+        reconcile_enabled=True,
+    )
+    scheduler, _, audit_writer, *_ = _make_scheduler(
+        tmp_path,
+        settings=settings,
+        reconcile_job=None,
+    )
+    _logger = _logging.getLogger("clay.scheduler.service")
+    _logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(_logging.WARNING, logger="clay.scheduler.service"):
+            scheduler.start()
+
+        assert scheduler._apscheduler.get_job("reconcile-cycle") is None
+        assert any("reconcile_job is None" in r.message for r in caplog.records)
+    finally:
+        scheduler.shutdown(wait=True)
+        _logger.removeHandler(caplog.handler)

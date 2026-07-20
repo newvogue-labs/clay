@@ -79,7 +79,26 @@ Standalone service that compares exchange order states with ledger projections a
 ### What This Service Does NOT Do
 
 - No halt/pause mechanism on fatal mismatches
-- No bootstrap/startup/scheduler wiring — dormant only
+
+### Reconcile Scheduling (D-12c)
+
+The reconcile service is wired into two call-sites — both dormant by default (opt-in, testnet-only):
+
+1. **Periodic scheduler job** — `OrderReconcileJob` (async, `CLAY_SCHEDULER_RECONCILE_ENABLED=true`). Iterates active projections, reconciles each `(venue, symbol)` pair, emits `reconcile.cycle` audit/bus on state transitions. Fatal mismatches are signalled via `reconcile.fatal_mismatch` audit only — no halt/pause.
+
+2. **Pre-arm reconcile hook** — `OverrideService.set_pre_arm_reconcile()`. Called before `confirm_override` flips `pending → confirmed`. If fatal mismatches are found, the arm is denied (`ExecutionConfigError`). Hook exceptions → fail-closed (deny).
+
+**Env vars:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAY_SCHEDULER_RECONCILE_ENABLED` | `false` | Master gate for job + adapter + pre-arm hook |
+| `CLAY_SCHEDULER_RECONCILE_INTERVAL_SECONDS` | `300` | Job tick interval |
+| `CLAY_SCHEDULER_RECONCILE_LOOKBACK_SECONDS` | `3600` | `since` window for `reconcile_symbol` |
+
+**Testnet-only constraint:** The adapter is only built when `mode != "live"` and testnet API keys are present. In live mode or without keys, the reconcile job is silently not built.
+
+**Bookmark cursor fix (D-12c):** The bookmark now advances only to the latest *ingested* fill (the one actually written via `record_fills`), not the latest raw fill from the venue. This prevents skipping fills when orphan fills are present ahead of the cursor.
 
 ### Fills Reconcile (D-12b-2)
 

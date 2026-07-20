@@ -454,3 +454,99 @@ async def test_event_ids_remain_unique_after_service_restart(
     all_ids = [e.event_id for e in events1 + events2]
     assert len(all_ids) == 4
     assert len(set(all_ids)) == 4, "event_id collision after simulated restart"
+
+
+# ── D-12c: pre-arm reconcile hook ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_confirm_no_hook_passes_through(sqlite_session_factory):
+    """Without a pre-arm hook, confirm_override behaves as before (no-op)."""
+    svc = _svc(session_factory=sqlite_session_factory)
+    await svc.request_override(actor="op", reason="test")
+    result = await svc.confirm_override(actor="op2")
+    assert svc.status == "confirmed"
+    assert result == svc._state.override_id
+
+
+@pytest.mark.asyncio
+async def test_confirm_clean_hook_allows(sqlite_session_factory):
+    """Pre-arm hook returning False (clean) → confirm proceeds."""
+    svc = _svc(session_factory=sqlite_session_factory)
+    hook_called = []
+
+    async def clean_hook() -> bool:
+        hook_called.append(True)
+        return False
+
+    svc.set_pre_arm_reconcile(clean_hook)
+    await svc.request_override(actor="op", reason="test")
+    await svc.confirm_override(actor="op2")
+
+    assert svc.status == "confirmed"
+    assert len(hook_called) == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_fatal_hook_denies(sqlite_session_factory):
+    """Pre-arm hook returning True (fatal) → confirm denied, audit written."""
+    svc = _svc(session_factory=sqlite_session_factory)
+
+    async def fatal_hook() -> bool:
+        return True
+
+    svc.set_pre_arm_reconcile(fatal_hook)
+    await svc.request_override(actor="op", reason="test")
+
+    with pytest.raises(ExecutionConfigError, match="arm denied"):
+        await svc.confirm_override(actor="op2")
+
+    # Status remains pending (not confirmed)
+    assert svc.status == "pending"
+
+    # Audit: arm_denied_reconcile
+    override_id = svc._state.override_id
+    assert override_id is not None
+    with sqlite_session_factory() as session:
+        events = OverrideRepository(session).list_by_override_id(override_id)
+    denied = [e for e in events if e.action == "arm_denied_reconcile"]
+    assert len(denied) == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_hook_exception_denies(sqlite_session_factory):
+    """Pre-arm hook raising → fail-closed (deny)."""
+    svc = _svc(session_factory=sqlite_session_factory)
+
+    async def broken_hook() -> bool:
+        raise RuntimeError("db connection lost")
+
+    svc.set_pre_arm_reconcile(broken_hook)
+    await svc.request_override(actor="op", reason="test")
+
+    with pytest.raises(ExecutionConfigError, match="arm denied"):
+        await svc.confirm_override(actor="op2")
+
+    assert svc.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_set_pre_arm_reconcile_replaces_hook():
+    """set_pre_arm_reconcile replaces the previous hook."""
+    svc = _svc()
+
+    call_log = []
+
+    async def hook1() -> bool:
+        call_log.append("hook1")
+        return True
+
+    async def hook2() -> bool:
+        call_log.append("hook2")
+        return False
+
+    svc.set_pre_arm_reconcile(hook1)
+    svc.set_pre_arm_reconcile(hook2)
+    # We can't easily call confirm without going through request,
+    # but the hook replacement is the key invariant.
+    assert svc._pre_arm_reconcile is hook2

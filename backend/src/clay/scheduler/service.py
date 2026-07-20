@@ -79,6 +79,7 @@ from clay.scheduler.jobs import (
     ReliabilityRecheckJob,
 )
 from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
+from clay.scheduler.reconcile_job import OrderReconcileJob
 from clay.services.models import ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.settings.scheduler import SchedulerSettings
@@ -116,6 +117,7 @@ class ClayScheduler:
     _OPS_RETENTION_JOB_ID = "ops-retention"
     _AI_AGENT_CYCLE_JOB_ID = "ai-agent-cycle"
     _PROVIDER_POOL_RECONCILE_JOB_ID = "provider-pool-reconcile"
+    _RECONCILE_CYCLE_JOB_ID = "reconcile-cycle"
 
     def __init__(
         self,
@@ -130,6 +132,7 @@ class ClayScheduler:
         ingestion_cycle_service: IngestionCycleService | None = None,
         ai_agent_cycle_job: AIAgentCycleJob | None = None,
         provider_pool_reconcile_job: ProviderPoolReconcileJob | None = None,
+        reconcile_job: OrderReconcileJob | None = None,
     ) -> None:
         """Construct the scheduler. B4 + B5 add optional kwargs.
 
@@ -152,6 +155,7 @@ class ClayScheduler:
         self._ingestion_cycle_service = ingestion_cycle_service
         self._ai_agent_cycle_job = ai_agent_cycle_job
         self._provider_pool_reconcile_job = provider_pool_reconcile_job
+        self._reconcile_job = reconcile_job
         self._apscheduler = AsyncIOScheduler(
             executors={
                 "default": ThreadPoolExecutor(max_workers=4),
@@ -211,6 +215,7 @@ class ClayScheduler:
         self.add_ingestion_cycle_job()
         self.add_ai_agent_cycle_job()
         self.add_provider_pool_reconcile_job()
+        self.add_reconcile_cycle_job()
         self._registry.update_status(self._SERVICE_ID, ServiceStatus.HEALTHY)
         jobs = [
             job_id
@@ -221,6 +226,7 @@ class ClayScheduler:
                 self._INGESTION_CYCLE_JOB_ID,
                 self._AI_AGENT_CYCLE_JOB_ID,
                 self._PROVIDER_POOL_RECONCILE_JOB_ID,
+                self._RECONCILE_CYCLE_JOB_ID,
             )
             if self._apscheduler.get_job(job_id) is not None
         ]
@@ -502,6 +508,40 @@ class ClayScheduler:
             coalesce=True,
             replace_existing=True,
             args=[job.run_once],
+        )
+
+    def add_reconcile_cycle_job(self) -> None:
+        """Register the D-12c ``OrderReconcileJob`` (flag-gated + dep-checked).
+
+        Two gates:
+
+        1. ``reconcile_enabled`` flag (``False`` → silent skip).
+           Default ``False`` — opt-in only, testnet-only.
+        2. ``reconcile_job`` dep present. If ``None`` while the flag
+           is ``True``, emit a loud warning naming the missing dep
+           (misconfiguration; production always passes it when enabled).
+        """
+        if not self._settings.reconcile_enabled:
+            return
+        if self._reconcile_job is None:
+            logger.warning(
+                "clay.scheduler: reconcile_enabled=True but "
+                "reconcile_job is None — reconcile-cycle job "
+                "NOT registered (misconfiguration)",
+            )
+            return
+        job = self._reconcile_job
+        self._apscheduler.add_job(
+            func=self._arun_safely,
+            trigger="interval",
+            seconds=self._settings.reconcile_interval_seconds,
+            id=self._RECONCILE_CYCLE_JOB_ID,
+            executor="async",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+            args=[job.run],
+            kwargs={"on_error": job.on_error},
         )
 
     def _run_safely(
