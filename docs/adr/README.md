@@ -47,7 +47,10 @@
 | 031 | Notion-mirror publisher — односторонний sync vault → Notion | Accepted | docs/adr | [`031-notion-mirror-publisher.md`](031-notion-mirror-publisher.md) |
 | 032 | Exchange Execution Adapter (Multi-Venue) | Proposed | docs/adr | [`032-exchange-execution-adapter-multi-venue.md`](032-exchange-execution-adapter-multi-venue.md) |
 | 033 | Execution Proof-Gate | Proposed | docs/adr | [`033-execution-proof-gate.md`](033-execution-proof-gate.md) |
-| 034+ | свободны | — | — | |
+| 034 | Unknown Resolver + Durable Halt Latch | accepted | docs/adr | [`034-unknown-resolver-halt-latch.md`](034-unknown-resolver-halt-latch.md) |
+| 035 | Advisory DB-Size Monitor (D-13 #1) | accepted | docs/adr | [`035-db-size-monitor.md`](035-db-size-monitor.md) |
+| 036 | TimescaleDB Compression for market_bars (D-13 #2) | accepted | docs/adr | [`036-market-bars-compression.md`](036-market-bars-compression.md) |
+| 037+ | свободны | — | — | |
 
 ## Карта номеров
 
