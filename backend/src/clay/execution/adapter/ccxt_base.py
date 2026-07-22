@@ -256,6 +256,9 @@ class CcxtExchangeAdapter:
 
         Default implementation: search through open orders and reconcile history.
         Subclasses may override with venue-specific optimised paths.
+
+        Taxonomy-aware fallback chain lives in
+        ``ResilientExecutionAdapter`` when ``ReadFallbackPolicy.enabled``.
         """
         # Try open orders first (fast path)
         try:

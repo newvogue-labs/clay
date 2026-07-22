@@ -226,6 +226,19 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 
 **Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → S-ADAPT-3 → S-ADAPT-4 → S-ADAPT-5a → S-ADAPT-5b-1 → S-ADAPT-5b-2a → S-ADAPT-5b-2b.
 
+## Errata 2026-07-22 (S-ADAPT-6)
+
+- **S-ADAPT-6 completed.** Read-only fallback chain on the resilience seam — taxonomy-aware order resolution by `client_order_id`.
+- **`ReadFallbackPolicy`** dataclass in `execution/resilience.py`: `enabled=False` (default-OFF), `reconcile_lookback_h=24`. Proxied via `ResilientExecutionAdapter.__init__(read_fallback=...)`.
+- **`get_by_client_order_id` ON path:** explicit chain built from inner primitives (`get_open_orders` → `reconcile_orders`), never calling `inner.get_by_client_order_id` directly.
+- **Taxonomy:** terminal `AdapterError` → propagate immediately (never mask); transient after CB+retry exhaustion → advance to next step; both-transient-no-match → raise `TransientAdapterError` (fail-closed indeterminism, NOT `None`); success-no-match → `None` (true absence).
+- **Default-OFF guard:** `ReadFallbackPolicy.enabled=False` → byte-identical to pre-S-ADAPT-6 path (delegates to `inner.get_by_client_order_id` through CB+retry).
+- **Invariant #7 confirmed:** fallback applies only to read-ops; `place_order`/`cancel_order` remain venue-sticky.
+- **Deferred item from ADR-032 §(g) / S-ADAPT-4:** read-only fallback-chain — **CLOSED**.
+- **ccxt_base.get_by_client_order_id:** unchanged (legacy OFF path); 1-line docstring reference added.
+
+**Порядок:** S-ADAPT-1 → S-ADAPT-2 → S-ADAPT-2C → S-ADAPT-3 → S-ADAPT-4 → S-ADAPT-5a → S-ADAPT-5b-1 → S-ADAPT-5b-2a → S-ADAPT-5b-2b → **S-ADAPT-6**.
+
 ## Не-цели (out of scope)
 
 - Реальные деньги / prod-ключи (за гейтом `high-risk-operation-ready` + Q5).
