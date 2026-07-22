@@ -51,7 +51,8 @@
 | 035 | Advisory DB-Size Monitor (D-13 #1) | accepted | docs/adr | [`035-db-size-monitor.md`](035-db-size-monitor.md) |
 | 036 | TimescaleDB Compression for market_bars (D-13 #2) | accepted | docs/adr | [`036-market-bars-compression.md`](036-market-bars-compression.md) |
 | 037 | TimescaleDB Retention for market_bars — default-OFF (D-13 #3) | accepted | docs/adr | [`037-market-bars-retention.md`](037-market-bars-retention.md) |
-| 038+ | свободны | — | — | |
+| 038 | TimescaleDB Continuous Aggregate market_bars_1d (D-13 #4) | accepted | docs/adr | [`038-market-bars-continuous-aggregate.md`](038-market-bars-continuous-aggregate.md) |
+| 039+ | свободны | — | — | |
 
 ## Карта номеров
 
