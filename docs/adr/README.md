@@ -50,7 +50,8 @@
 | 034 | Unknown Resolver + Durable Halt Latch | accepted | docs/adr | [`034-unknown-resolver-halt-latch.md`](034-unknown-resolver-halt-latch.md) |
 | 035 | Advisory DB-Size Monitor (D-13 #1) | accepted | docs/adr | [`035-db-size-monitor.md`](035-db-size-monitor.md) |
 | 036 | TimescaleDB Compression for market_bars (D-13 #2) | accepted | docs/adr | [`036-market-bars-compression.md`](036-market-bars-compression.md) |
-| 037+ | свободны | — | — | |
+| 037 | TimescaleDB Retention for market_bars — default-OFF (D-13 #3) | accepted | docs/adr | [`037-market-bars-retention.md`](037-market-bars-retention.md) |
+| 038+ | свободны | — | — | |
 
 ## Карта номеров
 
