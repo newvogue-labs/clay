@@ -1,8 +1,9 @@
-"""Resilience wrapper for ExchangeAdapter (S-ADAPT-3 + S-ADAPT-4).
+"""Resilience wrapper for ExchangeAdapter (S-ADAPT-3, S-ADAPT-4, S-ADAPT-6).
 
 Provides retry-with-reconcile for ``place_order``, bounded
-backoff-retry for read operations on ``TransientAdapterError``, and
-an in-house circuit breaker (daily_stock_analysis pattern).
+backoff-retry for read operations on ``TransientAdapterError``, an
+in-house circuit breaker (daily_stock_analysis pattern), and a
+taxonomy-aware fallback chain for order resolution by client_order_id.
 
 No ccxt imports — only domain + adapter.errors.
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -38,6 +40,8 @@ from clay.execution.adapter.errors import (
 )
 from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.adapter.rules import MarketRules
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -102,6 +106,24 @@ class CircuitBreakerPolicy:
     failure_threshold: int = 5
     reset_timeout_s: Decimal = Decimal("30")
     half_open_max_probes: int = 1
+
+
+@dataclass(frozen=True)
+class ReadFallbackPolicy:
+    """Configuration for taxonomy-aware order resolution fallback chain.
+
+    When ``enabled=True``, ``get_by_client_order_id`` builds an
+    explicit fallback chain on the resilience seam: open_orders →
+    reconcile_orders.  Each step goes through CB + retry; terminal
+    errors propagate immediately; transient exhaustion after each
+    step advances to the next.
+
+    Default-OFF: when ``enabled=False``, the method delegates to
+    ``inner.get_by_client_order_id`` (byte-identical to pre-S-ADAPT-6).
+    """
+
+    enabled: bool = False
+    reconcile_lookback_h: int = 24
 
 
 # ---------------------------------------------------------------------------
@@ -226,10 +248,12 @@ class ResilientExecutionAdapter:
         inner: ExchangeAdapter,
         policy: RetryPolicy | None = None,
         cb_policy: CircuitBreakerPolicy | None = None,
+        read_fallback: ReadFallbackPolicy = ReadFallbackPolicy(),
     ) -> None:
         self._inner = inner
         self._policy = policy or RetryPolicy()
         self._cb = CircuitBreaker(cb_policy or CircuitBreakerPolicy())
+        self._read_fallback = read_fallback
 
     @property
     def environment(self) -> Environment:
@@ -356,11 +380,80 @@ class ResilientExecutionAdapter:
     async def get_by_client_order_id(
         self, symbol: str, client_order_id: str
     ) -> OrderSnapshot | None:
-        return await self._cb.call(
-            lambda: self._retry_transient(
-                lambda: self._inner.get_by_client_order_id(symbol, client_order_id)
+        if not self._read_fallback.enabled:
+            # OFF (default): byte-identical to pre-S-ADAPT-6 path — delegate
+            # directly to inner.get_by_client_order_id through CB + retry.
+            return await self._cb.call(
+                lambda: self._retry_transient(
+                    lambda: self._inner.get_by_client_order_id(symbol, client_order_id)
+                )
             )
+
+        # ON: taxonomy-aware fallback chain — build from inner primitives
+        # (get_open_orders → reconcile_orders), never calling
+        # inner.get_by_client_order_id directly.
+        return await self._resolve_order_fallback(symbol, client_order_id)
+
+    async def _resolve_order_fallback(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        """Taxonomy-aware order resolution: open_orders → reconcile_orders.
+
+        Terminal errors propagate immediately (never masked).
+        Transient exhaustion after a step advances to the next.
+        All-transient with no match → raise (fail-closed indeterminism).
+        """
+        had_transient = False
+
+        # Шаг 1: open orders (fast path)
+        try:
+            snaps = await self._cb.call(
+                lambda: self._retry_transient(
+                    lambda: self._inner.get_open_orders(symbol)
+                )
+            )
+            match = next(
+                (s for s in snaps if s.client_order_id == client_order_id), None
+            )
+            if match is not None:
+                return match
+        except TransientAdapterError:
+            had_transient = True
+            logger.warning(
+                "read-fallback: step1 (open_orders) transient for %s/%s",
+                symbol,
+                client_order_id,
+            )
+
+        # Шаг 2: reconcile history (slower path)
+        since = datetime.now() - timedelta(
+            hours=self._read_fallback.reconcile_lookback_h
         )
+        try:
+            snaps = await self._cb.call(
+                lambda: self._retry_transient(
+                    lambda: self._inner.reconcile_orders(symbol, since)
+                )
+            )
+            match = next(
+                (s for s in snaps if s.client_order_id == client_order_id), None
+            )
+            if match is not None:
+                return match
+        except TransientAdapterError:
+            had_transient = True
+            logger.warning(
+                "read-fallback: step2 (reconcile) transient for %s/%s",
+                symbol,
+                client_order_id,
+            )
+
+        # Финал
+        if had_transient:
+            raise TransientAdapterError(
+                f"order resolution indeterminate: {symbol}/{client_order_id}"
+            )
+        return None
 
     # -- private helpers ----------------------------------------------------
 

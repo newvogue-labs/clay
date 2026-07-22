@@ -49,6 +49,7 @@ from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.adapter.rules import MarketRules
 from clay.execution.resilience import (
     CircuitBreakerPolicy,
+    ReadFallbackPolicy,
     RetryPolicy,
     ResilientExecutionAdapter,
 )
@@ -76,6 +77,7 @@ class FakeInnerAdapter:
         self._get_order_calls: int = 0
         self._get_open_orders_calls: int = 0
         self._get_balances_calls: int = 0
+        self._get_by_client_order_id_calls: int = 0
         self._cancel_order_calls: int = 0
         self._cancel_order_effects: list[Any] = []
 
@@ -86,6 +88,7 @@ class FakeInnerAdapter:
         self._get_order_effects: list[Any] = []
         self._get_open_orders_effects: list[Any] = []
         self._get_balances_effects: list[Any] = []
+        self._get_by_client_order_id_effects: list[Any] = []
 
     # -- helpers to configure behavior --
 
@@ -108,6 +111,9 @@ class FakeInnerAdapter:
 
     def set_get_balances_effect(self, effect: Any) -> None:
         self._get_balances_effects.append(effect)
+
+    def set_get_by_client_order_id_effect(self, effect: Any) -> None:
+        self._get_by_client_order_id_effects.append(effect)
 
     def set_cancel_order_effect(self, effect: Any) -> None:
         self._cancel_order_effects.append(effect)
@@ -192,6 +198,12 @@ class FakeInnerAdapter:
     async def get_by_client_order_id(
         self, symbol: str, client_order_id: str
     ) -> OrderSnapshot | None:
+        self._get_by_client_order_id_calls += 1
+        if self._get_by_client_order_id_effects:
+            eff = self._get_by_client_order_id_effects.pop(0)
+            if isinstance(eff, BaseException):
+                raise eff
+            return eff
         return None
 
 
@@ -880,3 +892,193 @@ class TestResilientAdapterCBIntegration:
 
         assert resilient._cb.state == _CBState.CLOSED
         assert len(inner._place_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# S-ADAPT-6: ReadFallbackChain — taxonomy-aware order resolution
+# ---------------------------------------------------------------------------
+
+
+class TestReadFallbackChain:
+    """Tests for ResilientExecutionAdapter.get_by_client_order_id with ReadFallbackPolicy."""
+
+    @pytest.mark.anyio
+    async def test_off_default_delegates_to_inner_get_by_cid(self) -> None:
+        """OFF (default): delegates to inner.get_by_client_order_id exactly once;
+        get_open_orders / reconcile_orders NOT called."""
+        inner = FakeInnerAdapter()
+        inner.set_get_by_client_order_id_effect(_make_snapshot(cid=CID))
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+
+        result = await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert result is not None
+        assert result.client_order_id == CID
+        assert inner._get_by_client_order_id_calls == 1
+        # get_open_orders and reconcile_orders NOT called
+        assert inner._get_open_orders_calls == 0
+        assert inner._reconcile_calls == []
+
+    @pytest.mark.anyio
+    async def test_on_found_in_open_orders(self) -> None:
+        """ON, found in open_orders → return snapshot; reconcile NOT called."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), read_fallback=policy
+        )  # type: ignore[arg-type]
+        target = _make_snapshot(cid=CID)
+        inner.set_get_open_orders_effect([target])
+
+        result = await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert result is not None
+        assert result.client_order_id == CID
+        assert inner._get_open_orders_calls == 1
+        assert inner._reconcile_calls == []  # reconcile NOT called
+
+    @pytest.mark.anyio
+    async def test_on_found_in_reconcile(self) -> None:
+        """ON, not in open_orders, found in reconcile → return snapshot."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), read_fallback=policy
+        )  # type: ignore[arg-type]
+        target = _make_snapshot(cid=CID)
+        inner.set_get_open_orders_effect([])  # empty open orders
+        inner.set_reconcile_effect([target])
+
+        result = await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert result is not None
+        assert result.client_order_id == CID
+        assert inner._get_open_orders_calls == 1
+        assert len(inner._reconcile_calls) == 1
+
+    @pytest.mark.anyio
+    async def test_on_no_match_returns_none(self) -> None:
+        """ON, both steps successful, no match → None (true absence)."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), read_fallback=policy
+        )  # type: ignore[arg-type]
+        inner.set_get_open_orders_effect([])  # no matches
+        inner.set_reconcile_effect([])  # no matches
+
+        result = await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert result is None
+        assert inner._get_open_orders_calls == 1
+        assert len(inner._reconcile_calls) == 1
+
+    @pytest.mark.anyio
+    async def test_on_step1_transient_step2_finds(self) -> None:
+        """ON, step1 transient (exhausted), step2 finds → return snapshot (fallback works)."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), read_fallback=policy
+        )  # type: ignore[arg-type]
+        # Step 1: all transient (exhausts _retry_transient, trips CB)
+        inner.set_get_open_orders_effect(TransientAdapterError("net-1"))
+        inner.set_get_open_orders_effect(TransientAdapterError("net-2"))
+        inner.set_get_open_orders_effect(TransientAdapterError("net-3"))
+        # Step 2: finds the order
+        target = _make_snapshot(cid=CID)
+        inner.set_reconcile_effect([target])
+
+        result = await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert result is not None
+        assert result.client_order_id == CID
+        assert inner._get_open_orders_calls == 3  # all 3 retries
+        assert len(inner._reconcile_calls) == 1
+
+    @pytest.mark.anyio
+    async def test_on_both_steps_transient_raises(self) -> None:
+        """ON, both steps transient → raise TransientAdapterError (fail-closed, NOT None)."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        cb_policy = CircuitBreakerPolicy(
+            failure_threshold=100,  # high threshold — don't trip CB
+            reset_timeout_s=Decimal("30"),
+            half_open_max_probes=1,
+        )
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=cb_policy, read_fallback=policy
+        )  # type: ignore[arg-type]
+        # Step 1: all transient
+        inner.set_get_open_orders_effect(TransientAdapterError("net-a"))
+        inner.set_get_open_orders_effect(TransientAdapterError("net-b"))
+        inner.set_get_open_orders_effect(TransientAdapterError("net-c"))
+        # Step 2: all transient
+        inner.set_reconcile_effect(TransientAdapterError("net-x"))
+        inner.set_reconcile_effect(TransientAdapterError("net-y"))
+        inner.set_reconcile_effect(TransientAdapterError("net-z"))
+
+        with pytest.raises(TransientAdapterError, match="indeterminate"):
+            await resilient.get_by_client_order_id(SYMBOL, CID)
+
+    @pytest.mark.anyio
+    async def test_on_step1_terminal_propagates_immediately(self) -> None:
+        """ON, step1 terminal (ConfigError) → propagates immediately; reconcile NOT called."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), read_fallback=policy
+        )  # type: ignore[arg-type]
+        inner.set_get_open_orders_effect(ConfigError("bad config"))
+
+        with pytest.raises(ConfigError, match="bad config"):
+            await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert inner._get_open_orders_calls == 1
+        assert inner._reconcile_calls == []  # reconcile NOT called
+
+    @pytest.mark.anyio
+    async def test_on_step2_terminal_propagates(self) -> None:
+        """ON, step1 succeeds empty, step2 terminal → propagates."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), read_fallback=policy
+        )  # type: ignore[arg-type]
+        inner.set_get_open_orders_effect([])  # step1: empty, no match
+        inner.set_reconcile_effect(ConfigError("auth failed"))
+
+        with pytest.raises(ConfigError, match="auth failed"):
+            await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert inner._get_open_orders_calls == 1
+        assert len(inner._reconcile_calls) == 1
+
+    @pytest.mark.anyio
+    async def test_on_step1_circuit_open_step2_finds(self) -> None:
+        """ON, step1 CircuitOpenError (CB trip + transient), step2 finds → fallback succeeds."""
+        inner = FakeInnerAdapter()
+        policy = ReadFallbackPolicy(enabled=True)
+        # High threshold — don't let CB open from retries
+        cb_policy = CircuitBreakerPolicy(
+            failure_threshold=100,
+            reset_timeout_s=Decimal("30"),
+            half_open_max_probes=1,
+        )
+        resilient = ResilientExecutionAdapter(
+            inner, _fast_policy(), cb_policy=cb_policy, read_fallback=policy
+        )  # type: ignore[arg-type]
+        # Step 1: CircuitOpenError (CB wraps inner, sees TransientAdapterError subclass)
+        inner.set_get_open_orders_effect(CircuitOpenError("circuit open"))
+        # Step 2: finds the order
+        target = _make_snapshot(cid=CID)
+        inner.set_reconcile_effect([target])
+
+        result = await resilient.get_by_client_order_id(SYMBOL, CID)
+
+        assert result is not None
+        assert result.client_order_id == CID
+        assert (
+            inner._get_open_orders_calls == 1
+        )  # inner called once (CircuitOpenError is transient → retry, but CB not open on first call)
+        assert len(inner._reconcile_calls) == 1
