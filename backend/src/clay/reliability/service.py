@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    from clay.settings.db_size import DbSizeMonitorSettings
 
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
 from clay.core.clock import Clock, SystemClock
+from sqlalchemy import text
+
 from clay.reliability.heartbeat import DegradedHeartbeat
 from clay.control_center.models import ControlCenterSnapshot
 from clay.control_center.service import ControlCenterService
@@ -44,6 +50,7 @@ class ReliabilityService:
         session_factory: sessionmaker | None = None,
         clock: Clock = SystemClock(),
         degraded_heartbeat: DegradedHeartbeat | None = None,
+        db_size_settings: DbSizeMonitorSettings | None = None,
     ) -> None:
         self.control_center_service = control_center_service
         self.ai_control_service = ai_control_service
@@ -55,6 +62,7 @@ class ReliabilityService:
         self.session_factory = session_factory
         self._clock = clock
         self._degraded_heartbeat = degraded_heartbeat
+        self._db_size_settings = db_size_settings
         # ``_last_rechecked_at`` is restored from the
         # ``ops.reliability_state`` singleton row when a ``session_factory``
         # is supplied. Without one (legacy callers and pre-A5 tests), the
@@ -68,6 +76,24 @@ class ReliabilityService:
                 self._last_rechecked_at = state.last_rechecked_at
                 session.commit()
 
+    def _query_db_size(self, session: Session) -> int | None:
+        """Return the database size in bytes, or ``None`` on failure.
+
+        Uses ``pg_database_size(current_database())`` — PostgreSQL-only.
+        Under SQLite (unit tests) the call is expected to fail; callers
+        gate on ``_db_size_settings.monitor_enabled`` before invoking.
+        """
+        try:
+            result = session.execute(
+                text("SELECT pg_database_size(current_database())")
+            )
+            row = result.fetchone()
+            if row is not None:
+                return int(row[0])
+        except Exception:
+            return None
+        return None
+
     def build_snapshot(self, session: Session) -> ReliabilitySnapshot:
         now = self._clock.now()
         control_snapshot = self.control_center_service.build_snapshot(session)
@@ -76,9 +102,19 @@ class ReliabilityService:
         review_snapshot = self.session_review_service.build_snapshot(session)
         validation_snapshot = self.validation_lab_service.build_snapshot(session)
 
+        # D-13: flag-gated DB size read — ``pg_database_size`` is
+        # PostgreSQL-only and never called when monitor is OFF.
+        db_size_bytes: int | None = None
+        if (
+            self._db_size_settings is not None
+            and self._db_size_settings.monitor_enabled
+        ):
+            db_size_bytes = self._query_db_size(session)
+
         degraded_triggers = self._build_degraded_triggers(
             control_snapshot=control_snapshot,
             ai_fallback=ai_snapshot.fallback,
+            db_size_bytes=db_size_bytes,
         )
         fallback_snapshot = LocalFallbackReadinessSnapshot(
             fallback_active=ai_snapshot.fallback.fallback_active,
@@ -204,8 +240,49 @@ class ReliabilityService:
         *,
         control_snapshot: ControlCenterSnapshot,
         ai_fallback,
+        db_size_bytes: int | None = None,
     ) -> list[DegradedTriggerSnapshot]:
         triggers: list[DegradedTriggerSnapshot] = []
+
+        # D-13: advisory DB-size trigger (max 1 — critical overrides
+        # warning).  When ``db_size_bytes`` is ``None`` (monitor OFF or
+        # query failure) no trigger is emitted.
+        if db_size_bytes is not None:
+            settings = self._db_size_settings
+            assert settings is not None  # noqa: S101 — invariant
+            if db_size_bytes >= settings.critical_bytes:
+                triggers.append(
+                    DegradedTriggerSnapshot(
+                        trigger_id="db-size-critical",
+                        severity="critical",
+                        title="Database size exceeds critical threshold",
+                        description=(
+                            f"Database is {db_size_bytes:,} bytes "
+                            f"(threshold: {settings.critical_bytes:,})."
+                        ),
+                        recommended_action=(
+                            "Free disk space or enable retention/compression "
+                            "(future D-13 slices). Do not start new "
+                            "live-sessions until resolved."
+                        ),
+                    )
+                )
+            elif db_size_bytes >= settings.warning_bytes:
+                triggers.append(
+                    DegradedTriggerSnapshot(
+                        trigger_id="db-size-warning",
+                        severity="warning",
+                        title="Database size exceeds warning threshold",
+                        description=(
+                            f"Database is {db_size_bytes:,} bytes "
+                            f"(threshold: {settings.warning_bytes:,})."
+                        ),
+                        recommended_action=(
+                            "Monitor growth trend; plan retention/compression "
+                            "(future D-13 slices) before critical threshold."
+                        ),
+                    )
+                )
 
         if control_snapshot.runtime.state == "degraded":
             triggers.append(

@@ -244,7 +244,7 @@ class ReliabilityRecheckJob:
         self._audit_writer = audit_writer
         self._event_bus = event_bus
         # First-run seed; cleared on the first successful run().
-        self._cache: tuple[str, int, int] | None = None
+        self._cache: tuple[str, int, int, bool] | None = None
         # Episode flag for the on_error anti-flood; reset on success.
         self._failing: bool = False
 
@@ -258,10 +258,18 @@ class ReliabilityRecheckJob:
         # (Acceptance #11, Emma's mandatory fix). Reaches this line
         # only if ``recheck`` and ``commit`` did not raise.
         self._failing = False
+        # Step 3-5: 4-tuple transition-diff (D-13: added
+        # ``db_size_critical`` flag to detect healthy→degraded from
+        # the ``db-size-critical`` trigger; warning band is
+        # overview-only and does NOT affect the tuple — see ADR-035).
+        db_size_critical = any(
+            t.trigger_id == "db-size-critical" for t in snapshot.degraded_triggers
+        )
         new_state = (
             snapshot.summary.release_readiness_status,
             snapshot.summary.blocking_gate_count,
             snapshot.summary.warning_gate_count,
+            db_size_critical,
         )
         if self._cache is None:
             # First run after process start — seed the cache, do not

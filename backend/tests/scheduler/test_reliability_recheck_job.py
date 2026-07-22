@@ -69,10 +69,11 @@ class _FakeSummary:
     release_readiness_status: str = "ready_for_demo"
     blocking_gate_count: int = 0
     warning_gate_count: int = 2
+    overall_status: str = "healthy"
 
 
 class FakeSnapshot:
-    """Fake ``ReliabilitySnapshot`` with the 3 fields the job diffs."""
+    """Fake ``ReliabilitySnapshot`` with the 4 fields the job diffs."""
 
     def __init__(
         self,
@@ -80,12 +81,26 @@ class FakeSnapshot:
         status: str = "ready_for_demo",
         blocking: int = 0,
         warning: int = 2,
+        overall_status: str = "healthy",
+        db_size_critical: bool = False,
     ) -> None:
         self.summary = _FakeSummary(
             release_readiness_status=status,
             blocking_gate_count=blocking,
             warning_gate_count=warning,
+            overall_status=overall_status,
         )
+        # D-13: ``degraded_triggers`` used by the job to detect
+        # ``db-size-critical`` for the 4th cache-tuple element.
+        self.degraded_triggers: list[Any] = []
+        if db_size_critical:
+            self.degraded_triggers.append(
+                type(
+                    "_FakeTrigger",
+                    (),
+                    {"trigger_id": "db-size-critical", "severity": "critical"},
+                )()
+            )
 
 
 class FakeReliabilityService:
@@ -134,11 +149,21 @@ class FakeReliabilityService:
             },
         )
 
-    def set_snapshot(self, *, status: str, blocking: int, warning: int) -> None:
+    def set_snapshot(
+        self,
+        *,
+        status: str,
+        blocking: int,
+        warning: int,
+        overall_status: str = "healthy",
+        db_size_critical: bool = False,
+    ) -> None:
         self._current_snapshot = FakeSnapshot(
             status=status,
             blocking=blocking,
             warning=warning,
+            overall_status=overall_status,
+            db_size_critical=db_size_critical,
         )
 
 
@@ -411,3 +436,69 @@ def test_failure_success_failure_audits_twice(tmp_path: Path) -> None:
     assert len(failed_audits) == 2, (
         f"expected 2 audit entries (one per failing episode), got {len(failed_audits)}"
     )
+
+
+# === D-13 — db-size-critical transition test ===
+
+
+def test_db_size_critical_emits_on_transition(tmp_path: Path) -> None:
+    """D-13: False→True ``db-size-critical`` emits ``reliability.rechecked`` once.
+
+    The 4th element of the cache tuple (``db_size_critical: bool``)
+    detects healthy→degraded transitions from the ``db-size-critical``
+    trigger.  Warning band is overview-only and does NOT affect the
+    tuple (documented ADR-035 limitation).
+    """
+    job, service, audit_writer, event_bus, _ = _make_job(tmp_path)
+
+    job.run()  # seed: db_size_critical=False
+    # Transition: add db-size-critical trigger
+    service.set_snapshot(
+        status="blocked",
+        blocking=1,
+        warning=0,
+        overall_status="degraded",
+        db_size_critical=True,
+    )
+    job.run()
+
+    # One emit (transition only)
+    assert len(service.emit_calls) == 1
+    events = _read_audit_events(audit_writer)
+    rechecked = [e for e in events if e["event_type"] == "reliability.rechecked"]
+    assert len(rechecked) == 1
+
+
+def test_db_size_warning_no_emit(tmp_path: Path) -> None:
+    """D-13: ``db-size-warning`` does NOT affect ``db_size_critical`` tuple element.
+
+    Warning band is overview-only; the ``db_size_critical`` flag stays
+    ``False`` when only a warning trigger is present.  All other tuple
+    elements must remain constant to isolate the flag.
+    """
+    job, service, audit_writer, event_bus, _ = _make_job(tmp_path)
+
+    job.run()  # seed: (ready_for_demo, 0, 2, False)
+    # Change only the degraded_triggers (add warning) but keep the
+    # 4 cache-tuple fields identical → no transition → no emit.
+    service.set_snapshot(
+        status="ready_for_demo",
+        blocking=0,
+        warning=2,
+        overall_status="healthy",
+        db_size_critical=False,
+    )
+    # Manually inject a warning trigger into the snapshot (invisible
+    # to the cache tuple — only db_size_critical matters).
+    service._current_snapshot.degraded_triggers = [
+        type(
+            "_FakeWarningTrigger",
+            (),
+            {"trigger_id": "db-size-warning", "severity": "warning"},
+        )()
+    ]
+    job.run()
+
+    # No emit — all 4 cache-tuple elements unchanged.
+    assert service.emit_calls == []
+    assert _read_audit_events(audit_writer) == []
