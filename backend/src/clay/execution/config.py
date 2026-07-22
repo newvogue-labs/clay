@@ -37,6 +37,7 @@ class ExecutionConfig:
     proof_enforce_session: bool = False
     proof_enforce_session_risk: bool = False
     proof_enforce_halt_latch: bool = False
+    proof_enforce_portfolio: bool = False
     proof_max_snapshot_age_seconds: int = 30
     proof_metadata_version: str = "v1"
     proof_submit_rate_max: int = 0
@@ -83,6 +84,10 @@ class ExecutionConfig:
             in {"1", "true"},
             proof_enforce_halt_latch=os.environ.get(
                 "CLAY_PROOF_ENFORCE_HALT_LATCH", "0"
+            ).lower()
+            in {"1", "true"},
+            proof_enforce_portfolio=os.environ.get(
+                "CLAY_PROOF_ENFORCE_PORTFOLIO", "0"
             ).lower()
             in {"1", "true"},
             proof_max_snapshot_age_seconds=int(

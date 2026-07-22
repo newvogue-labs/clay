@@ -238,3 +238,9 @@ on 3.14 before any "verified" status (G6).
 2. `DegradedHeartbeat` is written by `ReliabilityService.recheck` (B4 scheduler cadence) + one eager-seed at bootstrap. Fail-closed: cold (never written) and stale (writer too slow) both read as `degraded=True`.
 3. `max_age = 2 × reliability_recheck_interval_seconds` — allows one missed cadence before fail-closed.
 4. Tradeoff: when `reliability_enabled=False` (scheduler job disabled), heartbeat writer is only the boot-seed + any manual `POST /reliability/recheck` route. Without scheduler cadence, heartbeat eventually goes stale → `is_degraded()=True` → `is_live_eligible()=False` / kill-switch deny. Safe (fail-closed) but must be documented. Cross-ref: ADR-007 (B4 `reliability-recheck` scheduler job).
+
+## Errata (S-EXEC-SAFE-PORT-WIRE, 2026-07-22)
+
+1. **Portfolio class requires explicit arm.** `CLAY_PROOF_ENFORCE_PORTFOLIO` env flag controls `ExecutionConfig.proof_enforce_portfolio` (default `False`). Double-off: unset → `False` → `ExecutionProofGate._enforce_portfolio=False` → portfolio checks (free-balance, MAX_POSITION, open-orders) never built → live path byte-identical.
+2. **Wiring chain:** `os.environ → ExecutionConfig.from_env() → bootstrap.py ExecutionProofGate(enforce_portfolio=...) → gate._enforce_portfolio`. No late-bind setter (portfolio check is self-contained, no external probe).
+3. **Existing tests cover behavior:** `test_gate.py::TestGateEnforcePortfolio` validates `enforce_portfolio=False` → `get_balances()` not called (dormant path guard). New integration test `test_bootstrap_enforce_portfolio_wiring.py` validates wiring end-to-end.
