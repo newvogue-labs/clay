@@ -1817,3 +1817,218 @@ def test_duplicate_intent_never_admit(duplicate: bool) -> None:
         )
         assert rec.decision == Decision.DENY
         assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes
+
+
+# ── Consolidated session invariants (#18–#24) ───────────────────────────
+
+
+class TestCheckerSessionInvariants:
+    """Прямые pure-function тесты session-инвариантов #18–#24.
+
+    Все тесты: account=None, open_orders=None, max_position=0,
+    max_order_notional=Decimal("0") (cap off), валидный LIMIT с ценой —
+    чтобы решение диктовал ТОЛЬКО целевой инвариант.
+    """
+
+    def test_session_none_no_session_codes(self) -> None:
+        """1. session=None → нет session-кодов; 12 invariants."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=None,
+        )
+        assert rec.decision == Decision.ADMIT
+        assert len(rec.invariant_results) == 12
+        session_codes = {
+            ReasonCode.KILL_SWITCH_ENGAGED,
+            ReasonCode.SESSION_HALTED,
+            ReasonCode.SESSION_REDUCE_ONLY,
+            ReasonCode.SESSION_DRAWDOWN_TRIPPED,
+            ReasonCode.SESSION_COOLDOWN_TRIPPED,
+            ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED,
+            ReasonCode.SESSION_DUPLICATE_INTENT,
+        }
+        assert session_codes.isdisjoint(set(rec.reason_codes))
+
+    def test_clean_session_buy_admits(self) -> None:
+        """2. Чистая session (все флаги False, mode=NORMAL) → BUY ADMIT; 19 invariants."""
+        req = _make_request()
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(),
+        )
+        assert rec.decision == Decision.ADMIT
+        assert len(rec.invariant_results) == 19
+
+    def test_kill_switch_engaged_denies_both_sides(self) -> None:
+        """3. #18 kill_switch_engaged=True: BUY → DENY; SELL → DENY."""
+        for side in (OrderSide.BUY, OrderSide.SELL):
+            req = _make_request(side=side)
+            rec = admit(
+                intent=req,
+                snapshot=DEFAULT_SNAPSHOT,
+                policy=DEFAULT_POLICY,
+                max_order_notional=Decimal("0"),
+                now=NOW,
+                session=_make_session(kill_switch_engaged=True),
+            )
+            assert rec.decision == Decision.DENY
+            assert ReasonCode.KILL_SWITCH_ENGAGED in rec.reason_codes
+
+    def test_halted_denies_both_sides(self) -> None:
+        """4. #19 mode=HALTED: BUY → DENY; SELL → DENY."""
+        for side in (OrderSide.BUY, OrderSide.SELL):
+            req = _make_request(side=side)
+            rec = admit(
+                intent=req,
+                snapshot=DEFAULT_SNAPSHOT,
+                policy=DEFAULT_POLICY,
+                max_order_notional=Decimal("0"),
+                now=NOW,
+                session=_make_session(mode=SessionMode.HALTED),
+            )
+            assert rec.decision == Decision.DENY
+            assert ReasonCode.SESSION_HALTED in rec.reason_codes
+
+    def test_reducing_buy_denies_sell_admits(self) -> None:
+        """5. #20 mode=REDUCING: BUY → DENY[SESSION_REDUCE_ONLY]; SELL → ADMIT."""
+        req_buy = _make_request(side=OrderSide.BUY)
+        rec_buy = admit(
+            intent=req_buy,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(mode=SessionMode.REDUCING),
+        )
+        assert rec_buy.decision == Decision.DENY
+        assert ReasonCode.SESSION_REDUCE_ONLY in rec_buy.reason_codes
+
+        req_sell = _make_request(side=OrderSide.SELL)
+        rec_sell = admit(
+            intent=req_sell,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(mode=SessionMode.REDUCING),
+        )
+        assert rec_sell.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_REDUCE_ONLY not in rec_sell.reason_codes
+
+    def test_drawdown_tripped_buy_denies_sell_admits(self) -> None:
+        """6. #21 drawdown_tripped=True: BUY → DENY[SESSION_DRAWDOWN_TRIPPED]; SELL → ADMIT."""
+        req_buy = _make_request(side=OrderSide.BUY)
+        rec_buy = admit(
+            intent=req_buy,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(drawdown_tripped=True),
+        )
+        assert rec_buy.decision == Decision.DENY
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED in rec_buy.reason_codes
+
+        req_sell = _make_request(side=OrderSide.SELL)
+        rec_sell = admit(
+            intent=req_sell,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(drawdown_tripped=True),
+        )
+        assert rec_sell.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED not in rec_sell.reason_codes
+
+    def test_cooldown_tripped_buy_denies_sell_admits(self) -> None:
+        """7. #22 cooldown_tripped=True: BUY → DENY[SESSION_COOLDOWN_TRIPPED]; SELL → ADMIT."""
+        req_buy = _make_request(side=OrderSide.BUY)
+        rec_buy = admit(
+            intent=req_buy,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(cooldown_tripped=True),
+        )
+        assert rec_buy.decision == Decision.DENY
+        assert ReasonCode.SESSION_COOLDOWN_TRIPPED in rec_buy.reason_codes
+
+        req_sell = _make_request(side=OrderSide.SELL)
+        rec_sell = admit(
+            intent=req_sell,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(cooldown_tripped=True),
+        )
+        assert rec_sell.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_COOLDOWN_TRIPPED not in rec_sell.reason_codes
+
+    def test_submit_rate_exceeded_buy_denies_sell_admits(self) -> None:
+        """8. #23 submit_rate_exceeded=True: BUY → DENY[SESSION_SUBMIT_RATE_EXCEEDED]; SELL → ADMIT."""
+        req_buy = _make_request(side=OrderSide.BUY)
+        rec_buy = admit(
+            intent=req_buy,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(submit_rate_exceeded=True),
+        )
+        assert rec_buy.decision == Decision.DENY
+        assert ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED in rec_buy.reason_codes
+
+        req_sell = _make_request(side=OrderSide.SELL)
+        rec_sell = admit(
+            intent=req_sell,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(submit_rate_exceeded=True),
+        )
+        assert rec_sell.decision == Decision.ADMIT
+        assert ReasonCode.SESSION_SUBMIT_RATE_EXCEEDED not in rec_sell.reason_codes
+
+    def test_duplicate_intent_denies_both_sides(self) -> None:
+        """9. #24 duplicate_intent=True: BUY → DENY; SELL → DENY (нет reduce-bypass)."""
+        for side in (OrderSide.BUY, OrderSide.SELL):
+            req = _make_request(side=side)
+            rec = admit(
+                intent=req,
+                snapshot=DEFAULT_SNAPSHOT,
+                policy=DEFAULT_POLICY,
+                max_order_notional=Decimal("0"),
+                now=NOW,
+                session=_make_session(duplicate_intent=True),
+            )
+            assert rec.decision == Decision.DENY
+            assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes
+
+    def test_collect_all_session_plus_qty_below_min(self) -> None:
+        """10. Collect-all: drawdown + duplicate_intent + QTY_BELOW_MIN → все три в reason_codes."""
+        req = _make_request(side=OrderSide.BUY, quantity=Decimal("0.0001"))
+        rec = admit(
+            intent=req,
+            snapshot=DEFAULT_SNAPSHOT,
+            policy=DEFAULT_POLICY,
+            max_order_notional=Decimal("0"),
+            now=NOW,
+            session=_make_session(drawdown_tripped=True, duplicate_intent=True),
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.SESSION_DRAWDOWN_TRIPPED in rec.reason_codes
+        assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes
+        assert ReasonCode.QTY_BELOW_MIN in rec.reason_codes
