@@ -428,3 +428,119 @@ def test_recheck_emit_false_skips_audit_and_bus_but_persists_last_rechecked_at(
     # ``ReliabilityStateRepository.save`` invoked with last_rechecked_at=.
     assert len(save_calls) == 1
     assert "last_rechecked_at" in save_calls[0]
+
+
+# === D-13 — DB-size monitor (advisory, default-OFF) ===
+
+
+def test_db_size_off_snapshot_identical_and_query_not_called(
+    db_session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-13 acceptance (a): OFF → _query_db_size never called, triggers identical."""
+    bundle = build_reliability_bundle(tmp_path)
+    seed_reliability_inputs(db_session)
+
+    snapshot_off = bundle["service"].build_snapshot(db_session)
+    trigger_ids_off = [t.trigger_id for t in snapshot_off.degraded_triggers]
+
+    # _query_db_size must NOT be called when monitor is OFF (default).
+    from clay.reliability.service import ReliabilityService
+
+    spy_calls: list[str] = []
+    original = ReliabilityService._query_db_size
+
+    def _spy(self, session):
+        spy_calls.append("called")
+        return original(self, session)
+
+    monkeypatch.setattr(ReliabilityService, "_query_db_size", _spy)
+    snapshot_off2 = bundle["service"].build_snapshot(db_session)
+    trigger_ids_off2 = [t.trigger_id for t in snapshot_off2.degraded_triggers]
+
+    assert spy_calls == [], "_query_db_size called when monitor is OFF"
+    assert trigger_ids_off == trigger_ids_off2
+
+
+def test_db_size_on_below_warning_no_trigger(
+    db_session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-13: ON + size < warning → no db-size trigger."""
+    from clay.settings.db_size import DbSizeMonitorSettings
+
+    settings = DbSizeMonitorSettings(
+        monitor_enabled=True,
+        warning_bytes=5_000_000_000,
+        critical_bytes=10_000_000_000,
+    )
+    bundle = build_reliability_bundle(tmp_path)
+    bundle["service"]._db_size_settings = settings
+    seed_reliability_inputs(db_session)
+
+    monkeypatch.setattr(
+        type(bundle["service"]),
+        "_query_db_size",
+        lambda self, session: 1_000_000_000,  # 1 GiB < 5 GiB warning
+    )
+
+    snapshot = bundle["service"].build_snapshot(db_session)
+    db_triggers = [t for t in snapshot.degraded_triggers if "db-size" in t.trigger_id]
+    assert db_triggers == []
+    assert snapshot.summary.overall_status == "healthy"
+
+
+def test_db_size_on_warning_band(
+    db_session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-13: ON + warning ≤ size < critical → db-size-warning, overall_status stays healthy."""
+    from clay.settings.db_size import DbSizeMonitorSettings
+
+    settings = DbSizeMonitorSettings(
+        monitor_enabled=True,
+        warning_bytes=5_000_000_000,
+        critical_bytes=10_000_000_000,
+    )
+    bundle = build_reliability_bundle(tmp_path)
+    bundle["service"]._db_size_settings = settings
+    seed_reliability_inputs(db_session)
+
+    monkeypatch.setattr(
+        type(bundle["service"]),
+        "_query_db_size",
+        lambda self, session: 7_000_000_000,  # 7 GiB → warning band
+    )
+
+    snapshot = bundle["service"].build_snapshot(db_session)
+    db_triggers = [t for t in snapshot.degraded_triggers if "db-size" in t.trigger_id]
+    assert len(db_triggers) == 1
+    assert db_triggers[0].trigger_id == "db-size-warning"
+    assert db_triggers[0].severity == "warning"
+    assert snapshot.summary.overall_status == "healthy"
+
+
+def test_db_size_on_critical_band(
+    db_session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-13: ON + size ≥ critical → db-size-critical, overall_status == degraded."""
+    from clay.settings.db_size import DbSizeMonitorSettings
+
+    settings = DbSizeMonitorSettings(
+        monitor_enabled=True,
+        warning_bytes=5_000_000_000,
+        critical_bytes=10_000_000_000,
+    )
+    bundle = build_reliability_bundle(tmp_path)
+    bundle["service"]._db_size_settings = settings
+    seed_reliability_inputs(db_session)
+
+    monkeypatch.setattr(
+        type(bundle["service"]),
+        "_query_db_size",
+        lambda self, session: 12_000_000_000,  # 12 GiB → critical band
+    )
+
+    snapshot = bundle["service"].build_snapshot(db_session)
+    db_triggers = [t for t in snapshot.degraded_triggers if "db-size" in t.trigger_id]
+    assert len(db_triggers) == 1
+    assert db_triggers[0].trigger_id == "db-size-critical"
+    assert db_triggers[0].severity == "critical"
+    assert snapshot.summary.overall_status == "degraded"

@@ -69,6 +69,7 @@ from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
 from clay.signal_engine.service import SignalEngineService
 from clay.settings.audit import AuditSettings
+from clay.settings.db_size import DbSizeMonitorSettings
 from clay.settings.ingestion import IngestionSettings
 from clay.settings.scheduler import SchedulerSettings
 from clay.validation_lab.service import ValidationLabService
@@ -387,6 +388,7 @@ def build_services(
             seconds=2 * scheduler_settings.reliability_recheck_interval_seconds
         ),
     )
+    db_size_settings = DbSizeMonitorSettings()
     reliability_service = ReliabilityService(
         control_center_service=control_center_service,
         ai_control_service=ai_control_service,
@@ -397,6 +399,7 @@ def build_services(
         event_bus=event_bus,
         session_factory=session_factory,
         degraded_heartbeat=degraded_heartbeat,
+        db_size_settings=db_size_settings,
     )
 
     # A6: when a session_factory is provided, project the restored
