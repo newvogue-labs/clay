@@ -695,3 +695,57 @@ class TestClose:
 
         await adapter.close()
         assert client._closed is True
+
+
+# ---------------------------------------------------------------------------
+# D7.2: Bybit._extract_client_order_id — orderLinkId priority
+# ---------------------------------------------------------------------------
+
+
+class TestExtractClientOrderId:
+    def test_info_orderlinkid_has_priority(self) -> None:
+        """info.orderLinkId has priority over empty unified clientOrderId."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+
+        response = {
+            "clientOrderId": "",
+            "info": {"orderLinkId": "my-order-link-001"},
+        }
+        result = adapter._extract_client_order_id(response)
+        assert result == "my-order-link-001"
+
+    def test_fallback_to_clientOrderId(self) -> None:
+        """When info is absent, falls back to unified clientOrderId."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+
+        response = {
+            "clientOrderId": "unified-cid-002",
+        }
+        result = adapter._extract_client_order_id(response)
+        assert result == "unified-cid-002"
+
+    def test_info_empty_dict_fallback(self) -> None:
+        """info is empty dict → falls back to clientOrderId."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+
+        response = {
+            "clientOrderId": "fallback-cid",
+            "info": {},
+        }
+        result = adapter._extract_client_order_id(response)
+        assert result == "fallback-cid"
+
+    def test_both_empty_returns_empty(self) -> None:
+        """Both info.orderLinkId and clientOrderId empty → returns empty string."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+
+        response = {
+            "clientOrderId": "",
+            "info": {"orderLinkId": ""},
+        }
+        result = adapter._extract_client_order_id(response)
+        assert result == ""

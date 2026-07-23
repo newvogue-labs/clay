@@ -77,6 +77,8 @@ class ExchangeAdapter(Protocol):
         """Resolve order by client_order_id (for projections with venue_order_id=None).
 
         Returns OrderSnapshot if found, None if not found.
-        Implemented per-venue: Binance uses origClientOrderId, Bybit uses orderLinkId.
+        Default implementation: search through open orders and reconcile history.
+        Bybit extracts orderLinkId via read-mapping hook _extract_client_order_id;
+        no per-venue override method exists — the hook is the extension point.
         """
         ...

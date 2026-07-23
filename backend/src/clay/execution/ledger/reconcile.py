@@ -114,6 +114,10 @@ class ReconcileAdapter(Protocol):
         self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
     ) -> list[Fill]: ...
 
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None: ...
+
 
 # ---------------------------------------------------------------------------
 # D4: service

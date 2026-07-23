@@ -146,6 +146,11 @@ class FakeAdapter(ReconcileAdapter):
             raise self.trades_error
         return self.trades_result
 
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        return None
+
 
 @pytest.fixture()
 def engine() -> Generator[Engine, None, None]:
