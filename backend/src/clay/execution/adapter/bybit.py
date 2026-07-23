@@ -129,6 +129,11 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
         """
         return {"clientOrderId": req.client_order_id}
 
+    def _extract_client_order_id(self, response: dict[str, Any]) -> str:
+        """Bybit:优先 info.orderLinkId, fallback на unified clientOrderId (ccxt #23260)."""
+        info = response.get("info") or {}
+        return str(info.get("orderLinkId") or response.get("clientOrderId", "") or "")
+
     async def get_market_rules(self, symbol: str) -> MarketRules:
         try:
             markets = await self._client.load_markets()

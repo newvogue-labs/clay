@@ -113,9 +113,40 @@ class UnknownResolver:
                 )
                 continue
 
-            # If no venue_order_id, can't poll — leave as UNKNOWN
+            # If no venue_order_id — try CID-based resolution (D-12-10)
             if void is None:
-                report.still_unknown.append(cid)
+                resolved_by_cid = await self._poll_by_client_order_id(
+                    symbol=symbol,
+                    cid=cid,
+                )
+                if resolved_by_cid is not None:
+                    # Transition to observed state
+                    controller = OrderLedgerController(
+                        self._session_factory, now_fn=self._now_fn
+                    )
+                    try:
+                        with self._session_factory() as s:
+                            repo = OrderLedgerRepository(s)
+                            current = repo.get_projection(cid)
+                            if current is None:
+                                report.still_unknown.append(cid)
+                                continue
+                            current_version = current.version
+
+                        controller.apply_transition(
+                            client_order_id=cid,
+                            expected_version=current_version,
+                            to_state=resolved_by_cid,
+                            payload={
+                                "reason_code": "UNKNOWN_RESOLVED_BY_CID",
+                                "source": "unknown_resolver",
+                            },
+                        )
+                        report.resolved.append(cid)
+                    except IllegalTransitionError:
+                        report.still_unknown.append(cid)
+                else:
+                    report.still_unknown.append(cid)
                 continue
 
             # Bounded poll venue truth
@@ -178,10 +209,7 @@ class UnknownResolver:
                     since=self._now_fn() - timedelta(seconds=300),
                 )
                 for snap in snapshots:
-                    if (
-                        snap.venue_order_id == venue_order_id
-                        and snap.client_order_id == expected_cid
-                    ):
+                    if snap.venue_order_id == venue_order_id:
                         return map_venue_state(snap.state)
             except Exception:
                 logger.debug(
@@ -191,6 +219,35 @@ class UnknownResolver:
                 )
 
             # Short fixed backoff
+            if _poll < self._config.max_polls - 1:
+                await asyncio.sleep(self._config.backoff_seconds)
+
+        return None
+
+    async def _poll_by_client_order_id(
+        self,
+        *,
+        symbol: str,
+        cid: str,
+    ) -> LedgerState | None:
+        """Poll venue via get_by_client_order_id with bounded budget.
+
+        Used when venue_order_id is unknown (ack not yet received).
+        Returns the observed LedgerState if found, None if not found
+        after exhausting the poll budget.
+        """
+        for _poll in range(self._config.max_polls):
+            try:
+                snap = await self._adapter.get_by_client_order_id(symbol, cid)
+                if snap is not None and snap.venue_order_id:
+                    return map_venue_state(snap.state)
+            except Exception:
+                logger.debug(
+                    "unknown_resolver: cid-poll failed for cid=%s (attempt %d)",
+                    cid,
+                    _poll + 1,
+                )
+
             if _poll < self._config.max_polls - 1:
                 await asyncio.sleep(self._config.backoff_seconds)
 

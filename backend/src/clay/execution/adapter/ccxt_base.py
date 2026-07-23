@@ -288,6 +288,10 @@ class CcxtExchangeAdapter:
 
     # -- venue-specific hooks -------------------------------------------------
 
+    def _extract_client_order_id(self, response: dict[str, Any]) -> str:
+        """Venue-overridable: извлечь наш client_order_id из ccxt-ответа."""
+        return str(response.get("clientOrderId", "") or "")
+
     @abstractmethod
     def _build_client(self, api_key: str, api_secret: str) -> ccxt.Exchange:
         """Create and return the venue-specific ccxt client."""
@@ -318,7 +322,7 @@ class CcxtExchangeAdapter:
             _dec(price_raw) if price_raw is not None and _dec(price_raw) != 0 else None
         )
         return OrderAck(
-            client_order_id=str(response.get("clientOrderId", client_order_id)),
+            client_order_id=self._extract_client_order_id(response) or client_order_id,
             venue_order_id=str(response.get("id", "")),
             symbol=str(response.get("symbol", "")),
             side=OrderSide(str(response.get("side", "buy"))),
@@ -341,7 +345,7 @@ class CcxtExchangeAdapter:
             _dec(price_raw) if price_raw is not None and _dec(price_raw) != 0 else None
         )
         return OrderSnapshot(
-            client_order_id=str(response.get("clientOrderId", "")),
+            client_order_id=self._extract_client_order_id(response),
             venue_order_id=str(response.get("id", "")),
             symbol=str(response.get("symbol", "")),
             side=OrderSide(str(response.get("side", "buy"))),

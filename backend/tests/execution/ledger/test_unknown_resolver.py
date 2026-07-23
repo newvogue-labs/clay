@@ -63,6 +63,8 @@ class FakeReconcileAdapter:
     def __init__(self) -> None:
         self.reconcile_result: list[OrderSnapshot] = []
         self.call_count = 0
+        self.get_by_cid_result: OrderSnapshot | None = None
+        self.get_by_cid_call_count = 0
 
     async def reconcile_orders(
         self, symbol: str, since: datetime
@@ -77,6 +79,12 @@ class FakeReconcileAdapter:
         self, symbol: str, *, since: datetime | None = None, from_id: str | None = None
     ):
         return []
+
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        self.get_by_cid_call_count += 1
+        return self.get_by_cid_result
 
 
 @pytest.fixture()
@@ -256,3 +264,206 @@ class TestUnknownResolver:
         assert not hasattr(adapter, "place_order") or not callable(
             getattr(adapter, "place_order", None)
         )
+
+
+# ---------------------------------------------------------------------------
+# D7.1: CID-based resolution when venue_order_id is None
+# ---------------------------------------------------------------------------
+
+
+class TestCidBasedResolution:
+    @pytest.mark.asyncio
+    async def test_resolve_unknown_by_cid(self, session_factory) -> None:
+        """UNKNOWN with venue_order_id=None, get_by_client_order_id returns snap → resolved."""
+        from clay.db.models_orders import OrderCurrentState
+
+        with session_factory() as s:
+            proj = OrderCurrentState(
+                client_order_id="cid-no-void",
+                venue="bybit",
+                symbol="BTCUSDT",
+                venue_order_id=None,
+                lifecycle_state=LedgerState.UNKNOWN,
+                filled_qty="0",
+                last_event_id="evt-001",
+                semantic_hash=None,
+                version=0,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+            s.add(proj)
+            s.commit()
+
+        adapter = FakeReconcileAdapter()
+        adapter.get_by_cid_result = _make_snapshot(
+            client_order_id="cid-no-void",
+            venue_order_id="venue-999",
+            state=OrderState.FILLED,
+        )
+
+        resolver = UnknownResolver(
+            session_factory=session_factory,
+            adapter=adapter,
+            config=UnknownResolverConfig(max_polls=1),
+        )
+
+        report = await resolver.resolve_symbol("BTCUSDT", "bybit")
+
+        assert "cid-no-void" in report.resolved
+        assert "cid-no-void" not in report.still_unknown
+        assert adapter.get_by_cid_call_count == 1
+
+        # Verify projection transitioned to FILLED
+        with session_factory() as s:
+            from sqlalchemy import select
+
+            proj = (
+                s.execute(
+                    select(OrderCurrentState).where(
+                        OrderCurrentState.client_order_id == "cid-no-void"
+                    )
+                )
+                .scalars()
+                .one()
+            )
+            assert proj.lifecycle_state == LedgerState.FILLED.value
+
+    @pytest.mark.asyncio
+    async def test_cid_poll_returns_none_stays_unknown(self, session_factory) -> None:
+        """UNKNOWN with venue_order_id=None, get_by_client_order_id returns None → still unknown."""
+        from clay.db.models_orders import OrderCurrentState
+
+        with session_factory() as s:
+            proj = OrderCurrentState(
+                client_order_id="cid-not-found",
+                venue="bybit",
+                symbol="BTCUSDT",
+                venue_order_id=None,
+                lifecycle_state=LedgerState.UNKNOWN,
+                filled_qty="0",
+                last_event_id="evt-001",
+                semantic_hash=None,
+                version=0,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+            s.add(proj)
+            s.commit()
+
+        adapter = FakeReconcileAdapter()
+        adapter.get_by_cid_result = None
+
+        resolver = UnknownResolver(
+            session_factory=session_factory,
+            adapter=adapter,
+            config=UnknownResolverConfig(max_polls=2, backoff_seconds=0.01),
+        )
+
+        report = await resolver.resolve_symbol("BTCUSDT", "bybit")
+
+        assert "cid-not-found" in report.still_unknown
+        assert "cid-not-found" not in report.resolved
+        assert adapter.get_by_cid_call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_cid_poll_escalation_still_works(self, session_factory) -> None:
+        """UNKNOWN with venue_order_id=None but age > escalation → FATAL (escalation wins)."""
+        from clay.db.models_orders import OrderCurrentState
+
+        with session_factory() as s:
+            proj = OrderCurrentState(
+                client_order_id="old-cid-no-void",
+                venue="bybit",
+                symbol="BTCUSDT",
+                venue_order_id=None,
+                lifecycle_state=LedgerState.UNKNOWN,
+                filled_qty="0",
+                last_event_id="evt-001",
+                semantic_hash=None,
+                version=0,
+                created_at=datetime.now(UTC) - timedelta(hours=2),
+                updated_at=datetime.now(UTC) - timedelta(hours=2),
+            )
+            s.add(proj)
+            s.commit()
+
+        adapter = FakeReconcileAdapter()
+        adapter.get_by_cid_result = _make_snapshot(
+            client_order_id="old-cid-no-void",
+            venue_order_id="venue-888",
+            state=OrderState.NEW,
+        )
+
+        resolver = UnknownResolver(
+            session_factory=session_factory,
+            adapter=adapter,
+            config=UnknownResolverConfig(escalation_seconds=3600),
+        )
+
+        report = await resolver.resolve_symbol("BTCUSDT", "bybit")
+
+        assert "old-cid-no-void" in report.escalated_to_fatal
+        assert adapter.get_by_cid_call_count == 0  # escalation wins, no poll
+
+
+# ---------------------------------------------------------------------------
+# D7.3: _poll_venue_truth — match by venue_order_id only
+# (defense-in-depth against ccxt #23260)
+# ---------------------------------------------------------------------------
+
+
+class TestPollVenueTruthMatch:
+    """Verify _poll_venue_truth matches by venue_order_id alone (D5)."""
+
+    @pytest.mark.asyncio
+    async def test_match_despite_cid_mismatch(self) -> None:
+        """Snapshot with matching venue_order_id but different client_order_id still resolves."""
+        adapter = FakeReconcileAdapter()
+        adapter.reconcile_result = [
+            _make_snapshot(
+                client_order_id="different-cid",
+                venue_order_id="venue-001",
+                state=OrderState.NEW,
+            )
+        ]
+
+        resolver = UnknownResolver(
+            session_factory=session_factory,  # type: ignore[arg-type]
+            adapter=adapter,
+            config=UnknownResolverConfig(max_polls=1),
+        )
+
+        result = await resolver._poll_venue_truth(
+            symbol="BTCUSDT",
+            venue_order_id="venue-001",
+            expected_cid="test-cid-001",
+        )
+
+        # Should still resolve by venue_order_id alone
+        assert result == LedgerState.ACKNOWLEDGED
+
+    @pytest.mark.asyncio
+    async def test_no_match_returns_none(self) -> None:
+        """No matching venue_order_id → returns None."""
+        adapter = FakeReconcileAdapter()
+        adapter.reconcile_result = [
+            _make_snapshot(
+                client_order_id="other-cid",
+                venue_order_id="venue-999",
+                state=OrderState.NEW,
+            )
+        ]
+
+        resolver = UnknownResolver(
+            session_factory=session_factory,  # type: ignore[arg-type]
+            adapter=adapter,
+            config=UnknownResolverConfig(max_polls=1),
+        )
+
+        result = await resolver._poll_venue_truth(
+            symbol="BTCUSDT",
+            venue_order_id="venue-001",
+            expected_cid="test-cid-001",
+        )
+
+        assert result is None

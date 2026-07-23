@@ -47,6 +47,11 @@ class FakeReconcileAdapter:
     async def get_my_trades(self, symbol, *, since=None, from_id=None):
         return self.trades_result
 
+    async def get_by_client_order_id(
+        self, symbol: str, client_order_id: str
+    ) -> OrderSnapshot | None:
+        return None
+
 
 def _create_projection(session_factory, *, cid: str, state: LedgerState) -> None:
     """Helper: create a projection in the given state."""
