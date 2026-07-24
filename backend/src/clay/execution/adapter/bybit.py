@@ -60,9 +60,15 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
     """Bybit Spot adapter implementing ``ExchangeAdapter``.
 
     Constructor:
-        ``environment`` -- deployment target (``TESTNET`` / ``PRODUCTION``).
+        ``environment`` -- deployment target (``TESTNET`` / ``DEMO`` / ``PRODUCTION``).
         ``api_key`` / ``api_secret`` -- from env, never from TOML/repo.
         ``client`` -- optional injected ccxt instance for testing.
+
+    Environment routing:
+        TESTNET     → ``set_sandbox_mode(True)`` (api-testnet.bybit.com)
+        DEMO        → ``enable_demo_trading(True)`` (api-demo.bybit.com)
+        PRODUCTION  → no-op (live endpoint)
+        Other       → ``ConfigError`` (fail-closed)
     """
 
     supported_order_types: ClassVar[frozenset[OrderType]] = frozenset(
@@ -101,6 +107,14 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
 
         if environment == Environment.TESTNET:
             self._client.set_sandbox_mode(True)
+        elif environment == Environment.DEMO:
+            self._client.enable_demo_trading(True)
+        elif environment == Environment.PRODUCTION:
+            pass
+        else:
+            raise ConfigError(
+                f"environment {environment.value!r} not supported by Bybit adapter"
+            )
 
     # -- venue-specific hooks -------------------------------------------------
 

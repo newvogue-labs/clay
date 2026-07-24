@@ -50,10 +50,17 @@ class FakeBybitClient:
         self._open_orders: list[dict[str, Any]] = []
         self._all_orders: list[dict[str, Any]] = []
         self._sandbox = False
+        self._demo_trading = False
         self._closed = False
+        self._calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
 
     def set_sandbox_mode(self, enabled: bool) -> None:
         self._sandbox = enabled
+        self._calls.append(("set_sandbox_mode", (enabled,), {}))
+
+    def enable_demo_trading(self, enabled: bool) -> None:
+        self._demo_trading = enabled
+        self._calls.append(("enable_demo_trading", (enabled,), {}))
 
     async def load_markets(self) -> dict[str, Any]:
         return self._markets
@@ -196,7 +203,7 @@ def _make_bybit_market() -> dict[str, Any]:
 def _adapter(client: FakeBybitClient | None = None) -> BybitExecutionAdapter:
     if client is None:
         client = FakeBybitClient()
-    return BybitExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
+    return BybitExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +216,7 @@ class TestProtocol:
         assert isinstance(_adapter(), ExchangeAdapter)
 
     def test_environment_attribute(self) -> None:
-        assert _adapter().environment == Environment.PAPER
+        assert _adapter().environment == Environment.PRODUCTION
 
 
 # ---------------------------------------------------------------------------
@@ -220,12 +227,12 @@ class TestProtocol:
 class TestConstructor:
     def test_injected_client_no_keys(self) -> None:
         client = FakeBybitClient()
-        adapter = BybitExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
-        assert adapter.environment == Environment.PAPER
+        adapter = BybitExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        assert adapter.environment == Environment.PRODUCTION
 
     def test_no_client_no_keys_raises(self) -> None:
         with pytest.raises(ConfigError, match="api_key and api_secret"):
-            BybitExecutionAdapter(Environment.PAPER)
+            BybitExecutionAdapter(Environment.PRODUCTION)
 
     def test_testnet_sets_sandbox(self) -> None:
         client = FakeBybitClient()
@@ -254,6 +261,41 @@ class TestConstructor:
         assert TimeInForce.GTC in adapter.supported_tif
         assert TimeInForce.IOC in adapter.supported_tif
         assert TimeInForce.FOK in adapter.supported_tif
+
+
+# ---------------------------------------------------------------------------
+# D4: Environment routing (DEMO / TESTNET / PRODUCTION / PAPER)
+# ---------------------------------------------------------------------------
+
+
+class TestEnvironmentRouting:
+    def test_demo_enables_demo_trading(self) -> None:
+        client = FakeBybitClient()
+        BybitExecutionAdapter(Environment.DEMO, client=client)  # type: ignore[arg-type]
+        assert client._demo_trading is True
+        assert client._sandbox is False
+        assert any(c[0] == "enable_demo_trading" for c in client._calls)
+        assert not any(c[0] == "set_sandbox_mode" for c in client._calls)
+
+    def test_testnet_sets_sandbox(self) -> None:
+        client = FakeBybitClient()
+        BybitExecutionAdapter(Environment.TESTNET, client=client)  # type: ignore[arg-type]
+        assert client._sandbox is True
+        assert client._demo_trading is False
+        assert any(c[0] == "set_sandbox_mode" for c in client._calls)
+        assert not any(c[0] == "enable_demo_trading" for c in client._calls)
+
+    def test_production_no_side_effects(self) -> None:
+        client = FakeBybitClient()
+        BybitExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        assert client._sandbox is False
+        assert client._demo_trading is False
+        assert client._calls == []
+
+    def test_paper_raises_config_error(self) -> None:
+        client = FakeBybitClient()
+        with pytest.raises(ConfigError, match="not supported by Bybit adapter"):
+            BybitExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
