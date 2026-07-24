@@ -29,3 +29,4 @@ frontend/test-results/
 site/
 .cache/
 .cache/
+smoke_bybit_demo_evidence.json
