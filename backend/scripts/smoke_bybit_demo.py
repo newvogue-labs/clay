@@ -4,16 +4,24 @@ Tier 0 (READ-ONLY, always):
     reachability (load_markets) + server-time skew + authed get_balances.
 
 Tier 1 (ROUND-TRIP, only if CLAY_BYBIT_SMOKE_PLACE_ORDER=1):
-    place tiny LIMIT far from market → get_by_client_order_id →
-    record orderLinkId empiric comparison (ccxt #23260) → cancel_order.
+    Place venue-valid LIMIT BUY below market (non-filling) →
+    get_order/fetch_order → record orderLinkId empiric comparison (ccxt #23260)
+    → cancel_order.
 
 Run:
     CLAY_BYBIT_DEMO_API_KEY=... CLAY_BYBIT_DEMO_API_SECRET=... \\
     python scripts/smoke_bybit_demo.py
 
 Tier 1:
-    CLAY_BYBIT_SMOKE_PLACE_ORDER=1 CLAY_BYBIT_SMOKE_SYMBOL=BTC/USDT \\
+    CLAY_BYBIT_SMOKE_PLACE_ORDER=1 \\
     python scripts/smoke_bybit_demo.py
+
+    # Optional overrides:
+    CLAY_BYBIT_SMOKE_NOTIONAL=10        # target notional (USDT, default 10)
+    CLAY_BYBIT_SMOKE_PRICE_FACTOR=0.5   # BUY limit = ref*factor (default 0.5)
+    CLAY_BYBIT_SMOKE_PRICE=32000        # explicit price override (bypasses factor)
+    CLAY_BYBIT_SMOKE_QTY=0.001          # explicit qty override
+    CLAY_BYBIT_SMOKE_SYMBOL=BTC/USDT    # symbol (default BTC/USDT)
 
 Skip:
     Missing env vars → prints "[skip] ..." and exits 0.
@@ -60,6 +68,10 @@ class SmokeEvidence:
 
     # -- Tier 1 --
     tier1_enabled: bool = False
+    ref_price: str = ""
+    order_price: str = ""
+    order_qty: str = ""
+    order_notional: str = ""
     place_result: OrderAck | None = None
     place_latency_ms: float = 0.0
     client_order_id_sent: str = ""
@@ -101,6 +113,34 @@ def _snap_to_dict(snap: OrderSnapshot) -> dict[str, Any]:
     }
 
 
+def _compute_tier1_order(
+    *,
+    ref_price: Decimal,
+    notional_target: Decimal,
+    price_factor: Decimal,
+    min_cost: Decimal,
+    min_amount: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Compute venue-valid but non-filling order params (qty, price).
+
+    ``price = ref_price * price_factor`` — with ``price_factor < 1`` the BUY
+    limit sits below the market and will not fill.
+
+    ``qty`` is derived from ``notional_target / price``, bumped to
+    ``min_amount`` and adjusted to guarantee ``qty * price >= max(min_cost,
+    notional_target)``.
+
+    All arithmetic is pure Decimal; no network calls.
+    """
+    price = ref_price * price_factor
+    floor_cost = max(min_cost, notional_target)
+    qty = floor_cost / price
+    qty = max(qty, min_amount)
+    if qty * price < floor_cost:
+        qty = floor_cost / price
+    return qty, price
+
+
 async def _run() -> SmokeEvidence:
     ev = SmokeEvidence()
     creds = _env()
@@ -128,7 +168,7 @@ async def _run() -> SmokeEvidence:
         # -- Tier 0: server-time skew --
         try:
             server_time = await adapter._client.fetch_time()
-            ev.server_time_ms = int(server_time)
+            ev.server_time_ms = int(str(server_time))
             ev.local_time_ms = int(time.time() * 1000)
             ev.skew_ms = ev.server_time_ms - ev.local_time_ms
         except Exception as exc:  # noqa: BLE001
@@ -155,15 +195,62 @@ async def _run() -> SmokeEvidence:
         client_order_id = f"smoke-demo-{int(time.time() * 1000)}"
         ev.client_order_id_sent = client_order_id
 
-        # Minimal LIMIT order far from market (should not fill).
+        # Determine ref_price from ticker (last → ask → bid).
+        ref_price = Decimal("0")
+        try:
+            ticker = await adapter._client.fetch_ticker(symbol)
+            ref_price = Decimal(
+                str(ticker.get("last") or ticker.get("ask") or ticker.get("bid") or 0)
+            )
+        except Exception as exc:  # noqa: BLE001
+            ev.tier1_error = f"fetch_ticker: {type(exc).__name__}: {exc}"
+            return ev
+
+        ev.ref_price = str(ref_price)
+
+        # Market constraints from loaded markets.
+        m = adapter._client.market(symbol)
+        cost_limits: dict[str, Any] = (m.get("limits") or {}).get("cost") or {}
+        amount_limits: dict[str, Any] = (m.get("limits") or {}).get("amount") or {}
+        min_cost = Decimal(str(cost_limits.get("min") or "5"))
+        min_amount = Decimal(str(amount_limits.get("min") or "0"))
+
+        # Compute or override qty / price.
+        explicit_price = os.environ.get("CLAY_BYBIT_SMOKE_PRICE", "")
+        explicit_qty = os.environ.get("CLAY_BYBIT_SMOKE_QTY", "")
+
+        if explicit_price and explicit_qty:
+            price = Decimal(explicit_price)
+            qty = Decimal(explicit_qty)
+        else:
+            notional_target = Decimal(os.environ.get("CLAY_BYBIT_SMOKE_NOTIONAL", "10"))
+            price_factor = Decimal(
+                os.environ.get("CLAY_BYBIT_SMOKE_PRICE_FACTOR", "0.5")
+            )
+            qty, price = _compute_tier1_order(
+                ref_price=ref_price,
+                notional_target=notional_target,
+                price_factor=price_factor,
+                min_cost=min_cost,
+                min_amount=min_amount,
+            )
+
+        # Apply venue precision.
+        price = Decimal(str(adapter._client.price_to_precision(symbol, price)))
+        qty = Decimal(str(adapter._client.amount_to_precision(symbol, qty)))
+
+        ev.order_price = str(price)
+        ev.order_qty = str(qty)
+        ev.order_notional = str(qty * price)
+
         req = OrderRequest(
             symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.001"),
+            quantity=qty,
             time_in_force=TimeInForce.GTC,
             client_order_id=client_order_id,
-            price=Decimal("1.00"),
+            price=price,
         )
 
         try:
@@ -232,6 +319,10 @@ def _evidence_to_dict(ev: SmokeEvidence) -> dict[str, Any]:
     if ev.tier1_enabled:
         d["tier1"].update(
             {
+                "ref_price": ev.ref_price,
+                "order_price": ev.order_price,
+                "order_qty": ev.order_qty,
+                "order_notional": ev.order_notional,
                 "client_order_id_sent": ev.client_order_id_sent,
                 "venue_order_id_returned": ev.venue_order_id_returned,
                 "snapshot_client_order_id": ev.snapshot_client_order_id,
