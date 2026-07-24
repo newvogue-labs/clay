@@ -12,6 +12,10 @@ Subclasses must implement:
 Subclasses must define class attributes:
 - ``supported_order_types`` — ``frozenset[OrderType]``.
 - ``supported_tif`` — ``frozenset[TimeInForce]``.
+
+Fail-closed env routing:
+- ``_apply_sandbox_routing()`` handles TESTNET/PRODUCTION for adapters
+  without demo mode.  Demo-capable adapters (Bybit) override ``__init__``.
 """
 
 from __future__ import annotations
@@ -82,8 +86,7 @@ class CcxtExchangeAdapter:
     ) -> None:
         self.environment = environment
         self._client = self._build_client(api_key, api_secret)
-        if environment == Environment.TESTNET:
-            self._client.set_sandbox_mode(True)
+        _apply_sandbox_routing(self._client, environment)
 
     # -- pure domain (sync) ---------------------------------------------------
 
@@ -325,8 +328,8 @@ class CcxtExchangeAdapter:
             client_order_id=self._extract_client_order_id(response) or client_order_id,
             venue_order_id=str(response.get("id", "")),
             symbol=str(response.get("symbol", "")),
-            side=OrderSide(str(response.get("side", "buy"))),
-            order_type=OrderType(str(response.get("type", "limit"))),
+            side=OrderSide(str(response.get("side") or "buy")),
+            order_type=OrderType(str(response.get("type") or "limit")),
             state=state,
             quantity=_dec(response.get("amount")),
             price=price,
@@ -348,8 +351,8 @@ class CcxtExchangeAdapter:
             client_order_id=self._extract_client_order_id(response),
             venue_order_id=str(response.get("id", "")),
             symbol=str(response.get("symbol", "")),
-            side=OrderSide(str(response.get("side", "buy"))),
-            order_type=OrderType(str(response.get("type", "limit"))),
+            side=OrderSide(str(response.get("side") or "buy")),
+            order_type=OrderType(str(response.get("type") or "limit")),
             state=state,
             quantity=_dec(response.get("amount")),
             executed_qty=filled_qty,
@@ -369,7 +372,7 @@ class CcxtExchangeAdapter:
                 trade_id=str(fill.get("id", "")),
                 venue_order_id=venue_order_id,
                 symbol=symbol,
-                side=OrderSide(str(fill.get("side", "buy"))),
+                side=OrderSide(str(fill.get("side") or "buy")),
                 quantity=_dec(fill.get("amount")),
                 price=_dec(fill.get("price")),
                 commission=_dec(fill.get("commission")),
@@ -393,6 +396,23 @@ def _dec(val: Any) -> Decimal:
     return Decimal(s)
 
 
+def _apply_sandbox_routing(client: Any, environment: Environment) -> None:
+    """Fail-closed env routing для венью без demo-режима.
+
+    TESTNET → sandbox; PRODUCTION → no-op; иначе (DEMO/PAPER/unknown) → ConfigError.
+    Demo-capable венью (Bybit) переопределяют ``__init__`` и сюда не заходят.
+    """
+    if environment == Environment.TESTNET:
+        client.set_sandbox_mode(True)
+    elif environment == Environment.PRODUCTION:
+        pass
+    else:
+        raise ConfigError(
+            f"environment {environment.value!r} not supported by this adapter "
+            f"(no demo/sandbox mapping)"
+        )
+
+
 def _fill_from_my_trade(trade: dict[str, Any]) -> Fill:
     """Map ccxt unified ``fetch_my_trades`` item → domain ``Fill``.
 
@@ -404,7 +424,7 @@ def _fill_from_my_trade(trade: dict[str, Any]) -> Fill:
         trade_id=str(trade.get("id", "")),
         venue_order_id=str(trade.get("order") or ""),
         symbol=str(trade.get("symbol", "")),
-        side=OrderSide(str(trade.get("side", "buy"))),
+        side=OrderSide(str(trade.get("side") or "buy")),
         quantity=_dec(trade.get("amount")),
         price=_dec(trade.get("price")),
         commission=_dec(fee.get("cost")),
