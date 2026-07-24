@@ -209,7 +209,7 @@ def _make_binance_market() -> dict[str, Any]:
 def _adapter(client: FakeBinanceClient | None = None) -> BinanceExecutionAdapter:
     if client is None:
         client = FakeBinanceClient()
-    return BinanceExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
+    return BinanceExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ class TestProtocol:
         assert isinstance(_adapter(), ExchangeAdapter)
 
     def test_environment_attribute(self) -> None:
-        assert _adapter().environment == Environment.PAPER
+        assert _adapter().environment == Environment.PRODUCTION
 
 
 # ---------------------------------------------------------------------------
@@ -759,12 +759,12 @@ class TestClose:
 class TestConstructor:
     def test_injected_client_no_keys(self) -> None:
         client = FakeBinanceClient()
-        adapter = BinanceExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
-        assert adapter.environment == Environment.PAPER
+        adapter = BinanceExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        assert adapter.environment == Environment.PRODUCTION
 
     def test_no_client_no_keys_raises(self) -> None:
         with pytest.raises(ConfigError, match="api_key and api_secret"):
-            BinanceExecutionAdapter(Environment.PAPER)
+            BinanceExecutionAdapter(Environment.PRODUCTION)
 
     def test_testnet_sets_sandbox(self) -> None:
         client = FakeBinanceClient()

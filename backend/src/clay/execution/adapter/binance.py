@@ -19,6 +19,7 @@ import ccxt.async_support as ccxt
 
 from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
+    _apply_sandbox_routing,
     _dec,
 )
 from clay.execution.adapter.domain import OrderRequest
@@ -55,6 +56,7 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
 
     Constructor:
         ``environment`` -- deployment target (``TESTNET`` / ``PRODUCTION``).
+        ``DEMO`` / ``PAPER`` / unknown → ``ConfigError`` (fail-closed).
         ``api_key`` / ``api_secret`` -- from env, never from TOML/repo.
         ``client`` -- optional injected ccxt instance for testing.
     """
@@ -94,8 +96,7 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
                 }
             )
 
-        if environment == Environment.TESTNET:
-            self._client.set_sandbox_mode(True)
+        _apply_sandbox_routing(self._client, environment)
 
     # -- venue-specific hooks -------------------------------------------------
 
