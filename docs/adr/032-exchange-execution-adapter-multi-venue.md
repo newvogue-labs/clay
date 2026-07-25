@@ -245,3 +245,14 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 - Автоматический роутинг ордеров между венью.
 - Data-plane изменения (ADR-008 untouched).
 - Futures adapter (spot-first).
+
+## Errata 2026-07-25 (D-24)
+
+- **D-24 completed.** Сплошной sweep read-mapping-слоя `ccxt_base.py` — все `.get()` вызовы защищены от `None`.
+- **Корень проблемы:** `dict.get("key", default)` возвращает `default` ТОЛЬКО при отсутствии ключа. Если ключ существует со значением `None` — возвращается `None`, а не `default`. Три повторяющихся инцидента подряд: `side=None` (D-20), `max_price=None` (D-23), `timestamp=None` (D-24).
+- **Итого найдено:** 19 сайтов `.get()` в read-mapping-слое, из них 3 КРАШ (timestamp через `int()`) и 7 ОТРАВЛЕНИЙ (string через `str()` → `"None"`). Все исправлены.
+- **Фикс — паттерн `or default`:** Все `.get("key", "default")` заменены на `.get("key") or "default"`. Это гарантирует, что `None` → default, а не «ключ есть, но None».
+- **`_status_from_response` хелпер:** Различает «ключ отсутствует» (= open, текущее поведение) и «ключ есть, значение None/пустое» (= UNKNOWN). Не нарушает обратную совместимость.
+- **Taxonomy: «ордер поставлен, ответ не разобран» ≠ «ордер не поставлен».** `place_order` оборачивает `_ack_from_response` в try/except → `AmbiguousExecutionError` с `client_order_id` и ключами ответа в логе. Существующая resilience-обвязка автоматически делает reconcile-by-cid → орфан восстанавливается.
+- **Invariant #6 расширен:** `AmbiguousExecutionError` поднимается не только при NetworkError/timeout/duplicate-cid, но и при провале разбора ответа после успешной `create_order`.
+- **Read-операции:** `get_order`, `get_open_orders`, `reconcile_orders`, `get_balances`, `get_my_trades` — после D-24 перестают падать на `None`-значениях (Д1 фикс покрывает все сайты).

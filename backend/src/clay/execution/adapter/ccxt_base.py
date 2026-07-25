@@ -143,9 +143,23 @@ class CcxtExchangeAdapter:
                 ) from exc
             raise OrderRejectedError(str(exc)) from exc
 
-        return self._ack_from_response(
-            req.client_order_id, cast("dict[str, Any]", response)
-        )
+        try:
+            return self._ack_from_response(
+                req.client_order_id, cast("dict[str, Any]", response)
+            )
+        except Exception as exc:
+            resp_dict = cast("dict[str, Any]", response)
+            logger.warning(
+                "clay.place_order: response parse failed after successful create_order "
+                "(keys=%s, types=%s) — order may exist, reconcile required (cid=%s)",
+                list(resp_dict.keys()),
+                {k: type(v).__name__ for k, v in resp_dict.items()},
+                req.client_order_id,
+            )
+            raise AmbiguousExecutionError(
+                f"order may have been placed but response could not be parsed "
+                f"(reconcile required, cid={req.client_order_id!r}): {exc}"
+            ) from exc
 
     async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         try:
@@ -217,9 +231,9 @@ class CcxtExchangeAdapter:
 
         response_dict = cast("dict[str, Any]", response)
         balances: list[BalanceSnapshot] = []
-        total: dict[str, Any] = response_dict.get("total", {})
-        free: dict[str, Any] = response_dict.get("free", {})
-        used: dict[str, Any] = response_dict.get("used", {})
+        total: dict[str, Any] = response_dict.get("total") or {}
+        free: dict[str, Any] = response_dict.get("free") or {}
+        used: dict[str, Any] = response_dict.get("used") or {}
         for asset, t in total.items():
             balances.append(
                 BalanceSnapshot(
@@ -296,7 +310,7 @@ class CcxtExchangeAdapter:
 
     def _extract_client_order_id(self, response: dict[str, Any]) -> str:
         """Venue-overridable: извлечь наш client_order_id из ccxt-ответа."""
-        return str(response.get("clientOrderId", "") or "")
+        return response.get("clientOrderId") or ""
 
     @abstractmethod
     def _build_client(self, api_key: str, api_secret: str) -> ccxt.Exchange:
@@ -320,7 +334,7 @@ class CcxtExchangeAdapter:
     ) -> OrderAck:
         fills = self._fills_from_trades(response)
         filled_qty = _dec(response.get("filled"))
-        status = str(response.get("status", "open"))
+        status = _status_from_response(response)
         state = _map_state(status, filled_qty)
 
         price_raw = response.get("price")
@@ -329,21 +343,21 @@ class CcxtExchangeAdapter:
         )
         return OrderAck(
             client_order_id=self._extract_client_order_id(response) or client_order_id,
-            venue_order_id=str(response.get("id", "")),
-            symbol=str(response.get("symbol", "")),
+            venue_order_id=response.get("id") or "",
+            symbol=response.get("symbol") or "",
             side=OrderSide(str(response.get("side") or "buy")),
             order_type=OrderType(str(response.get("type") or "limit")),
             state=state,
             quantity=_dec(response.get("amount")),
             price=price,
-            transact_time=int(response.get("timestamp", 0)),
+            transact_time=int(response.get("timestamp") or 0),
             fills=tuple(fills),
         )
 
     def _snapshot_from_response(self, response: dict[str, Any]) -> OrderSnapshot:
         fills = self._fills_from_trades(response)
         filled_qty = _dec(response.get("filled"))
-        status = str(response.get("status", "open"))
+        status = _status_from_response(response)
         state = _map_state(status, filled_qty)
 
         price_raw = response.get("price")
@@ -352,35 +366,35 @@ class CcxtExchangeAdapter:
         )
         return OrderSnapshot(
             client_order_id=self._extract_client_order_id(response),
-            venue_order_id=str(response.get("id", "")),
-            symbol=str(response.get("symbol", "")),
+            venue_order_id=response.get("id") or "",
+            symbol=response.get("symbol") or "",
             side=OrderSide(str(response.get("side") or "buy")),
             order_type=OrderType(str(response.get("type") or "limit")),
             state=state,
             quantity=_dec(response.get("amount")),
             executed_qty=filled_qty,
             price=price,
-            transact_time=int(response.get("timestamp", 0)),
+            transact_time=int(response.get("timestamp") or 0),
             fills=tuple(fills),
         )
 
     def _fills_from_trades(self, response: dict[str, Any]) -> list[Fill]:
-        trades = response.get("trades", [])
+        trades = response.get("trades") or []
         if not trades:
             return []
-        symbol = str(response.get("symbol", ""))
-        venue_order_id = str(response.get("id", ""))
+        symbol = response.get("symbol") or ""
+        venue_order_id = response.get("id") or ""
         return [
             Fill(
-                trade_id=str(fill.get("id", "")),
+                trade_id=fill.get("id") or "",
                 venue_order_id=venue_order_id,
                 symbol=symbol,
                 side=OrderSide(str(fill.get("side") or "buy")),
                 quantity=_dec(fill.get("amount")),
                 price=_dec(fill.get("price")),
                 commission=_dec(fill.get("commission")),
-                commission_asset=str(fill.get("commissionAsset", "")),
-                transact_time=int(fill.get("timestamp", 0)),
+                commission_asset=fill.get("commissionAsset") or "",
+                transact_time=int(fill.get("timestamp") or 0),
             )
             for fill in trades
         ]
@@ -454,14 +468,14 @@ def _fill_from_my_trade(trade: dict[str, Any]) -> Fill:
     """
     fee = trade.get("fee") or {}
     return Fill(
-        trade_id=str(trade.get("id", "")),
-        venue_order_id=str(trade.get("order") or ""),
-        symbol=str(trade.get("symbol", "")),
+        trade_id=trade.get("id") or "",
+        venue_order_id=trade.get("order") or "",
+        symbol=trade.get("symbol") or "",
         side=OrderSide(str(trade.get("side") or "buy")),
         quantity=_dec(trade.get("amount")),
         price=_dec(trade.get("price")),
         commission=_dec(fee.get("cost")),
-        commission_asset=str(fee.get("currency") or ""),
+        commission_asset=fee.get("currency") or "",
         transact_time=int(trade.get("timestamp") or 0),
     )
 
@@ -475,3 +489,15 @@ def _map_state(status: str, filled: Decimal) -> OrderState:
     if status == "open":
         return OrderState.PARTIALLY_FILLED if filled > 0 else OrderState.NEW
     return _STATE_MAP.get(status, OrderState.UNKNOWN)
+
+
+def _status_from_response(response: dict[str, Any]) -> str:
+    """Extract status from ccxt response with None-safe semantics.
+
+    Key absent → ``"open"`` (current default).
+    Key present, value None or empty → ``""`` (maps to UNKNOWN via ``_map_state``).
+    Key present, non-empty value → as-is.
+    """
+    if "status" not in response:
+        return "open"
+    return response["status"] or ""

@@ -1082,3 +1082,40 @@ class TestReadFallbackChain:
             inner._get_open_orders_calls == 1
         )  # inner called once (CircuitOpenError is transient → retry, but CB not open on first call)
         assert len(inner._reconcile_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# D-24 D3.4: parse-failure ambiguous → reconcile-hit — orphan auto-resolved
+# ---------------------------------------------------------------------------
+
+
+class TestD24ParseFailureAmbiguousReconcileHit:
+    @pytest.mark.anyio
+    async def test_parse_failure_ambiguous_then_reconcile_returns_ack(self) -> None:
+        """D-24 integration: _ack_from_response raises after successful create_order.
+
+        The resilience wrapper catches AmbiguousExecutionError, reconciles
+        by client_order_id, and returns the ack — no re-place occurs.
+        This proves orphan orders are automatically resolved.
+        """
+        inner = FakeInnerAdapter()
+        # First place: ambiguous (simulates parse failure after create_order)
+        inner.set_place_effect(
+            AmbiguousExecutionError(
+                "order may have been placed but response could not be parsed "
+                "(reconcile required, cid='d24-cid'): simulated"
+            )
+        )
+        # Reconcile: finds matching snapshot
+        inner.set_reconcile_effect([_make_snapshot(cid="d24-cid")])
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        req = _make_req(cid="d24-cid")
+
+        ack = await resilient.place_order(req)
+
+        assert ack.client_order_id == "d24-cid"
+        assert ack.venue_order_id == "venue-001"
+        # Only 1 place call (the initial), NO re-place
+        assert len(inner._place_calls) == 1
+        # 1 reconcile call
+        assert len(inner._reconcile_calls) == 1
