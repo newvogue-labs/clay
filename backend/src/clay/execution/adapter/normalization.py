@@ -34,7 +34,7 @@ def validate_order(req: OrderRequest, rules: MarketRules) -> None:
             f"quantity {req.quantity} < min_amount {rules.min_amount}"
         )
 
-    if req.quantity > rules.max_amount:
+    if rules.max_amount is not None and req.quantity > rules.max_amount:
         raise InvalidOrderError(
             f"quantity {req.quantity} > max_amount {rules.max_amount}"
         )
@@ -42,7 +42,7 @@ def validate_order(req: OrderRequest, rules: MarketRules) -> None:
     if req.price is not None:
         if req.price < rules.min_price:
             raise InvalidOrderError(f"price {req.price} < min_price {rules.min_price}")
-        if req.price > rules.max_price:
+        if rules.max_price is not None and req.price > rules.max_price:
             raise InvalidOrderError(f"price {req.price} > max_price {rules.max_price}")
 
     if req.price is not None:

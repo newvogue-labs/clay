@@ -27,6 +27,7 @@ import ccxt.async_support as ccxt
 from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _dec,
+    _dec_upper_bound,
 )
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
@@ -163,7 +164,8 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
             raise InvalidOrderError(f"unknown symbol: {symbol}")
 
         # Bybit spot: ccxt-normalized market fields.
-        # limits.price == None for spot (L3 confirmed).
+        # limits.price is None for spot — absent upper bound is documented
+        # sentinel (D-23), not an error.
         precision: dict[str, Any] = market.get("precision", {})
         limits: dict[str, Any] = market.get("limits", {})
 
@@ -173,15 +175,17 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
         cost_limits: dict[str, Any] = limits.get("cost", {})
         min_notional = _dec(cost_limits.get("min"))
 
-        # limits.price is None for Bybit spot — guard, do not raise.
         price_limits: dict[str, Any] = limits.get("price", {})
         min_price = _dec(price_limits.get("min"))
-        max_price = _dec(price_limits.get("max"))
+        max_price = _dec_upper_bound(
+            price_limits.get("max"), field="max_price", symbol=symbol, venue="bybit"
+        )
 
-        # amount limits
         amount_limits: dict[str, Any] = limits.get("amount", {})
         min_amount = _dec(amount_limits.get("min"))
-        max_amount = _dec(amount_limits.get("max"))
+        max_amount = _dec_upper_bound(
+            amount_limits.get("max"), field="max_amount", symbol=symbol, venue="bybit"
+        )
 
         return MarketRules(
             min_amount=min_amount,
