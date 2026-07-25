@@ -294,22 +294,73 @@ class TestBuildExecutionClient:
 
 
 # ---------------------------------------------------------------------------
-# Route guard (D4)
+# Route guard (D4) — real endpoint tests via TestClient
 # ---------------------------------------------------------------------------
 
 
 class TestRouteGuard:
-    def test_mode_guard_accepts_demo(self) -> None:
-        cfg = ExecutionConfig(mode="demo")
-        assert cfg.mode in {"testnet", "demo"}
+    """Verify the mode guard in POST /testnet-probe via HTTP.
 
-    def test_mode_guard_accepts_testnet(self) -> None:
-        cfg = ExecutionConfig(mode="testnet")
-        assert cfg.mode in {"testnet", "demo"}
+    Uses create_app() + dependency_overrides pattern from
+    tests/api/test_execution_probe.py (D0.c reference).
 
-    def test_mode_guard_rejects_dry_run(self) -> None:
-        cfg = ExecutionConfig(mode="dry_run")
-        assert cfg.mode not in {"testnet", "demo"}
+    dry_run → 409 is already covered by
+    test_execution_probe.py::test_guard_trips_dry_run_returns_409.
+    """
+
+    def test_demo_passes_mode_guard(self) -> None:
+        """mode=demo → NOT 409 on mode guard (hits client=None guard instead)."""
+        from clay.api.dependencies import get_execution_client, get_execution_config
+        from clay.api.main import create_app
+        from fastapi.testclient import TestClient
+
+        app = create_app()
+        try:
+            demo_config = ExecutionConfig(mode="demo")
+            app.dependency_overrides[get_execution_config] = lambda: demo_config
+            app.dependency_overrides[get_execution_client] = lambda: None
+
+            resp = TestClient(app).post(
+                "/workspace/trading/execution/testnet-probe",
+                json={
+                    "symbol": "BTCUSDT",
+                    "side": "buy",
+                    "quantity": "0.001",
+                    "order_type": "market",
+                },
+            )
+            # mode guard passes → hits client=None guard → 409 with different detail
+            assert resp.status_code == 409
+            assert "execution not armed" in resp.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_testnet_passes_mode_guard(self) -> None:
+        """mode=testnet → NOT 409 on mode guard (hits client=None guard instead)."""
+        from clay.api.dependencies import get_execution_client, get_execution_config
+        from clay.api.main import create_app
+        from fastapi.testclient import TestClient
+
+        app = create_app()
+        try:
+            testnet_config = ExecutionConfig(mode="testnet")
+            app.dependency_overrides[get_execution_config] = lambda: testnet_config
+            app.dependency_overrides[get_execution_client] = lambda: None
+
+            resp = TestClient(app).post(
+                "/workspace/trading/execution/testnet-probe",
+                json={
+                    "symbol": "BTCUSDT",
+                    "side": "buy",
+                    "quantity": "0.001",
+                    "order_type": "market",
+                },
+            )
+            # mode guard passes → hits client=None guard → 409 with different detail
+            assert resp.status_code == 409
+            assert "execution not armed" in resp.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
