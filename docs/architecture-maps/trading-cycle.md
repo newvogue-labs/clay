@@ -46,13 +46,13 @@ sequenceDiagram
 sequenceDiagram
     participant OP as Operator
     participant OVS as OverrideService
-    participant EX as execution<br/>(ccxt → Binance)
+    participant EX as execution<br/>(adapter → venue)
 
     OP->>OVS: POST /override/request (actor, reason)
     OVS-->>OP: override_id (status=pending)
     OP->>OVS: POST /override/confirm (ttl=1h)
     OVS->>OVS: is_live_eligible()
     OVS-->>OP: confirmed
-    OP->>EX: binance order<br/>(CLAY_EXECUTION_MODE=testnet)
-    Note over EX: live = NotImplemented<br/>(factory.py LiveExecutionClient stub)
+    OP->>EX: order via adapter<br/>(CLAY_EXECUTION_MODE=testnet)
+    Note over EX: venue = binance | bybit<br/>(CLAY_EXECUTION_VENUE)
 ```

@@ -23,6 +23,7 @@ A3-A5 unit tests still passed).
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -38,6 +39,7 @@ from clay.db.session import build_session_factory
 from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.execution.adapter.binance import BinanceExecutionAdapter
+from clay.execution.adapter.bybit import BybitExecutionAdapter
 from clay.execution.config import ExecutionConfig, environment_from_mode
 from clay.execution.proof.gate import ExecutionProofGate
 from clay.execution.proof.probe import (
@@ -84,6 +86,8 @@ from clay.workspace.service import WorkspaceService
 # hard-coded ``_DEFAULT_HEALTH_STALE_AFTER_SECONDS`` constant has been
 # removed.
 
+logger = logging.getLogger(__name__)
+
 
 def _build_default_context_connectors(
     settings: IngestionSettings,
@@ -94,6 +98,51 @@ def _build_default_context_connectors(
     if "demo-sentiment" in settings.sentiment_connector_ids:
         connectors.append(DemoSentimentConnector())
     return connectors
+
+
+def _build_execution_client(
+    execution_config: ExecutionConfig,
+    session_factory: sessionmaker | None = None,
+) -> ExecutionProofGate | None:
+    """Build the execution adapter stack for the configured venue + mode.
+
+    Returns ``None`` when no adapter should be built (fail-closed).
+    """
+    env = environment_from_mode(execution_config.mode)
+    if env is None or not execution_config.api_key or not execution_config.api_secret:
+        return None
+
+    venue = execution_config.venue
+    if venue == "binance":
+        adapter = BinanceExecutionAdapter(
+            environment=env,
+            api_key=execution_config.api_key,
+            api_secret=execution_config.api_secret,
+        )
+    elif venue == "bybit":
+        adapter = BybitExecutionAdapter(
+            environment=env,
+            api_key=execution_config.api_key,
+            api_secret=execution_config.api_secret,
+        )
+    else:
+        logger.warning("Unknown venue %r — no execution adapter built", venue)
+        return None
+
+    return ExecutionProofGate(
+        ResilientExecutionAdapter(adapter, cb_policy=CircuitBreakerPolicy()),
+        session_factory=session_factory,
+        freshness_policy=FreshnessPolicy(
+            max_age_seconds=execution_config.proof_max_snapshot_age_seconds,
+            expected_metadata_version=execution_config.proof_metadata_version,
+        ),
+        max_order_notional=execution_config.max_order_notional_usdt,
+        max_position=execution_config.proof_max_position_usdt,
+        max_open_orders=execution_config.proof_max_open_orders,
+        enforce_session=execution_config.proof_enforce_session,
+        enforce_portfolio=execution_config.proof_enforce_portfolio,
+        metadata_version=execution_config.proof_metadata_version,
+    )
 
 
 def build_services(
@@ -219,31 +268,7 @@ def build_services(
         event_bus=event_bus,
     )
     execution_config = ExecutionConfig.from_env()
-    env = environment_from_mode(execution_config.mode)
-    if env is not None and execution_config.api_key and execution_config.api_secret:
-        execution_client = ExecutionProofGate(
-            ResilientExecutionAdapter(
-                BinanceExecutionAdapter(
-                    environment=env,
-                    api_key=execution_config.api_key,
-                    api_secret=execution_config.api_secret,
-                ),
-                cb_policy=CircuitBreakerPolicy(),
-            ),
-            session_factory=session_factory,
-            freshness_policy=FreshnessPolicy(
-                max_age_seconds=execution_config.proof_max_snapshot_age_seconds,
-                expected_metadata_version=execution_config.proof_metadata_version,
-            ),
-            max_order_notional=execution_config.max_order_notional_usdt,
-            max_position=execution_config.proof_max_position_usdt,
-            max_open_orders=execution_config.proof_max_open_orders,
-            enforce_session=execution_config.proof_enforce_session,
-            enforce_portfolio=execution_config.proof_enforce_portfolio,
-            metadata_version=execution_config.proof_metadata_version,
-        )
-    else:
-        execution_client = None
+    execution_client = _build_execution_client(execution_config, session_factory)
     override_service = OverrideService(
         session_factory=session_factory,
         audit_writer=audit_writer,
