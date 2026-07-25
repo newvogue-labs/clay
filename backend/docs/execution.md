@@ -1,5 +1,42 @@
 # Execution Layer
 
+## Venue Selection (D-venue)
+
+The execution layer supports multiple exchanges via `CLAY_EXECUTION_VENUE`:
+
+| Venue | Adapter | Supported Modes |
+|-------|---------|-----------------|
+| `binance` (default) | `BinanceExecutionAdapter` | testnet |
+| `bybit` | `BybitExecutionAdapter` | testnet, demo |
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAY_EXECUTION_VENUE` | `binance` | Exchange selector: `binance` or `bybit` |
+| `CLAY_EXECUTION_MODE` | `dry_run` | Execution mode: `dry_run`, `testnet`, or `demo` |
+
+### Credential Resolution
+
+API keys are resolved by `(venue, mode)` pair:
+
+| (venue, mode) | Key Env Var | Secret Env Var |
+|---------------|-------------|----------------|
+| (binance, testnet) | `CLAY_BINANCE_TESTNET_API_KEY` | `CLAY_BINANCE_TESTNET_API_SECRET` |
+| (bybit, testnet) | `CLAY_BYBIT_TESTNET_API_KEY` | `CLAY_BYBIT_TESTNET_API_SECRET` |
+| (bybit, demo) | `CLAY_BYBIT_DEMO_API_KEY` | `CLAY_BYBIT_DEMO_API_SECRET` |
+| (binance, demo) | *not supported* | *not supported* |
+
+Unknown venue values revert to `binance` with a warning. Unknown mode values revert to `dry_run` with a warning. When credentials are empty, no adapter is built (fail-closed).
+
+### Bootstrap Flow
+
+`_build_execution_client()` in `bootstrap.py`:
+1. Resolves `Environment` from mode (`testnet` → `TESTNET`, `demo` → `DEMO`, else → `None`)
+2. Returns `None` if env is `None` or credentials are empty
+3. Instantiates the venue-specific adapter
+4. Wraps in `ResilientExecutionAdapter` → `ExecutionProofGate`
+
 ## Order Ledger — Trade-Fill Recording
 
 The order ledger records trade-level fills with dedup and automatic recalculation of the `filled` quantity on the projection.

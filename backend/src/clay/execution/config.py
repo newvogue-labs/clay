@@ -18,12 +18,42 @@ def environment_from_mode(mode: str) -> Environment | None:
     """
     if mode == "testnet":
         return Environment.TESTNET
+    if mode == "demo":
+        return Environment.DEMO
     return None
+
+
+_ALLOWED_VENUES = {"binance", "bybit"}
+
+
+def _resolve_credentials(venue: str, mode: str) -> tuple[str, str]:
+    """Resolve API key/secret from env based on (venue, mode) pair.
+
+    Returns (api_key, api_secret) — empty strings when unsupported.
+    """
+    if venue == "binance" and mode == "testnet":
+        return (
+            os.environ.get("CLAY_BINANCE_TESTNET_API_KEY", ""),
+            os.environ.get("CLAY_BINANCE_TESTNET_API_SECRET", ""),
+        )
+    if venue == "bybit" and mode == "testnet":
+        return (
+            os.environ.get("CLAY_BYBIT_TESTNET_API_KEY", ""),
+            os.environ.get("CLAY_BYBIT_TESTNET_API_SECRET", ""),
+        )
+    if venue == "bybit" and mode == "demo":
+        return (
+            os.environ.get("CLAY_BYBIT_DEMO_API_KEY", ""),
+            os.environ.get("CLAY_BYBIT_DEMO_API_SECRET", ""),
+        )
+    # (binance, demo) and anything else — unsupported, empty creds
+    return ("", "")
 
 
 @dataclass(frozen=True)
 class ExecutionConfig:
     mode: str = "dry_run"
+    venue: str = "binance"
     exchange_id: str = "binance_spot"
     base_url: str = ""
     api_key: str = ""
@@ -48,17 +78,28 @@ class ExecutionConfig:
     @classmethod
     def from_env(cls) -> ExecutionConfig:
         mode = os.environ.get("CLAY_EXECUTION_MODE", "dry_run")
-        if mode not in {"dry_run", "testnet"}:
+        if mode not in {"dry_run", "testnet", "demo"}:
             logger.warning(
                 "CLAY_EXECUTION_MODE=%r rejected, defaulting to dry_run", mode
             )
             mode = "dry_run"
+
+        venue = os.environ.get("CLAY_EXECUTION_VENUE", "binance")
+        if venue not in _ALLOWED_VENUES:
+            logger.warning(
+                "CLAY_EXECUTION_VENUE=%r rejected, defaulting to binance", venue
+            )
+            venue = "binance"
+
+        api_key, api_secret = _resolve_credentials(venue, mode)
+
         return cls(
             mode=mode,
+            venue=venue,
             exchange_id=os.environ.get("CLAY_EXECUTION_EXCHANGE_ID", "binance_spot"),
             base_url=os.environ.get("CLAY_EXECUTION_BASE_URL", ""),
-            api_key=os.environ.get("CLAY_BINANCE_TESTNET_API_KEY", ""),
-            api_secret=os.environ.get("CLAY_BINANCE_TESTNET_API_SECRET", ""),
+            api_key=api_key,
+            api_secret=api_secret,
             testnet=os.environ.get("CLAY_EXECUTION_TESTNET", "false").lower() == "true",
             recv_window=int(os.environ.get("CLAY_EXECUTION_RECV_WINDOW", "5000")),
             allow_live_override=os.environ.get(

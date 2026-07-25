@@ -121,10 +121,10 @@ async def testnet_probe(
     client: ExchangeAdapter | None = Depends(get_execution_client),
 ) -> TestnetProbeResponse:
     # V3: mode guard
-    if exec_config.mode != "testnet":
+    if exec_config.mode not in {"testnet", "demo"}:
         raise HTTPException(
             status_code=409,
-            detail=f"testnet-probe requires mode=testnet, current={exec_config.mode!r}",
+            detail=f"testnet-probe requires mode=testnet or demo, current={exec_config.mode!r}",
         )
 
     # V4: default-deny

@@ -29,7 +29,7 @@ graph TB
         AIControl["ai_control: Agent Runner<br/>routing → local/cloud LLM"]
         Knowledge["knowledge: #knowledge<br/>CRUD + token search"]
         Signal["signal_engine<br/>EV → Kelly → rank"]
-        Execution["execution: Order Gate<br/>dry_run │ testnet │ live﹡"]
+        Execution["execution: Order Gate<br/>dry_run │ testnet │ demo"]
         DB[("db: SQLAlchemy<br/>Postgres / TimescaleDB")]
     end
 
@@ -50,4 +50,4 @@ graph TB
     API --> DB
 ```
 
-> **Примечания.** `bootstrap.py` производит DI-сборку всех сервисов при import time — стрелки не показаны для читаемости. `live` execution — stub (NotImplemented), operator override required (manual `request → confirm → revoke`).
+> **Примечания.** `bootstrap.py` производит DI-сборку всех сервисов при import time — стрелки не показаны для читаемости. Венью выбирается через `CLAY_EXECUTION_VENUE` (binance|bybit), режим — через `CLAY_EXECUTION_MODE` (dry_run|testnet|demo).
