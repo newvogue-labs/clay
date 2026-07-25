@@ -38,6 +38,18 @@ Unknown venue values revert to `binance` with a warning. Unknown mode values rev
 
 The helper `_dec_upper_bound()` in `ccxt_base.py` parses ccxt market data: `None`/missing → `None`, zero/negative → `None` + WARNING (observed via logging), positive → `Decimal`. The existing `_dec()` helper (used for min bounds and steps) is unchanged.
 
+### Read-Mapping None-Safety (D-24)
+
+All `.get()` calls in the read-mapping layer (`_ack_from_response`, `_snapshot_from_response`, `_fills_from_trades`, `_fill_from_my_trade`, `get_balances`) are guarded against `None` values from venue responses.
+
+**Root cause:** `dict.get("key", default)` returns `default` only when the key is absent. When the key exists with value `None`, `.get()` returns `None`, not the default. Three consecutive incidents: `side=None` (D-20), `max_price=None` (D-23), `timestamp=None` (D-24).
+
+**Fix pattern:** All `.get("key", "default")` replaced with `.get("key") or "default"`. This guarantees `None` → default, regardless of key presence.
+
+**Status handling:** `_status_from_response()` distinguishes "key absent" (= `"open"`, current behavior) from "key present, value None/empty" (= `""` → `UNKNOWN` via `_map_state`). Does not change backward compatibility.
+
+**Taxonomy — "order placed, response not parsed":** `place_order` wraps `_ack_from_response` in try/except → `AmbiguousExecutionError` with `client_order_id` and response key/type dump in the log. The existing `ResilientExecutionAdapter` automatically reconcile-by-cid, so the orphan order is resolved without re-placement.
+
 ### Bootstrap Flow
 
 `_build_execution_client()` in `bootstrap.py`:

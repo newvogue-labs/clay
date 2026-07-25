@@ -1,12 +1,13 @@
-"""Tests for ccxt_base None-guard (D-20) and fail-closed routing (D-19).
+"""Tests for ccxt_base None-guard (D-20, D-24) and fail-closed routing (D-19).
 
 All tests are hermetic — no network, no real ccxt client.
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -19,10 +20,11 @@ from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
     Environment,
     OrderSide,
+    OrderState,
     OrderType,
     TimeInForce,
 )
-from clay.execution.adapter.errors import ConfigError
+from clay.execution.adapter.errors import AmbiguousExecutionError, ConfigError
 from clay.execution.adapter.rules import MarketRules
 
 
@@ -221,3 +223,213 @@ class TestBybitRoutingStillWorks:
         client = FakeBybitClient()
         with pytest.raises(ConfigError, match="not supported by Bybit adapter"):
             BybitExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# D-24: read-mapping None sweep — D3.1
+# ---------------------------------------------------------------------------
+
+
+def _adapter() -> _StubAdapter:
+    return _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+
+
+class TestAckFromResponseNoneGuard:
+    def test_timestamp_none_crashes_before_now_safely(self) -> None:
+        """timestamp=None was a CRASH (int(None)). Now returns 0."""
+        resp = {"id": "1", "symbol": "BTC/USDT", "status": "open", "timestamp": None}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.transact_time == 0
+
+    def test_id_none_not_poisoned(self) -> None:
+        """id=None was POISON (str(None)='None'). Now empty string."""
+        resp = {"id": None, "symbol": "BTC/USDT", "status": "open"}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.venue_order_id == ""
+        assert ack.venue_order_id != "None"
+
+    def test_symbol_none_not_poisoned(self) -> None:
+        """symbol=None was POISON. Now empty string."""
+        resp = {"id": "1", "symbol": None, "status": "open"}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.symbol == ""
+        assert ack.symbol != "None"
+
+    def test_status_none_yields_unknown(self) -> None:
+        """status=None → UNKNOWN (not NEW, not crash)."""
+        resp = {"id": "1", "symbol": "BTC/USDT", "status": None}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.state == OrderState.UNKNOWN
+
+    def test_status_empty_string_yields_unknown(self) -> None:
+        """status='' → UNKNOWN."""
+        resp = {"id": "1", "symbol": "BTC/USDT", "status": ""}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.state == OrderState.UNKNOWN
+
+    def test_missing_status_defaults_to_open(self) -> None:
+        """status key absent → current behavior (open → NEW)."""
+        resp = {"id": "1", "symbol": "BTC/USDT"}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.state == OrderState.NEW
+
+
+class TestSnapshotFromResponseNoneGuard:
+    def test_timestamp_none_crashes_before_now_safely(self) -> None:
+        resp = {"id": "1", "symbol": "BTC/USDT", "status": "open", "timestamp": None}
+        snap = _adapter()._snapshot_from_response(resp)
+        assert snap.transact_time == 0
+
+    def test_id_none_not_poisoned(self) -> None:
+        resp = {"id": None, "symbol": "BTC/USDT", "status": "open"}
+        snap = _adapter()._snapshot_from_response(resp)
+        assert snap.venue_order_id == ""
+        assert snap.venue_order_id != "None"
+
+    def test_symbol_none_not_poisoned(self) -> None:
+        resp = {"id": "1", "symbol": None, "status": "open"}
+        snap = _adapter()._snapshot_from_response(resp)
+        assert snap.symbol == ""
+        assert snap.symbol != "None"
+
+    def test_status_none_yields_unknown(self) -> None:
+        resp = {"id": "1", "symbol": "BTC/USDT", "status": None}
+        snap = _adapter()._snapshot_from_response(resp)
+        assert snap.state == OrderState.UNKNOWN
+
+
+class TestFillsFromTradesNoneGuard:
+    def test_trades_none_returns_empty(self) -> None:
+        resp = {"id": "1", "symbol": "BTC/USDT", "trades": None}
+        fills = _adapter()._fills_from_trades(resp)
+        assert fills == []
+
+    def test_fill_fields_none_no_poison(self) -> None:
+        resp = {
+            "id": "1",
+            "symbol": "BTC/USDT",
+            "trades": [
+                {
+                    "id": None,
+                    "side": None,
+                    "amount": None,
+                    "price": None,
+                    "commission": None,
+                    "commissionAsset": None,
+                    "timestamp": None,
+                }
+            ],
+        }
+        fills = _adapter()._fills_from_trades(resp)
+        assert len(fills) == 1
+        f = fills[0]
+        assert f.trade_id == ""
+        assert f.trade_id != "None"
+        # symbol comes from response-level, not fill-level
+        assert f.symbol == "BTC/USDT"
+        assert f.commission_asset == ""
+        assert f.transact_time == 0
+        assert f.side == OrderSide.BUY
+
+
+class TestFillFromMyTradeNoneGuard:
+    def test_trade_id_none(self) -> None:
+        trade = {"id": None, "order": None, "symbol": None, "side": None}
+        fill = _fill_from_my_trade(trade)
+        assert fill.trade_id == ""
+        assert fill.venue_order_id == ""
+        assert fill.symbol == ""
+        assert fill.side == OrderSide.BUY
+
+    def test_timestamp_none_crashes_before_now_safely(self) -> None:
+        trade = {"timestamp": None}
+        fill = _fill_from_my_trade(trade)
+        assert fill.transact_time == 0
+
+
+class TestGetBalancesNoneGuard:
+    @pytest.mark.anyio
+    async def test_total_none_does_not_crash(self) -> None:
+        """total=None was CRASH (None.items()). Now empty dict."""
+        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        resp = {"total": None, "free": None, "used": None}
+        adapter._client.fetch_balance = AsyncMock(return_value=resp)  # type: ignore[assignment]
+        balances = await adapter.get_balances()
+        assert balances == []
+
+
+# ---------------------------------------------------------------------------
+# D-24: D3.2 — regression: normal path unchanged
+# ---------------------------------------------------------------------------
+
+
+class TestAckFromResponseNormalPath:
+    def test_full_normal_response_preserves_values(self) -> None:
+        resp = {
+            "id": "venue-123",
+            "clientOrderId": "my-cid",
+            "symbol": "BTC/USDT",
+            "side": "sell",
+            "type": "market",
+            "status": "closed",
+            "amount": "0.5",
+            "filled": "0.5",
+            "price": "51000",
+            "timestamp": 1700000000000,
+            "trades": [
+                {
+                    "id": "t1",
+                    "side": "sell",
+                    "amount": "0.5",
+                    "price": "51000",
+                    "commission": "0.05",
+                    "commissionAsset": "USDT",
+                    "timestamp": 1700000000000,
+                }
+            ],
+        }
+        ack = _adapter()._ack_from_response("cid-orig", resp)
+        assert ack.venue_order_id == "venue-123"
+        assert ack.client_order_id == "my-cid"
+        assert ack.symbol == "BTC/USDT"
+        assert ack.side == OrderSide.SELL
+        assert ack.order_type == OrderType.MARKET
+        assert ack.state == OrderState.FILLED
+        assert ack.transact_time == 1700000000000
+        assert len(ack.fills) == 1
+        assert ack.fills[0].trade_id == "t1"
+
+
+# ---------------------------------------------------------------------------
+# D-24: D3.3 — place_order parse failure → AmbiguousExecutionError
+# ---------------------------------------------------------------------------
+
+
+class TestPlaceOrderParseFailureAmbiguous:
+    @pytest.mark.anyio
+    async def test_parse_failure_after_create_raises_ambiguous(self) -> None:
+        """Successful create_order + _ack_from_response raises → AmbiguousExecutionError."""
+        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+
+        # Make _ack_from_response raise
+        def _broken_ack(client_order_id: str, response: dict[str, Any]) -> Any:
+            raise TypeError("simulated parse failure")
+
+        adapter._ack_from_response = _broken_ack  # type: ignore[assignment]
+        # Async mock for create_order
+        adapter._client.create_order = AsyncMock(  # type: ignore[assignment]
+            return_value={"id": "1", "symbol": "BTC/USDT"}
+        )
+
+        req = OrderRequest(
+            symbol="BTC/USDT",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("0.01"),
+            price=Decimal("50000"),
+            time_in_force=TimeInForce.GTC,
+            client_order_id="test-cid-ambiguous",
+        )
+
+        with pytest.raises(AmbiguousExecutionError, match="test-cid-ambiguous"):
+            await adapter.place_order(req)
