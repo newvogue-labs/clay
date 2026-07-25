@@ -244,3 +244,14 @@ on 3.14 before any "verified" status (G6).
 1. **Portfolio class requires explicit arm.** `CLAY_PROOF_ENFORCE_PORTFOLIO` env flag controls `ExecutionConfig.proof_enforce_portfolio` (default `False`). Double-off: unset → `False` → `ExecutionProofGate._enforce_portfolio=False` → portfolio checks (free-balance, MAX_POSITION, open-orders) never built → live path byte-identical.
 2. **Wiring chain:** `os.environ → ExecutionConfig.from_env() → bootstrap.py ExecutionProofGate(enforce_portfolio=...) → gate._enforce_portfolio`. No late-bind setter (portfolio check is self-contained, no external probe).
 3. **Existing tests cover behavior:** `test_gate.py::TestGateEnforcePortfolio` validates `enforce_portfolio=False` → `get_balances()` not called (dormant path guard). New integration test `test_bootstrap_enforce_portfolio_wiring.py` validates wiring end-to-end.
+
+## Errata (D-23, 2026-07-25)
+
+**Bug found during live drill on Bybit DEMO (HTTP-rove `/testnet-probe`).**
+
+1. **Upper-bound sentinel convention.** `None` on `max_price` / `max_amount` means "venue does not publish this limit" — invariant is **not applicable** and passes by definition. `Decimal("0")` is a genuine zero, never a placeholder for absence. Convention applied to invariants #6 (`QTY_ABOVE_MAX`) and #8 (`PRICE_ABOVE_MAX`); mirrors existing pattern in #10 (`NOTIONAL_ABOVE_CAP`).
+2. **Root cause.** `_dec(None)` in `ccxt_base.py` returned `Decimal("0")`. Bybit spot does not publish `limits.price.max` → ccxt returns `None` → `_dec(None)` → `Decimal("0")` → `price <= 0` → always False for any positive price → `PRICE_ABOVE_MAX` fires for every order.
+3. **Domain type change.** `MarketRules.max_amount: Decimal → Decimal | None`, `MarketRules.max_price: Decimal → Decimal | None`. New helper `_dec_upper_bound()` parses upper-bound values: `None` or missing → `None` (sentinel), zero/negative → `None` + WARN, positive → `Decimal`. Existing `_dec()` unchanged (used by min bounds, steps).
+4. **Downstream readers guarded.** `normalization.py:validate_order` and `checker.py:_check_invariants` updated with `is None` guards. `snapshot_hash` already correct (`str(None) = "None"` ≠ `str(Decimal("0")) = "0"`).
+5. **ccxt pinned.** `ccxt>=4.3,<5.0` → `ccxt==4.5.60` (D0.c confirmed version).
+6. **Defect found by:** live Bybit DEMO drill via HTTP-rove, not by unit tests — validates that runtime drills catch boundary cases missed by offline testing.

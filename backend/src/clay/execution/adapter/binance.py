@@ -21,6 +21,7 @@ from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _apply_sandbox_routing,
     _dec,
+    _dec_upper_bound,
 )
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
@@ -154,10 +155,17 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
 
         amount_step = _dec(lot_size.get("stepSize"))
         min_amount = _dec(lot_size.get("minQty"))
-        max_amount = _dec(lot_size.get("maxQty"))
+        max_amount = _dec_upper_bound(
+            lot_size.get("maxQty"), field="max_amount", symbol=symbol, venue="binance"
+        )
         price_tick = _dec(price_filter.get("tickSize"))
         min_price = _dec(price_filter.get("minPrice"))
-        max_price = _dec(price_filter.get("maxPrice"))
+        max_price = _dec_upper_bound(
+            price_filter.get("maxPrice"),
+            field="max_price",
+            symbol=symbol,
+            venue="binance",
+        )
         min_notional = _dec(notional_filter.get("minNotional"))
 
         return MarketRules(

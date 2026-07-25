@@ -111,17 +111,20 @@ def _check_invariants(
     _add(ReasonCode.NON_POSITIVE_FIELD, qty_positive and price_positive)
     # 5. quantity >= min_amount
     _add(ReasonCode.QTY_BELOW_MIN, req.quantity >= rules.min_amount)
-    # 6. quantity <= max_amount
-    _add(ReasonCode.QTY_ABOVE_MAX, req.quantity <= rules.max_amount)
+    # 6. quantity <= max_amount (D-23: None ⇒ not applicable, passes)
+    _add(
+        ReasonCode.QTY_ABOVE_MAX,
+        rules.max_amount is None or req.quantity <= rules.max_amount,
+    )
     # 7. price >= min_price (если price задан)
     _add(
         ReasonCode.PRICE_BELOW_MIN,
         req.price is None or req.price >= rules.min_price,
     )
-    # 8. price <= max_price (если price задан)
+    # 8. price <= max_price (если price задан; D-23: None ⇒ not applicable)
     _add(
         ReasonCode.PRICE_ABOVE_MAX,
-        req.price is None or req.price <= rules.max_price,
+        req.price is None or rules.max_price is None or req.price <= rules.max_price,
     )
     # 9. notional >= min_notional (если price задан)
     if req.price is not None:

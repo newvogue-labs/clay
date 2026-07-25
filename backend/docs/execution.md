@@ -29,6 +29,15 @@ API keys are resolved by `(venue, mode)` pair:
 
 Unknown venue values revert to `binance` with a warning. Unknown mode values revert to `dry_run` with a warning. When credentials are empty, no adapter is built (fail-closed).
 
+### Market Rules — Upper-Bound Sentinel (D-23)
+
+`MarketRules.max_amount` and `MarketRules.max_price` are `Decimal | None`:
+
+- **`None`** — venue does not publish this limit. Invariants that use the field (`QTY_ABOVE_MAX`, `PRICE_ABOVE_MAX`) are **not applicable** and pass by definition.
+- **`Decimal("0")`** — a genuine zero, never a placeholder for absence.
+
+The helper `_dec_upper_bound()` in `ccxt_base.py` parses ccxt market data: `None`/missing → `None`, zero/negative → `None` + WARNING (observed via logging), positive → `Decimal`. The existing `_dec()` helper (used for min bounds and steps) is unchanged.
+
 ### Bootstrap Flow
 
 `_build_execution_client()` in `bootstrap.py`:

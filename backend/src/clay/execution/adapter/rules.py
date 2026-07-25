@@ -17,12 +17,18 @@ class MarketRules:
 
     ``precision_mode`` controls how ``amount_step`` / ``price_tick``
     are interpreted by the quantizer.
+
+    Upper-bound sentinel convention (D-23):
+        ``None`` means the venue does not publish an upper bound for this
+        field.  Any invariant that uses the field is considered
+        **not applicable** and passes by definition.  ``Decimal("0")``
+        is a genuine zero, not a placeholder for absence.
     """
 
     min_amount: Decimal
-    max_amount: Decimal
+    max_amount: Decimal | None
     min_price: Decimal
-    max_price: Decimal
+    max_price: Decimal | None
     min_notional: Decimal
     amount_step: Decimal
     price_tick: Decimal

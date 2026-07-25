@@ -321,7 +321,10 @@ class TestGetMarketRules:
 
     @pytest.mark.anyio
     async def test_limits_price_none_does_not_raise(self) -> None:
-        """Bybit spot limits.price == None -- must not crash."""
+        """Bybit spot limits.price == None -- must not crash.
+
+        D-23: absent upper bound → None sentinel, not Decimal("0").
+        """
         client = FakeBybitClient()
         market = _make_bybit_market()
         market["limits"]["price"] = {"min": None, "max": None}
@@ -330,9 +333,26 @@ class TestGetMarketRules:
 
         rules = await adapter.get_market_rules("BTCUSDT")
 
-        # min_price / max_price should be Decimal("0") from None
+        # min_price: lower bound, None → Decimal("0") via _dec
         assert rules.min_price == Decimal("0")
-        assert rules.max_price == Decimal("0")
+        # max_price: upper bound, None → None sentinel (D-23)
+        assert rules.max_price is None
+
+    @pytest.mark.anyio
+    async def test_limits_amount_max_none_returns_sentinel(self) -> None:
+        """Bybit limits.amount.max == None → D-23 None sentinel."""
+        client = FakeBybitClient()
+        market = _make_bybit_market()
+        market["limits"]["amount"] = {"min": Decimal("0.001"), "max": None}
+        client._markets = {"BTCUSDT": market}
+        adapter = _adapter(client)
+
+        rules = await adapter.get_market_rules("BTCUSDT")
+
+        # min_amount: lower bound, present → Decimal
+        assert rules.min_amount == Decimal("0.001")
+        # max_amount: upper bound, None → None sentinel (D-23)
+        assert rules.max_amount is None
 
     @pytest.mark.anyio
     async def test_unknown_symbol_raises(self) -> None:

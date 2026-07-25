@@ -1817,3 +1817,152 @@ def test_duplicate_intent_never_admit(duplicate: bool) -> None:
         )
         assert rec.decision == Decision.DENY
         assert ReasonCode.SESSION_DUPLICATE_INTENT in rec.reason_codes
+
+
+# ── D-23: unbounded upper-limit sentinel ─────────────────────────────────
+
+
+class TestUpperBoundSentinel:
+    """D-23: None max_price / max_amount → invariant not applicable, passes."""
+
+    def _rules_with_none_max_price(self) -> MarketRules:
+        return MarketRules(
+            min_amount=Decimal("0.001"),
+            max_amount=Decimal("1000"),
+            min_price=Decimal("0.01"),
+            max_price=None,
+            min_notional=Decimal("5"),
+            amount_step=Decimal("0.001"),
+            price_tick=Decimal("0.01"),
+            precision_mode=PrecisionMode.DECIMAL_PLACES,
+            supported_order_types=frozenset({OrderType.LIMIT}),
+            supported_tif=frozenset({TimeInForce.GTC}),
+        )
+
+    def _rules_with_none_max_amount(self) -> MarketRules:
+        return MarketRules(
+            min_amount=Decimal("0.001"),
+            max_amount=None,
+            min_price=Decimal("0.01"),
+            max_price=Decimal("100000"),
+            min_notional=Decimal("5"),
+            amount_step=Decimal("0.001"),
+            price_tick=Decimal("0.01"),
+            precision_mode=PrecisionMode.DECIMAL_PLACES,
+            supported_order_types=frozenset({OrderType.LIMIT}),
+            supported_tif=frozenset({TimeInForce.GTC}),
+        )
+
+    def test_none_max_price_allows_high_price(self) -> None:
+        """max_price=None → PRICE_ABOVE_MAX not applicable."""
+        rules = self._rules_with_none_max_price()
+        snap = MarketSnapshot(rules=rules, fetched_at=NOW, metadata_version="v1")
+        req = _make_request(price=Decimal("999999"))
+        rec = admit(
+            intent=req,
+            snapshot=snap,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert ReasonCode.PRICE_ABOVE_MAX not in rec.reason_codes
+
+    def test_finite_max_price_still_rejects(self) -> None:
+        """max_price=100, price=101 → PRICE_ABOVE_MAX fires."""
+        rules = MarketRules(
+            min_amount=Decimal("0.001"),
+            max_amount=Decimal("1000"),
+            min_price=Decimal("0.01"),
+            max_price=Decimal("100"),
+            min_notional=Decimal("5"),
+            amount_step=Decimal("0.001"),
+            price_tick=Decimal("0.01"),
+            precision_mode=PrecisionMode.DECIMAL_PLACES,
+            supported_order_types=frozenset({OrderType.LIMIT}),
+            supported_tif=frozenset({TimeInForce.GTC}),
+        )
+        snap = MarketSnapshot(rules=rules, fetched_at=NOW, metadata_version="v1")
+        req = _make_request(price=Decimal("101"))
+        rec = admit(
+            intent=req,
+            snapshot=snap,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.PRICE_ABOVE_MAX in rec.reason_codes
+
+    def test_none_max_amount_allows_large_qty(self) -> None:
+        """max_amount=None → QTY_ABOVE_MAX not applicable."""
+        rules = self._rules_with_none_max_amount()
+        snap = MarketSnapshot(rules=rules, fetched_at=NOW, metadata_version="v1")
+        req = _make_request(quantity=Decimal("999999"))
+        rec = admit(
+            intent=req,
+            snapshot=snap,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert ReasonCode.QTY_ABOVE_MAX not in rec.reason_codes
+
+    def test_finite_max_amount_still_rejects(self) -> None:
+        """max_amount=10, qty=11 → QTY_ABOVE_MAX fires."""
+        rules = MarketRules(
+            min_amount=Decimal("0.001"),
+            max_amount=Decimal("10"),
+            min_price=Decimal("0.01"),
+            max_price=Decimal("100000"),
+            min_notional=Decimal("5"),
+            amount_step=Decimal("0.001"),
+            price_tick=Decimal("0.01"),
+            precision_mode=PrecisionMode.DECIMAL_PLACES,
+            supported_order_types=frozenset({OrderType.LIMIT}),
+            supported_tif=frozenset({TimeInForce.GTC}),
+        )
+        snap = MarketSnapshot(rules=rules, fetched_at=NOW, metadata_version="v1")
+        req = _make_request(quantity=Decimal("11"))
+        rec = admit(
+            intent=req,
+            snapshot=snap,
+            policy=DEFAULT_POLICY,
+            max_order_notional=DEFAULT_MAX_NOTIONAL,
+            now=NOW,
+        )
+        assert rec.decision == Decision.DENY
+        assert ReasonCode.QTY_ABOVE_MAX in rec.reason_codes
+
+    def test_snapshot_hash_differs_none_vs_zero(self) -> None:
+        """D-23: snapshot_hash(None) ≠ snapshot_hash(Decimal('0'))."""
+        rules_none = MarketRules(
+            min_amount=Decimal("0.001"),
+            max_amount=Decimal("1000"),
+            min_price=Decimal("0.01"),
+            max_price=None,
+            min_notional=Decimal("5"),
+            amount_step=Decimal("0.001"),
+            price_tick=Decimal("0.01"),
+            precision_mode=PrecisionMode.DECIMAL_PLACES,
+            supported_order_types=frozenset({OrderType.LIMIT}),
+            supported_tif=frozenset({TimeInForce.GTC}),
+        )
+        rules_zero = MarketRules(
+            min_amount=Decimal("0.001"),
+            max_amount=Decimal("1000"),
+            min_price=Decimal("0.01"),
+            max_price=Decimal("0"),
+            min_notional=Decimal("5"),
+            amount_step=Decimal("0.001"),
+            price_tick=Decimal("0.01"),
+            precision_mode=PrecisionMode.DECIMAL_PLACES,
+            supported_order_types=frozenset({OrderType.LIMIT}),
+            supported_tif=frozenset({TimeInForce.GTC}),
+        )
+        h_none = MarketSnapshot(
+            rules=rules_none, fetched_at=NOW, metadata_version="v1"
+        ).snapshot_hash
+        h_zero = MarketSnapshot(
+            rules=rules_zero, fetched_at=NOW, metadata_version="v1"
+        ).snapshot_hash
+        assert h_none != h_zero

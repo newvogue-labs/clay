@@ -7,7 +7,7 @@ requires-python = ">=3.14,<3.15"
 dependencies = [
   "alembic>=1.14,<2.0",
   "apscheduler>=3.10,<4.0",
-  "ccxt>=4.3,<5.0",
+  "ccxt==4.5.60",
   "fastapi>=0.115,<0.116",
   "icontract>=2.7.3",
   "notion-client>=3.1.0",

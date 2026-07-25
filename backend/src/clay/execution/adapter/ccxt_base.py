@@ -20,6 +20,7 @@ Fail-closed env routing:
 
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod
 from datetime import datetime
 from decimal import Decimal
@@ -52,6 +53,8 @@ from clay.execution.adapter.errors import (
     TransientAdapterError,
 )
 from clay.execution.adapter.rules import MarketRules
+
+logger = logging.getLogger(__name__)
 
 
 # ccxt status -> OrderState mapping
@@ -394,6 +397,36 @@ def _dec(val: Any) -> Decimal:
     if not s:
         return Decimal("0")
     return Decimal(s)
+
+
+def _dec_upper_bound(
+    val: Any, *, field: str, symbol: str, venue: str
+) -> Decimal | None:
+    """Parse an upper-bound value from ccxt market data (D-23).
+
+    Returns ``None`` when the venue does not publish the limit — this is
+    the **documented sentinel** for "not applicable" (see ``MarketRules``).
+
+    A zero or negative value is treated as missing-data (almost certainly
+    wrong for a traded market) and logged as a warning.
+    """
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    d = Decimal(s)
+    if d <= 0:
+        logger.warning(
+            "clay.adapter: %s/%s %s returned non-positive upper bound %s "
+            "— treating as absent (venue does not publish this limit)",
+            venue,
+            symbol,
+            field,
+            d,
+        )
+        return None
+    return d
 
 
 def _apply_sandbox_routing(client: Any, environment: Environment) -> None:
