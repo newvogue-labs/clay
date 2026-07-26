@@ -1,21 +1,36 @@
-# S-LINT-1b: backend lint/format enforcement. pyright отложен в 1c (baseline 338).
+# D-22: all hooks use repo: local + language: system — pre-commit never builds Python envs.
+# Tool versions pinned in backend/pyproject.toml [dependency-groups] dev.
 minimum_pre_commit_version: "3.5.0"
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.16   # lockstep с backend dev-dep ruff==0.15.16
+  - repo: local
     hooks:
-      - id: ruff
+      - id: ruff-lint
         name: ruff (lint)
-        args: [--fix]
+        entry: uv --project backend run ruff check --fix
+        language: system
         files: ^backend/
+        types: [python]
       - id: ruff-format
         name: ruff (format)
+        entry: uv --project backend run ruff format
+        language: system
         files: ^backend/
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
-    hooks:
+        types: [python]
       - id: check-yaml
-        args: [--unsafe]
+        name: check-yaml
+        entry: uv --project backend run check-yaml --unsafe
+        language: system
+        types: [yaml]
       - id: check-toml
+        name: check-toml
+        entry: uv --project backend run check-toml
+        language: system
+        types: [toml]
       - id: check-merge-conflict
+        name: check-merge-conflict
+        entry: uv --project backend run check-merge-conflict
+        language: system
       - id: check-added-large-files
+        name: check-added-large-files
+        entry: uv --project backend run check-added-large-files
+        language: system
