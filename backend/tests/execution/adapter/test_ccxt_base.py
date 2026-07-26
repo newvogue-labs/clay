@@ -19,7 +19,7 @@ from clay.execution.adapter.ccxt_base import (
     _fill_from_my_trade,
 )
 from clay.execution.adapter.ccxt_client import CcxtDemoCapableClient, CcxtSpotClient
-from clay.execution.adapter.domain import OrderRequest
+from clay.execution.adapter.domain import OrderAck, OrderRequest
 from clay.execution.adapter.enums import (
     Environment,
     OrderSide,
@@ -42,7 +42,7 @@ class _StubAdapter(CcxtExchangeAdapter):
     supported_order_types = frozenset({OrderType.LIMIT})
     supported_tif = frozenset({TimeInForce.GTC})
 
-    def _build_client(self, api_key: str, api_secret: str) -> Any:
+    def _build_client(self, api_key: str, api_secret: str) -> CcxtSpotClient:
         return MagicMock()
 
     def _is_duplicate_cid(self, exc: Exception) -> bool:
@@ -421,7 +421,7 @@ class TestPlaceOrderParseFailureAmbiguous:
         adapter = _stub_adapter()
 
         # Make _ack_from_response raise
-        def _broken_ack(client_order_id: str, response: dict[str, Any]) -> Any:
+        def _broken_ack(client_order_id: str, response: dict[str, Any]) -> OrderAck:
             raise TypeError("simulated parse failure")
 
         monkeypatch.setattr(adapter, "_ack_from_response", _broken_ack)
