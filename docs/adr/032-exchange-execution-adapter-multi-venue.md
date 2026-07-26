@@ -261,3 +261,9 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 
 - **D-25: Type coercion restored.** D-24 заменил `str(response.get("key", ""))` на `response.get("key") or ""` — это закрыло None-краш, но потеряло приведение типа к str (pyright молчит из-за `dict[str, Any]`). Добавлен module-level хелпер `_str_or_empty(value: object) -> str` (`None` → `""`, numeric → `str(value)`). Заменены все 14 сайтов в `ccxt_base.py` (13) + `bybit.py` (1).
 - **D-26: Ack enrichment from OrderRequest.** Bybit unified `createOrder` не возвращает `amount`/`status`/`side`/`type` — `_ack_from_response` получал `Decimal("0")`, `UNKNOWN`, `BUY`, `LIMIT` как дефолты. Расширен параметр `_ack_from_response(*, requested: OrderRequest | None = None)`: venue-truth приоритетнее, но при отсутствии venue-значения подставляется соответствующее поле из `OrderRequest`. `status` НЕ фабрикуется — `_status_from_response` остаётся как есть. `place_order` передаёт `req` в `_ack_from_response`.
+
+## Errata 2026-07-26 (D-27)
+
+- **Doc-drift исправлен по эмпирике дрилла.** D-26 doc утверждал, что Bybit не возвращает `status` → `NEW`. Живой дрилл M405 показал: ключ `status` присутствует и пуст → `UNKNOWN`. Исправлено: doc теперь описывает обе ветки `_status_from_response` без привязки к конкретной венью.
+- **Guard amount выровнен по образцу price.** Пустое, отсутствующее и нулевое `amount` трактуются как молчание венью — используется `requested.quantity` (D-27 §D1).
+- **Статус по-прежнему не фабрикуется.** `_status_from_response` и `_snapshot_from_response` не изменены.

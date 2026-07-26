@@ -440,18 +440,25 @@ class TestPlaceOrderParseFailureAmbiguous:
 # ---------------------------------------------------------------------------
 
 
-def _make_request(**overrides: Any) -> OrderRequest:
-    defaults: dict[str, Any] = dict(
-        symbol="BTC/USDT",
-        side=OrderSide.BUY,
-        order_type=OrderType.LIMIT,
-        quantity=Decimal("0.001"),
-        price=Decimal("40000"),
-        time_in_force=TimeInForce.GTC,
-        client_order_id="cid-enrichment",
+def _make_request(
+    *,
+    symbol: str = "BTC/USDT",
+    side: OrderSide = OrderSide.BUY,
+    order_type: OrderType = OrderType.LIMIT,
+    quantity: Decimal = Decimal("0.001"),
+    price: Decimal | None = Decimal("40000"),
+    time_in_force: TimeInForce = TimeInForce.GTC,
+    client_order_id: str = "cid-enrichment",
+) -> OrderRequest:
+    return OrderRequest(
+        symbol=symbol,
+        side=side,
+        order_type=order_type,
+        quantity=quantity,
+        price=price,
+        time_in_force=time_in_force,
+        client_order_id=client_order_id,
     )
-    defaults.update(overrides)
-    return OrderRequest(**defaults)  # type: ignore[arg-type]
 
 
 class TestD26AckEnrichment:
@@ -496,6 +503,70 @@ class TestD26AckEnrichment:
         assert ack_no_req.quantity == ack_with_none.quantity == Decimal("0")
         assert ack_no_req.side == ack_with_none.side == OrderSide.SELL
         assert ack_no_req.symbol == ack_with_none.symbol == "BTC/USDT"
+
+
+class TestD27AckStatusAndAmountGuard:
+    """D-27: Bybit DEMO status/amount guard + ack enrichment regression."""
+
+    def test_2_1_status_none_yields_unknown_with_request_fallback(self) -> None:
+        """Reproduces Bybit DEMO createOrder response (M405 live drill):
+        status key present with None → UNKNOWN; quantity/price/side/type from request."""
+        resp = {"id": "v-1", "status": None, "clientOrderId": "cid-enrichment"}
+        req = _make_request(quantity=Decimal("0.001"), price=Decimal("40000"))
+        ack = _adapter()._ack_from_response("cid-enrichment", resp, requested=req)
+
+        assert ack.state == OrderState.UNKNOWN
+        assert ack.quantity == Decimal("0.001")
+        assert ack.price == Decimal("40000")
+        assert ack.side == OrderSide.BUY
+        assert ack.order_type == OrderType.LIMIT
+        assert ack.symbol == "BTC/USDT"
+
+    def test_2_2_status_empty_string_yields_unknown_with_request_fallback(self) -> None:
+        """status='' → UNKNOWN; quantity/price/side/type from request."""
+        resp = {"id": "v-1", "status": "", "clientOrderId": "cid-enrichment"}
+        req = _make_request(quantity=Decimal("0.001"), price=Decimal("40000"))
+        ack = _adapter()._ack_from_response("cid-enrichment", resp, requested=req)
+
+        assert ack.state == OrderState.UNKNOWN
+        assert ack.quantity == Decimal("0.001")
+        assert ack.price == Decimal("40000")
+        assert ack.side == OrderSide.BUY
+        assert ack.order_type == OrderType.LIMIT
+
+    # 2.3: contrast — status key ABSENT → NEW.
+    # Covered by existing test_missing_status_defaults_to_open (TestD24AckStatusNoneGuard).
+
+    def test_2_4_amount_empty_string_falls_back_to_request(self) -> None:
+        """amount='' (venue silence) → quantity from requested, not Decimal('0')."""
+        resp = {"id": "v-1", "amount": "", "status": "open"}
+        req = _make_request(quantity=Decimal("0.001"))
+        ack = _adapter()._ack_from_response("cid-1", resp, requested=req)
+
+        assert ack.quantity == Decimal("0.001")
+
+    def test_2_5_amount_zero_int_falls_back_to_request(self) -> None:
+        """amount=0 (venue silence) → quantity from requested, not Decimal('0')."""
+        resp = {"id": "v-1", "amount": 0, "status": "open"}
+        req = _make_request(quantity=Decimal("0.001"))
+        ack = _adapter()._ack_from_response("cid-1", resp, requested=req)
+
+        assert ack.quantity == Decimal("0.001")
+
+    # 2.6: venue-priority regression: amount="0.02" with requested.quantity=0.001 → 0.02.
+    # Covered by existing test_3_2_venue_priority_preserves_venue_value.
+
+    def test_2_7_backward_compat_no_requested_amount_zero(self) -> None:
+        """Without requested and amount=0 → Decimal('0') (unchanged pre-D-26 behavior)."""
+        resp = {"id": "v-1", "amount": 0}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.quantity == Decimal("0")
+
+    def test_2_7_backward_compat_no_requested_amount_empty(self) -> None:
+        """Without requested and amount='' → Decimal('0') (unchanged pre-D-26 behavior)."""
+        resp = {"id": "v-1", "amount": ""}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert ack.quantity == Decimal("0")
 
 
 class TestD25TypeCoercion:

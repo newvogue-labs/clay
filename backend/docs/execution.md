@@ -56,7 +56,7 @@ All `.get()` calls in the read-mapping layer (`_ack_from_response`, `_snapshot_f
 
 **Ack enrichment rule (D-26):** When the venue omits a field from the `createOrder` response, `_ack_from_response` falls back to the corresponding field from the `OrderRequest` (the original order parameters). Venue-truth has priority: if the venue returns a non-empty value, it is used; the request value never overwrites the venue. This applies to: `quantity`, `price`, `side`, `order_type`, `symbol`.
 
-**Status is NOT fabricated.** `_status_from_response()` is unchanged: key absent → `"open"` → `NEW`; key present with None/empty → `""` → `UNKNOWN`. On Bybit's `createOrder` response (no `status` key), the result is `NEW` — correct for a freshly placed order.
+**Status is NOT fabricated.** `_status_from_response()` is unchanged: key absent → `"open"` → `NEW`; key present with None/empty → `""` → `UNKNOWN`. On Bybit DEMO (M405 live drill), the `status` key is present but empty, yielding `UNKNOWN` — this is normal venue behavior, not an anomaly. The request fields (`quantity`, `price`, `side`, `order_type`, `symbol`) are used independently of status. Empty, missing, or zero `amount` is treated as venue silence and falls back to the requested quantity.
 
 **Type coercion (D-25):** All venue string fields pass through `_str_or_empty()` (`None` → `""`, numeric → `str(value)`). This restores the `str()` type guarantee that D-24 temporarily removed. The helper is applied to: `id`, `symbol`, `clientOrderId`, `trade_id`, `commissionAsset`, `order`, `fee.currency`, and Bybit's `info.orderLinkId`.
 
