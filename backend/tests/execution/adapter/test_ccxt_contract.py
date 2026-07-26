@@ -12,12 +12,23 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+
 import ccxt
+import ccxt.async_support as ccxt_async  # noqa: E402 — prod layer
 import pytest
 
 # ── Версия из pyproject (пин) ──────────────────────────────────────────
 
 _PYPROJECT = Path(__file__).resolve().parents[3] / "pyproject.toml"
+
+_CCXT_EXCEPTIONS = (
+    "ExchangeError",
+    "NetworkError",
+    "AuthenticationError",
+    "InvalidOrder",
+    "InsufficientFunds",
+    "OrderNotFound",
+)
 
 
 def _pinned_ccxt_version() -> str:
@@ -38,7 +49,7 @@ def _pinned_ccxt_version() -> str:
 
 
 class TestCcxtContract:
-    """Контракт на границе Clay ↔ ccxt (ADR-039)."""
+    """Контракт на границе Clay <-> ccxt (ADR-039)."""
 
     def test_version_matches_pinned(self) -> None:
         """ccxt.__version__ должен совпадать с пином в pyproject."""
@@ -48,40 +59,29 @@ class TestCcxtContract:
         )
 
     def test_async_exchange_classes_exist(self) -> None:
-        """Классы交易所, которые мы строим, должны существовать."""
-        assert hasattr(ccxt.async_support, "binance"), (  # type: ignore[reportAttributeAccessIssue]
-            "ccxt.async_support.binance не найден"
-        )
-        assert hasattr(ccxt.async_support, "bybit"), (  # type: ignore[reportAttributeAccessIssue]
-            "ccxt.async_support.bybit не найден"
-        )
+        """Классы交易所 (async), которые мы строим, должны существовать."""
+        assert hasattr(ccxt_async, "binance"), "ccxt.async_support.binance не найден"
+        assert hasattr(ccxt_async, "bybit"), "ccxt.async_support.bybit не найден"
 
     def test_bybit_has_sandbox_and_demo_methods(self) -> None:
-        """На экземпляре bybit вызываемы set_sandbox_mode и enable_demo_trading."""
-        exchange = ccxt.async_support.bybit({"enableRateLimit": True})  # type: ignore[reportAttributeAccessIssue]
-        try:
-            assert callable(getattr(exchange, "set_sandbox_mode", None)), (
-                "bybit.set_sandbox_mode не вызываем"
-            )
-            assert callable(getattr(exchange, "enable_demo_trading", None)), (
-                "bybit.enable_demo_trading не вызываем"
-            )
-        finally:
-            # async close — но не await (тест синхронный, просто hasattr/callable)
-            pass
+        """На экземпляре bybit (async) вызываемы set_sandbox_mode и enable_demo_trading."""
+        exchange = ccxt_async.bybit({"enableRateLimit": True})
+        assert callable(getattr(exchange, "set_sandbox_mode", None)), (
+            "bybit.set_sandbox_mode не вызываем"
+        )
+        assert callable(getattr(exchange, "enable_demo_trading", None)), (
+            "bybit.enable_demo_trading не вызываем"
+        )
 
     def test_binance_has_sandbox_and_demo_methods(self) -> None:
-        """На экземпляре binance вызываемы set_sandbox_mode и enable_demo_trading."""
-        exchange = ccxt.async_support.binance({"enableRateLimit": True})  # type: ignore[reportAttributeAccessIssue]
-        try:
-            assert callable(getattr(exchange, "set_sandbox_mode", None)), (
-                "binance.set_sandbox_mode не вызываем"
-            )
-            assert callable(getattr(exchange, "enable_demo_trading", None)), (
-                "binance.enable_demo_trading не вызываем"
-            )
-        finally:
-            pass
+        """На экземпляре binance (async) вызываемы set_sandbox_mode и enable_demo_trading."""
+        exchange = ccxt_async.binance({"enableRateLimit": True})
+        assert callable(getattr(exchange, "set_sandbox_mode", None)), (
+            "binance.set_sandbox_mode не вызываем"
+        )
+        assert callable(getattr(exchange, "enable_demo_trading", None)), (
+            "binance.enable_demo_trading не вызываем"
+        )
 
     def test_exceptions_exist(self) -> None:
         """Все 6 исключений ccxt, которые мы ловим в адаптерах, должны существовать.
@@ -90,28 +90,29 @@ class TestCcxtContract:
         get_open_orders, reconcile_orders, get_balances, get_my_trades;
         bybit.get_market_rules; binance.get_market_rules.
         """
-        expected = (
-            "ExchangeError",
-            "NetworkError",
-            "AuthenticationError",
-            "InvalidOrder",
-            "InsufficientFunds",
-            "OrderNotFound",
-        )
         missing: list[str] = []
-        for name in expected:
-            if not hasattr(ccxt, name):
+        for name in _CCXT_EXCEPTIONS:
+            if not hasattr(ccxt_async, name):
                 missing.append(name)
         assert not missing, (
-            f"ccxt-исключения не найдены: {missing}. "
+            f"ccxt-исключения не найдены в async_support: {missing}. "
             "Обнови список в тесте или проверь версию ccxt."
         )
 
     def test_exception_hierarchy(self) -> None:
         """Иерархия наследования не изменилась — базовый класс BaseError."""
-        assert issubclass(ccxt.ExchangeError, ccxt.BaseError)
-        assert issubclass(ccxt.NetworkError, ccxt.BaseError)
-        assert issubclass(ccxt.AuthenticationError, ccxt.ExchangeError)
-        assert issubclass(ccxt.InvalidOrder, ccxt.ExchangeError)
-        assert issubclass(ccxt.InsufficientFunds, ccxt.ExchangeError)
-        assert issubclass(ccxt.OrderNotFound, ccxt.InvalidOrder)
+        assert issubclass(ccxt_async.ExchangeError, ccxt_async.BaseError)
+        assert issubclass(ccxt_async.NetworkError, ccxt_async.BaseError)
+        assert issubclass(ccxt_async.AuthenticationError, ccxt_async.ExchangeError)
+        assert issubclass(ccxt_async.InvalidOrder, ccxt_async.ExchangeError)
+        assert issubclass(ccxt_async.InsufficientFunds, ccxt_async.ExchangeError)
+        assert issubclass(ccxt_async.OrderNotFound, ccxt_async.InvalidOrder)
+
+    def test_exception_identity_sync_async(self) -> None:
+        """Исключения sync и async — один и тот же объект ( shared C extension )."""
+        for name in _CCXT_EXCEPTIONS:
+            sync_cls = getattr(ccxt, name)
+            async_cls = getattr(ccxt_async, name)
+            assert sync_cls is async_cls, (
+                f"{name}: sync={sync_cls!r} is not async={async_cls!r}"
+            )
