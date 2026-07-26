@@ -6,7 +6,7 @@ All tests are hermetic — no network, no real ccxt client.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -57,16 +57,43 @@ class _StubAdapter(CcxtExchangeAdapter):
 # ---------------------------------------------------------------------------
 
 
+def _stub_adapter() -> _StubAdapter:
+    """Фабрика _StubAdapter — cast заменяет type: ignore[arg-type]."""
+    return cast(
+        _StubAdapter,
+        _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s"),
+    )
+
+
+def _binance(env: Environment, client: Any) -> Any:
+    """Фабрика BinanceExecutionAdapter — cast вместо type: ignore[arg-type]."""
+    from clay.execution.adapter.binance import BinanceExecutionAdapter
+
+    return cast(BinanceExecutionAdapter, BinanceExecutionAdapter(env, client=client))
+
+
+def _bybit(env: Environment, client: Any) -> Any:
+    """Фабрика BybitExecutionAdapter — cast вместо type: ignore[arg-type]."""
+    from clay.execution.adapter.bybit import BybitExecutionAdapter
+
+    return cast(BybitExecutionAdapter, BybitExecutionAdapter(env, client=client))
+
+
+def _adapter() -> _StubAdapter:
+    """Обёртка над _stub_adapter (используется десятками тестов)."""
+    return _stub_adapter()
+
+
 class TestNoneGuardAckFromResponse:
     def test_side_none_defaults_to_buy(self) -> None:
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        adapter = _stub_adapter()
         resp = {"side": None, "type": None, "status": "open", "id": "1"}
         ack = adapter._ack_from_response("cid-1", resp)
         assert ack.side == OrderSide.BUY
         assert ack.order_type == OrderType.LIMIT
 
     def test_side_sell_preserved(self) -> None:
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        adapter = _stub_adapter()
         resp = {"side": "sell", "type": "market", "status": "closed", "id": "1"}
         ack = adapter._ack_from_response("cid-1", resp)
         assert ack.side == OrderSide.SELL
@@ -75,14 +102,14 @@ class TestNoneGuardAckFromResponse:
 
 class TestNoneGuardSnapshotFromResponse:
     def test_side_none_defaults_to_buy(self) -> None:
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        adapter = _stub_adapter()
         resp = {"side": None, "type": None, "status": "open", "id": "1"}
         snap = adapter._snapshot_from_response(resp)
         assert snap.side == OrderSide.BUY
         assert snap.order_type == OrderType.LIMIT
 
     def test_side_sell_preserved(self) -> None:
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        adapter = _stub_adapter()
         resp = {"side": "sell", "type": "market", "status": "closed", "id": "1"}
         snap = adapter._snapshot_from_response(resp)
         assert snap.side == OrderSide.SELL
@@ -91,7 +118,7 @@ class TestNoneGuardSnapshotFromResponse:
 
 class TestNoneGuardFillsFromTrades:
     def test_fill_side_none_defaults_to_buy(self) -> None:
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        adapter = _stub_adapter()
         resp = {
             "id": "1",
             "symbol": "BTC/USDT",
@@ -102,7 +129,7 @@ class TestNoneGuardFillsFromTrades:
         assert fills[0].side == OrderSide.BUY
 
     def test_fill_side_sell_preserved(self) -> None:
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        adapter = _stub_adapter()
         resp = {
             "id": "1",
             "symbol": "BTC/USDT",
@@ -153,64 +180,50 @@ class TestApplySandboxRouting:
 
 class TestBinanceRouting:
     def test_testnet_sets_sandbox(self) -> None:
-        from clay.execution.adapter.binance import BinanceExecutionAdapter
-
         client = MagicMock()
-        BinanceExecutionAdapter(Environment.TESTNET, client=client)  # type: ignore[arg-type]
+        _binance(Environment.TESTNET, client)
         client.set_sandbox_mode.assert_called_once_with(True)
 
     def test_production_noop(self) -> None:
-        from clay.execution.adapter.binance import BinanceExecutionAdapter
-
         client = MagicMock()
-        BinanceExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        _binance(Environment.PRODUCTION, client)
         client.set_sandbox_mode.assert_not_called()
 
     def test_demo_raises_config_error(self) -> None:
-        from clay.execution.adapter.binance import BinanceExecutionAdapter
-
         client = MagicMock()
         with pytest.raises(ConfigError, match="not supported"):
-            BinanceExecutionAdapter(Environment.DEMO, client=client)  # type: ignore[arg-type]
+            _binance(Environment.DEMO, client)
 
     def test_paper_raises_config_error(self) -> None:
-        from clay.execution.adapter.binance import BinanceExecutionAdapter
-
         client = MagicMock()
         with pytest.raises(ConfigError, match="not supported"):
-            BinanceExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
+            _binance(Environment.PAPER, client)
 
 
 class TestBybitRoutingStillWorks:
-    """Regression: existing Bybit DEMO→enable_demo_trading must remain green."""
+    """Regression: existing Bybit DEMO->enable_demo_trading must remain green."""
 
     def test_bybit_demo_enables_demo_trading(self) -> None:
         from tests.execution.adapter.test_bybit import FakeBybitClient
 
-        from clay.execution.adapter.bybit import BybitExecutionAdapter
-
         client = FakeBybitClient()
-        BybitExecutionAdapter(Environment.DEMO, client=client)  # type: ignore[arg-type]
+        _bybit(Environment.DEMO, client)
         assert client._demo_trading is True
         assert client._sandbox is False
 
     def test_bybit_testnet_sets_sandbox(self) -> None:
         from tests.execution.adapter.test_bybit import FakeBybitClient
 
-        from clay.execution.adapter.bybit import BybitExecutionAdapter
-
         client = FakeBybitClient()
-        BybitExecutionAdapter(Environment.TESTNET, client=client)  # type: ignore[arg-type]
+        _bybit(Environment.TESTNET, client)
         assert client._sandbox is True
         assert client._demo_trading is False
 
     def test_bybit_production_no_side_effects(self) -> None:
         from tests.execution.adapter.test_bybit import FakeBybitClient
 
-        from clay.execution.adapter.bybit import BybitExecutionAdapter
-
         client = FakeBybitClient()
-        BybitExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        _bybit(Environment.PRODUCTION, client)
         assert client._sandbox is False
         assert client._demo_trading is False
         assert client._calls == []
@@ -218,20 +231,14 @@ class TestBybitRoutingStillWorks:
     def test_bybit_paper_raises_config_error(self) -> None:
         from tests.execution.adapter.test_bybit import FakeBybitClient
 
-        from clay.execution.adapter.bybit import BybitExecutionAdapter
-
         client = FakeBybitClient()
         with pytest.raises(ConfigError, match="not supported by Bybit adapter"):
-            BybitExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
+            _bybit(Environment.PAPER, client)
 
 
 # ---------------------------------------------------------------------------
 # D-24: read-mapping None sweep — D3.1
 # ---------------------------------------------------------------------------
-
-
-def _adapter() -> _StubAdapter:
-    return _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
 
 
 class TestAckFromResponseNoneGuard:
@@ -349,11 +356,15 @@ class TestFillFromMyTradeNoneGuard:
 
 class TestGetBalancesNoneGuard:
     @pytest.mark.anyio
-    async def test_total_none_does_not_crash(self) -> None:
+    async def test_total_none_does_not_crash(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """total=None was CRASH (None.items()). Now empty dict."""
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+        adapter = _stub_adapter()
         resp = {"total": None, "free": None, "used": None}
-        adapter._client.fetch_balance = AsyncMock(return_value=resp)  # type: ignore[assignment]
+        monkeypatch.setattr(
+            adapter._client, "fetch_balance", AsyncMock(return_value=resp)
+        )
         balances = await adapter.get_balances()
         assert balances == []
 
@@ -407,18 +418,22 @@ class TestAckFromResponseNormalPath:
 
 class TestPlaceOrderParseFailureAmbiguous:
     @pytest.mark.anyio
-    async def test_parse_failure_after_create_raises_ambiguous(self) -> None:
-        """Successful create_order + _ack_from_response raises → AmbiguousExecutionError."""
-        adapter = _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")  # type: ignore[arg-type]
+    async def test_parse_failure_after_create_raises_ambiguous(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Successful create_order + _ack_from_response raises -> AmbiguousExecutionError."""
+        adapter = _stub_adapter()
 
         # Make _ack_from_response raise
         def _broken_ack(client_order_id: str, response: dict[str, Any]) -> Any:
             raise TypeError("simulated parse failure")
 
-        adapter._ack_from_response = _broken_ack  # type: ignore[assignment]
+        monkeypatch.setattr(adapter, "_ack_from_response", _broken_ack)
         # Async mock for create_order
-        adapter._client.create_order = AsyncMock(  # type: ignore[assignment]
-            return_value={"id": "1", "symbol": "BTC/USDT"}
+        monkeypatch.setattr(
+            adapter._client,
+            "create_order",
+            AsyncMock(return_value={"id": "1", "symbol": "BTC/USDT"}),
         )
 
         req = OrderRequest(
