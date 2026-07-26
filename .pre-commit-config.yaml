@@ -1,6 +1,6 @@
 # D-22: all hooks use repo: local + language: system — pre-commit never builds Python envs.
 # Tool versions pinned in backend/pyproject.toml [dependency-groups] dev.
-minimum_pre_commit_version: "3.5.0"
+minimum_pre_commit_version: "4.6.0"
 repos:
   - repo: local
     hooks:
