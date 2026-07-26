@@ -17,6 +17,10 @@ import ccxt
 import ccxt.async_support as ccxt_async
 import pytest
 
+from clay.execution.adapter.ccxt_client import CcxtDemoCapableClient, CcxtSpotClient
+from tests.execution.adapter.test_binance import FakeBinanceClient
+from tests.execution.adapter.test_bybit import FakeBybitClient
+
 # ── Версия из pyproject (пин) ──────────────────────────────────────────
 
 _PYPROJECT = Path(__file__).resolve().parents[3] / "pyproject.toml"
@@ -116,3 +120,10 @@ class TestCcxtContract:
             assert sync_cls is async_cls, (
                 f"{name}: sync={sync_cls!r} is not async={async_cls!r}"
             )
+
+
+# ── Статические контракты подделок ─────────────────────────────────────
+# Проверка при импорте модуля: fake-классы удовлетворяют протоколам.
+
+_binance_contract: CcxtSpotClient = FakeBinanceClient()
+_bybit_contract: CcxtDemoCapableClient = FakeBybitClient()

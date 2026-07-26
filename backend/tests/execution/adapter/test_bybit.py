@@ -157,23 +157,6 @@ class FakeBybitClient:
 # ---------------------------------------------------------------------------
 
 
-def _make_rules(**overrides: object) -> dict[str, object]:
-    defaults: dict[str, object] = {
-        "min_amount": Decimal("0.001"),
-        "max_amount": Decimal("1000"),
-        "min_price": Decimal("0"),
-        "max_price": Decimal("0"),
-        "min_notional": Decimal("5"),
-        "amount_step": Decimal("0.001"),
-        "price_tick": Decimal("0.01"),
-        "precision_mode": PrecisionMode.TICK_SIZE,
-        "supported_order_types": frozenset({OrderType.MARKET, OrderType.LIMIT}),
-        "supported_tif": frozenset({TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK}),
-    }
-    defaults.update(overrides)
-    return defaults
-
-
 def _make_request(
     *,
     price: str | None = "50000",
@@ -223,7 +206,7 @@ def _make_bybit_market() -> dict[str, Any]:
 def _adapter(client: FakeBybitClient | None = None) -> BybitExecutionAdapter:
     if client is None:
         client = FakeBybitClient()
-    return BybitExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+    return BybitExecutionAdapter(Environment.PRODUCTION, client=client)
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +230,7 @@ class TestProtocol:
 class TestConstructor:
     def test_injected_client_no_keys(self) -> None:
         client = FakeBybitClient()
-        adapter = BybitExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        adapter = BybitExecutionAdapter(Environment.PRODUCTION, client=client)
         assert adapter.environment == Environment.PRODUCTION
 
     def test_no_client_no_keys_raises(self) -> None:
@@ -258,7 +241,7 @@ class TestConstructor:
         client = FakeBybitClient()
         BybitExecutionAdapter(
             Environment.TESTNET,
-            client=client,  # type: ignore[arg-type]
+            client=client,
         )
         assert client._sandbox is True
 
@@ -266,7 +249,7 @@ class TestConstructor:
         client = FakeBybitClient()
         BybitExecutionAdapter(
             Environment.PRODUCTION,
-            client=client,  # type: ignore[arg-type]
+            client=client,
         )
         assert client._sandbox is False
 
@@ -291,7 +274,7 @@ class TestConstructor:
 class TestEnvironmentRouting:
     def test_demo_enables_demo_trading(self) -> None:
         client = FakeBybitClient()
-        BybitExecutionAdapter(Environment.DEMO, client=client)  # type: ignore[arg-type]
+        BybitExecutionAdapter(Environment.DEMO, client=client)
         assert client._demo_trading is True
         assert client._sandbox is False
         assert any(c[0] == "enable_demo_trading" for c in client._calls)
@@ -299,7 +282,7 @@ class TestEnvironmentRouting:
 
     def test_testnet_sets_sandbox(self) -> None:
         client = FakeBybitClient()
-        BybitExecutionAdapter(Environment.TESTNET, client=client)  # type: ignore[arg-type]
+        BybitExecutionAdapter(Environment.TESTNET, client=client)
         assert client._sandbox is True
         assert client._demo_trading is False
         assert any(c[0] == "set_sandbox_mode" for c in client._calls)
@@ -307,7 +290,7 @@ class TestEnvironmentRouting:
 
     def test_production_no_side_effects(self) -> None:
         client = FakeBybitClient()
-        BybitExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        BybitExecutionAdapter(Environment.PRODUCTION, client=client)
         assert client._sandbox is False
         assert client._demo_trading is False
         assert client._calls == []
@@ -315,7 +298,7 @@ class TestEnvironmentRouting:
     def test_paper_raises_config_error(self) -> None:
         client = FakeBybitClient()
         with pytest.raises(ConfigError, match="not supported by Bybit adapter"):
-            BybitExecutionAdapter(Environment.PAPER, client=client)  # type: ignore[arg-type]
+            BybitExecutionAdapter(Environment.PAPER, client=client)
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +369,7 @@ class TestGetMarketRules:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBybitClient()
-        client.load_markets = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.load_markets = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(TransientAdapterError):
@@ -395,7 +378,7 @@ class TestGetMarketRules:
     @pytest.mark.anyio
     async def test_auth_error_is_config(self) -> None:
         client = FakeBybitClient()
-        client.load_markets = AsyncMock(side_effect=ccxt.AuthenticationError("bad"))  # type: ignore[assignment]
+        client.load_markets = AsyncMock(side_effect=ccxt.AuthenticationError("bad"))
         adapter = _adapter(client)
 
         with pytest.raises(ConfigError):
@@ -442,7 +425,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_insufficient_funds_error(self) -> None:
         client = FakeBybitClient()
-        client.create_order = AsyncMock(side_effect=ccxt.InsufficientFunds("no funds"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.InsufficientFunds("no funds"))
         adapter = _adapter(client)
 
         with pytest.raises(InsufficientFundsError):
@@ -451,7 +434,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_invalid_order_error(self) -> None:
         client = FakeBybitClient()
-        client.create_order = AsyncMock(side_effect=ccxt.InvalidOrder("bad qty"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.InvalidOrder("bad qty"))
         adapter = _adapter(client)
 
         with pytest.raises(InvalidOrderError):
@@ -460,7 +443,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_network_error_is_ambiguous(self) -> None:
         client = FakeBybitClient()
-        client.create_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError):
@@ -469,7 +452,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_exchange_error_is_rejected(self) -> None:
         client = FakeBybitClient()
-        client.create_order = AsyncMock(side_effect=ccxt.ExchangeError("generic"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.ExchangeError("generic"))
         adapter = _adapter(client)
 
         with pytest.raises(OrderRejectedError):
@@ -478,7 +461,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_auth_error_is_config(self) -> None:
         client = FakeBybitClient()
-        client.create_order = AsyncMock(side_effect=ccxt.AuthenticationError("bad key"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.AuthenticationError("bad key"))
         adapter = _adapter(client)
 
         with pytest.raises(ConfigError):
@@ -539,7 +522,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBybitClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.BadRequest(_DUPLICATE_CID_SPOT_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="12141"):
@@ -551,7 +534,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBybitClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_LINEAR_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="170141"):
@@ -563,7 +546,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBybitClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.BadRequest(_DUPLICATE_CID_SPOT_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="cid='test-001'"):
@@ -575,7 +558,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBybitClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder("Insufficient balance")
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(InvalidOrderError):
@@ -587,7 +570,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBybitClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.ExchangeError("some other error")
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(OrderRejectedError):
@@ -608,7 +591,7 @@ class TestDuplicateCidMessageRegression:
         client = FakeBybitClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_LINEAR_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="170141") as exc_info:
@@ -623,7 +606,7 @@ class TestDuplicateCidMessageRegression:
         client = FakeBybitClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_SPOT_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="12141"):
@@ -656,7 +639,7 @@ class TestCancelOrder:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBybitClient()
-        client.cancel_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.cancel_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(TransientAdapterError):
@@ -701,7 +684,7 @@ class TestGetOrder:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBybitClient()
-        client.fetch_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.fetch_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(TransientAdapterError):
