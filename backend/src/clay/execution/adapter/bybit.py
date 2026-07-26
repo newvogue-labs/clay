@@ -24,6 +24,7 @@ from typing import Any, ClassVar
 
 import ccxt.async_support as ccxt
 
+from clay.execution.adapter.ccxt_client import CcxtDemoCapableClient
 from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _dec,
@@ -58,6 +59,22 @@ def _is_duplicate_cid(exc: Exception) -> bool:
     return "12141" in s or "170141" in s
 
 
+def _apply_bybit_routing(
+    client: CcxtDemoCapableClient, environment: Environment
+) -> None:
+    """Bybit env routing: TESTNET→sandbox, DEMO→demo_trading, PRODUCTION→no-op."""
+    if environment == Environment.TESTNET:
+        client.set_sandbox_mode(True)
+    elif environment == Environment.DEMO:
+        client.enable_demo_trading(True)
+    elif environment == Environment.PRODUCTION:
+        pass
+    else:
+        raise ConfigError(
+            f"environment {environment.value!r} not supported by Bybit adapter"
+        )
+
+
 class BybitExecutionAdapter(CcxtExchangeAdapter):
     """Bybit Spot adapter implementing ``ExchangeAdapter``.
 
@@ -86,7 +103,7 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
         *,
         api_key: str = "",
         api_secret: str = "",
-        client: ccxt.bybit | Any | None = None,
+        client: CcxtDemoCapableClient | None = None,
     ) -> None:
         self.environment = environment
         if client is not None:
@@ -107,20 +124,11 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
                 }
             )
 
-        if environment == Environment.TESTNET:
-            self._client.set_sandbox_mode(True)
-        elif environment == Environment.DEMO:
-            self._client.enable_demo_trading(True)
-        elif environment == Environment.PRODUCTION:
-            pass
-        else:
-            raise ConfigError(
-                f"environment {environment.value!r} not supported by Bybit adapter"
-            )
+        _apply_bybit_routing(self._client, environment)
 
     # -- venue-specific hooks -------------------------------------------------
 
-    def _build_client(self, api_key: str, api_secret: str) -> ccxt.Exchange:
+    def _build_client(self, api_key: str, api_secret: str) -> CcxtDemoCapableClient:
         """Create ccxt.bybit with Spot-specific options."""
         return ccxt.bybit(
             {
@@ -146,7 +154,7 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
         return {"clientOrderId": req.client_order_id}
 
     def _extract_client_order_id(self, response: dict[str, Any]) -> str:
-        """Bybit:优先 info.orderLinkId, fallback на unified clientOrderId (ccxt #23260)."""
+        """Bybit:приоритет info.orderLinkId, fallback на unified clientOrderId (ccxt #23260)."""
         info = response.get("info") or {}
         return _str_or_empty(info.get("orderLinkId")) or _str_or_empty(
             response.get("clientOrderId")

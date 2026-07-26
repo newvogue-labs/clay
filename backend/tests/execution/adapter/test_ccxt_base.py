@@ -6,16 +6,19 @@ All tests are hermetic — no network, no real ccxt client.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from clay.execution.adapter.binance import BinanceExecutionAdapter
+from clay.execution.adapter.bybit import BybitExecutionAdapter
 from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _apply_sandbox_routing,
     _fill_from_my_trade,
 )
+from clay.execution.adapter.ccxt_client import CcxtDemoCapableClient, CcxtSpotClient
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
     Environment,
@@ -58,25 +61,18 @@ class _StubAdapter(CcxtExchangeAdapter):
 
 
 def _stub_adapter() -> _StubAdapter:
-    """Фабрика _StubAdapter — cast заменяет type: ignore[arg-type]."""
-    return cast(
-        _StubAdapter,
-        _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s"),
-    )
+    """Фабрика _StubAdapter."""
+    return _StubAdapter(Environment.PRODUCTION, api_key="k", api_secret="s")
 
 
-def _binance(env: Environment, client: Any) -> Any:
-    """Фабрика BinanceExecutionAdapter — cast вместо type: ignore[arg-type]."""
-    from clay.execution.adapter.binance import BinanceExecutionAdapter
-
-    return cast(BinanceExecutionAdapter, BinanceExecutionAdapter(env, client=client))
+def _binance(env: Environment, client: CcxtSpotClient) -> BinanceExecutionAdapter:
+    """Фабрика BinanceExecutionAdapter."""
+    return BinanceExecutionAdapter(env, client=client)
 
 
-def _bybit(env: Environment, client: Any) -> Any:
-    """Фабрика BybitExecutionAdapter — cast вместо type: ignore[arg-type]."""
-    from clay.execution.adapter.bybit import BybitExecutionAdapter
-
-    return cast(BybitExecutionAdapter, BybitExecutionAdapter(env, client=client))
+def _bybit(env: Environment, client: CcxtDemoCapableClient) -> BybitExecutionAdapter:
+    """Фабрика BybitExecutionAdapter."""
+    return BybitExecutionAdapter(env, client=client)
 
 
 def _adapter() -> _StubAdapter:

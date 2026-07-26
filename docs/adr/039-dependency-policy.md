@@ -36,7 +36,7 @@ Clay не форкает и не вендорит чужой код. Внешн�
 
 **Поле `packageManager` НЕ вводим** (corepack-риск в CI). `.nvmrc` и поле `engines` — advisory-only, для локальной сборки.
 
-Рuff-хуки в `.pre-commit-config.yaml` ограничены `types: [python]` осознанно — `.pyi` и ноутбуков в репозитории нет, а CI гоняет `ruff check .` по всему дереву.
+Ruff-хуки в `.pre-commit-config.yaml` ограничены `types: [python]` осознанно — `.pyi` и ноутбуков в репозитории нет, а CI гоняет `ruff check .` по всему дереву.
 
 ### 4. Процедура апгрейда
 
@@ -51,6 +51,7 @@ Clay не форкает и не вендорит чужой код. Внешн�
 
 - **Python-реестр** (pyproject.toml + uv.lock): `tests/policy/test_dependency_policy.py` — падает при specifier-е без верхней границы (класс C) или при ослаблении пиннинга класса A. Запускается в CI через `uv run pytest`.
 - **Согласованность тулчейна** (Node/pnpm версии, frozen-режимы): `tests/policy/test_toolchain_consistency.py` — сверяет три точки (ci.yml, .nvmrc, package.json engines), наличие frozen-lockfile и отсутствие packageManager. Запускается в CI через `uv run pytest`.
+- **Типовой контракт границы ccxt** задан собственным протоколом (`ccxt_client.py`), `Any` на границе не допускается; проверяется pyright.
 
 **Не проверяется автоматически:** мажорные теги GitHub Actions (@v4/@v6) и версия Python в workflow — сверяются вручную при касании CI.
 
