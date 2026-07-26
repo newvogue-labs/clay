@@ -433,3 +433,168 @@ class TestPlaceOrderParseFailureAmbiguous:
 
         with pytest.raises(AmbiguousExecutionError, match="test-cid-ambiguous"):
             await adapter.place_order(req)
+
+
+# ---------------------------------------------------------------------------
+# D-25/D-26: ack enrichment + type coercion (3.1–3.7)
+# ---------------------------------------------------------------------------
+
+
+def _make_request(**overrides: Any) -> OrderRequest:
+    defaults: dict[str, Any] = dict(
+        symbol="BTC/USDT",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=Decimal("0.001"),
+        price=Decimal("40000"),
+        time_in_force=TimeInForce.GTC,
+        client_order_id="cid-enrichment",
+    )
+    defaults.update(overrides)
+    return OrderRequest(**defaults)  # type: ignore[arg-type]
+
+
+class TestD26AckEnrichment:
+    """3.1 D-26 main: Bybit-like response without amount/status/side/type."""
+
+    def test_bybit_create_order_response_fills_from_request(self) -> None:
+        # Bybit unified createOrder returns id + clientOrderId but NOT amount/status/side/type
+        resp = {"id": 2267705150334569728, "clientOrderId": "cid-enrichment"}
+        req = _make_request()
+        ack = _adapter()._ack_from_response("cid-enrichment", resp, requested=req)
+
+        assert ack.quantity == Decimal("0.001")  # from requested, NOT Decimal("0")
+        assert ack.price == Decimal("40000")  # from requested
+        assert ack.side == OrderSide.BUY  # from requested
+        assert ack.order_type == OrderType.LIMIT  # from requested
+        assert ack.symbol == "BTC/USDT"  # from requested
+        assert ack.state == OrderState.NEW  # status absent → "open" (not fabricated)
+        assert ack.client_order_id == "cid-enrichment"
+
+    def test_3_2_venue_priority_preserves_venue_value(self) -> None:
+        """3.2 D-26: venue amount differs from requested → venue wins."""
+        resp = {
+            "id": "v-1",
+            "symbol": "ETH/USDT",
+            "amount": "0.02",
+            "side": "sell",
+            "type": "market",
+        }
+        req = _make_request(quantity=Decimal("0.001"), symbol="BTC/USDT")
+        ack = _adapter()._ack_from_response("cid-1", resp, requested=req)
+
+        assert ack.quantity == Decimal("0.02")  # venue value
+        assert ack.symbol == "ETH/USDT"  # venue value
+        assert ack.side == OrderSide.SELL  # venue value
+        assert ack.order_type == OrderType.MARKET  # venue value
+
+    def test_3_3_backward_compat_no_requested(self) -> None:
+        """3.3 D-26: calling without requested=None → same as pre-slice."""
+        resp = {"id": "v-1", "symbol": "BTC/USDT", "side": "sell", "type": "limit"}
+        ack_no_req = _adapter()._ack_from_response("cid-1", resp)
+        ack_with_none = _adapter()._ack_from_response("cid-1", resp, requested=None)
+        assert ack_no_req.quantity == ack_with_none.quantity == Decimal("0")
+        assert ack_no_req.side == ack_with_none.side == OrderSide.SELL
+        assert ack_no_req.symbol == ack_with_none.symbol == "BTC/USDT"
+
+
+class TestD25TypeCoercion:
+    def test_3_4_numeric_id_and_symbol_are_str(self) -> None:
+        """3.4 D-25: numeric id and symbol → str in ack and snapshot."""
+        resp = {"id": 2267705150334569728, "symbol": 12345, "status": "open"}
+        ack = _adapter()._ack_from_response("cid-1", resp)
+        assert isinstance(ack.venue_order_id, str)
+        assert ack.venue_order_id == "2267705150334569728"
+        assert isinstance(ack.symbol, str)
+        assert ack.symbol == "12345"
+
+        snap = _adapter()._snapshot_from_response(resp)
+        assert isinstance(snap.venue_order_id, str)
+        assert snap.venue_order_id == "2267705150334569728"
+        assert isinstance(snap.symbol, str)
+        assert snap.symbol == "12345"
+
+    def test_3_5_fills_numeric_fields_are_str(self) -> None:
+        """3.5 D-25: fills with numeric trade_id and commissionAsset → str."""
+        resp = {
+            "id": "1",
+            "symbol": "BTC/USDT",
+            "trades": [
+                {
+                    "id": 99999,
+                    "side": "buy",
+                    "amount": "1",
+                    "price": "100",
+                    "commission": "0.05",
+                    "commissionAsset": 42,
+                    "timestamp": 1700000000000,
+                }
+            ],
+        }
+        fills = _adapter()._fills_from_trades(resp)
+        assert len(fills) == 1
+        assert isinstance(fills[0].trade_id, str)
+        assert fills[0].trade_id == "99999"
+        assert isinstance(fills[0].commission_asset, str)
+        assert fills[0].commission_asset == "42"
+
+    def test_3_6_none_coerces_to_empty_string(self) -> None:
+        """3.6 D-25/D-24 regression: None → '' on all string sites."""
+        resp = {
+            "id": None,
+            "symbol": None,
+            "clientOrderId": None,
+            "trades": [
+                {
+                    "id": None,
+                    "commissionAsset": None,
+                }
+            ],
+        }
+        ack = _adapter()._ack_from_response("cid-fallback", resp)
+        assert ack.venue_order_id == ""
+        assert ack.symbol == ""
+        assert ack.client_order_id == "cid-fallback"  # fallback from param
+
+        fills = _adapter()._fills_from_trades(resp)
+        assert fills[0].trade_id == ""
+        assert fills[0].commission_asset == ""
+
+    def test_3_7_normal_path_unchanged(self) -> None:
+        """3.7 Full valid response → identical to pre-slice behavior."""
+        resp = {
+            "id": "venue-123",
+            "clientOrderId": "my-cid",
+            "symbol": "BTC/USDT",
+            "side": "sell",
+            "type": "market",
+            "status": "closed",
+            "amount": "0.5",
+            "filled": "0.5",
+            "price": "51000",
+            "timestamp": 1700000000000,
+            "trades": [
+                {
+                    "id": "t1",
+                    "side": "sell",
+                    "amount": "0.5",
+                    "price": "51000",
+                    "commission": "0.05",
+                    "commissionAsset": "USDT",
+                    "timestamp": 1700000000000,
+                }
+            ],
+        }
+        req = _make_request()
+        ack = _adapter()._ack_from_response("cid-orig", resp, requested=req)
+        # venue values take priority
+        assert ack.venue_order_id == "venue-123"
+        assert ack.client_order_id == "my-cid"
+        assert ack.symbol == "BTC/USDT"
+        assert ack.side == OrderSide.SELL
+        assert ack.order_type == OrderType.MARKET
+        assert ack.state == OrderState.FILLED
+        assert ack.quantity == Decimal("0.5")
+        assert ack.price == Decimal("51000")
+        assert ack.transact_time == 1700000000000
+        assert len(ack.fills) == 1

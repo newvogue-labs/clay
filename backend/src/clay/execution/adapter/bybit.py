@@ -28,6 +28,7 @@ from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _dec,
     _dec_upper_bound,
+    _str_or_empty,
 )
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
@@ -147,7 +148,9 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
     def _extract_client_order_id(self, response: dict[str, Any]) -> str:
         """Bybit:优先 info.orderLinkId, fallback на unified clientOrderId (ccxt #23260)."""
         info = response.get("info") or {}
-        return info.get("orderLinkId") or response.get("clientOrderId") or ""
+        return _str_or_empty(info.get("orderLinkId")) or _str_or_empty(
+            response.get("clientOrderId")
+        )
 
     async def get_market_rules(self, symbol: str) -> MarketRules:
         try:

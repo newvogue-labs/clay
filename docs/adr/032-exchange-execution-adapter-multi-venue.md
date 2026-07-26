@@ -256,3 +256,8 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 - **Taxonomy: «ордер поставлен, ответ не разобран» ≠ «ордер не поставлен».** `place_order` оборачивает `_ack_from_response` в try/except → `AmbiguousExecutionError` с `client_order_id` и ключами ответа в логе. Существующая resilience-обвязка автоматически делает reconcile-by-cid → орфан восстанавливается.
 - **Invariant #6 расширен:** `AmbiguousExecutionError` поднимается не только при NetworkError/timeout/duplicate-cid, но и при провале разбора ответа после успешной `create_order`.
 - **Read-операции:** `get_order`, `get_open_orders`, `reconcile_orders`, `get_balances`, `get_my_trades` — после D-24 перестают падать на `None`-значениях (Д1 фикс покрывает все сайты).
+
+## Errata 2026-07-26 (D-25/D-26)
+
+- **D-25: Type coercion restored.** D-24 заменил `str(response.get("key", ""))` на `response.get("key") or ""` — это закрыло None-краш, но потеряло приведение типа к str (pyright молчит из-за `dict[str, Any]`). Добавлен module-level хелпер `_str_or_empty(value: object) -> str` (`None` → `""`, numeric → `str(value)`). Заменены все 14 сайтов в `ccxt_base.py` (13) + `bybit.py` (1).
+- **D-26: Ack enrichment from OrderRequest.** Bybit unified `createOrder` не возвращает `amount`/`status`/`side`/`type` — `_ack_from_response` получал `Decimal("0")`, `UNKNOWN`, `BUY`, `LIMIT` как дефолты. Расширен параметр `_ack_from_response(*, requested: OrderRequest | None = None)`: venue-truth приоритетнее, но при отсутствии venue-значения подставляется соответствующее поле из `OrderRequest`. `status` НЕ фабрикуется — `_status_from_response` остаётся как есть. `place_order` передаёт `req` в `_ack_from_response`.

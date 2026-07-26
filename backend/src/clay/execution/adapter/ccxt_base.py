@@ -145,7 +145,9 @@ class CcxtExchangeAdapter:
 
         try:
             return self._ack_from_response(
-                req.client_order_id, cast("dict[str, Any]", response)
+                req.client_order_id,
+                cast("dict[str, Any]", response),
+                requested=req,
             )
         except Exception as exc:
             resp_dict = cast("dict[str, Any]", response)
@@ -310,7 +312,7 @@ class CcxtExchangeAdapter:
 
     def _extract_client_order_id(self, response: dict[str, Any]) -> str:
         """Venue-overridable: извлечь наш client_order_id из ccxt-ответа."""
-        return response.get("clientOrderId") or ""
+        return _str_or_empty(response.get("clientOrderId"))
 
     @abstractmethod
     def _build_client(self, api_key: str, api_secret: str) -> ccxt.Exchange:
@@ -330,7 +332,11 @@ class CcxtExchangeAdapter:
     # -- private helpers ------------------------------------------------------
 
     def _ack_from_response(
-        self, client_order_id: str, response: dict[str, Any]
+        self,
+        client_order_id: str,
+        response: dict[str, Any],
+        *,
+        requested: OrderRequest | None = None,
     ) -> OrderAck:
         fills = self._fills_from_trades(response)
         filled_qty = _dec(response.get("filled"))
@@ -341,14 +347,47 @@ class CcxtExchangeAdapter:
         price = (
             _dec(price_raw) if price_raw is not None and _dec(price_raw) != 0 else None
         )
+
+        # D-26: venue-truth priority; fill gaps from OrderRequest when venue omits fields.
+        venue_amount = response.get("amount")
+        quantity = (
+            _dec(venue_amount)
+            if venue_amount is not None
+            else (requested.quantity if requested is not None else _dec(None))
+        )
+
+        if price is None and requested is not None and requested.price is not None:
+            price = requested.price
+
+        venue_side = response.get("side")
+        side = (
+            OrderSide(_str_or_empty(venue_side))
+            if venue_side
+            else (requested.side if requested is not None else OrderSide.BUY)
+        )
+
+        venue_type = response.get("type")
+        order_type = (
+            OrderType(_str_or_empty(venue_type))
+            if venue_type
+            else (requested.order_type if requested is not None else OrderType.LIMIT)
+        )
+
+        venue_symbol = response.get("symbol")
+        symbol = (
+            _str_or_empty(venue_symbol)
+            if venue_symbol
+            else (requested.symbol if requested is not None else "")
+        )
+
         return OrderAck(
             client_order_id=self._extract_client_order_id(response) or client_order_id,
-            venue_order_id=response.get("id") or "",
-            symbol=response.get("symbol") or "",
-            side=OrderSide(str(response.get("side") or "buy")),
-            order_type=OrderType(str(response.get("type") or "limit")),
+            venue_order_id=_str_or_empty(response.get("id")),
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
             state=state,
-            quantity=_dec(response.get("amount")),
+            quantity=quantity,
             price=price,
             transact_time=int(response.get("timestamp") or 0),
             fills=tuple(fills),
@@ -366,8 +405,8 @@ class CcxtExchangeAdapter:
         )
         return OrderSnapshot(
             client_order_id=self._extract_client_order_id(response),
-            venue_order_id=response.get("id") or "",
-            symbol=response.get("symbol") or "",
+            venue_order_id=_str_or_empty(response.get("id")),
+            symbol=_str_or_empty(response.get("symbol")),
             side=OrderSide(str(response.get("side") or "buy")),
             order_type=OrderType(str(response.get("type") or "limit")),
             state=state,
@@ -382,18 +421,18 @@ class CcxtExchangeAdapter:
         trades = response.get("trades") or []
         if not trades:
             return []
-        symbol = response.get("symbol") or ""
-        venue_order_id = response.get("id") or ""
+        symbol = _str_or_empty(response.get("symbol"))
+        venue_order_id = _str_or_empty(response.get("id"))
         return [
             Fill(
-                trade_id=fill.get("id") or "",
+                trade_id=_str_or_empty(fill.get("id")),
                 venue_order_id=venue_order_id,
                 symbol=symbol,
                 side=OrderSide(str(fill.get("side") or "buy")),
                 quantity=_dec(fill.get("amount")),
                 price=_dec(fill.get("price")),
                 commission=_dec(fill.get("commission")),
-                commission_asset=fill.get("commissionAsset") or "",
+                commission_asset=_str_or_empty(fill.get("commissionAsset")),
                 transact_time=int(fill.get("timestamp") or 0),
             )
             for fill in trades
@@ -411,6 +450,13 @@ def _dec(val: Any) -> Decimal:
     if not s:
         return Decimal("0")
     return Decimal(s)
+
+
+def _str_or_empty(value: object) -> str:
+    """Coerce venue-provided value to ``str``; ``None`` and empty → ``""``."""
+    if value is None:
+        return ""
+    return str(value)
 
 
 def _dec_upper_bound(
@@ -468,14 +514,14 @@ def _fill_from_my_trade(trade: dict[str, Any]) -> Fill:
     """
     fee = trade.get("fee") or {}
     return Fill(
-        trade_id=trade.get("id") or "",
-        venue_order_id=trade.get("order") or "",
-        symbol=trade.get("symbol") or "",
+        trade_id=_str_or_empty(trade.get("id")),
+        venue_order_id=_str_or_empty(trade.get("order")),
+        symbol=_str_or_empty(trade.get("symbol")),
         side=OrderSide(str(trade.get("side") or "buy")),
         quantity=_dec(trade.get("amount")),
         price=_dec(trade.get("price")),
         commission=_dec(fee.get("cost")),
-        commission_asset=fee.get("currency") or "",
+        commission_asset=_str_or_empty(fee.get("currency")),
         transact_time=int(trade.get("timestamp") or 0),
     )
 
