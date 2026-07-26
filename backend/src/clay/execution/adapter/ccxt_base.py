@@ -348,11 +348,13 @@ class CcxtExchangeAdapter:
             _dec(price_raw) if price_raw is not None and _dec(price_raw) != 0 else None
         )
 
-        # D-26: venue-truth priority; fill gaps from OrderRequest when venue omits fields.
+        # D-26/D-27: venue-truth priority; empty/missing/zero amount = venue silence → requested.
         venue_amount = response.get("amount")
         quantity = (
             _dec(venue_amount)
             if venue_amount is not None
+            and venue_amount != ""
+            and _dec(venue_amount) != 0
             else (requested.quantity if requested is not None else _dec(None))
         )
 
