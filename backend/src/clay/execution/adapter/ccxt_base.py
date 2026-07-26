@@ -28,6 +28,7 @@ from typing import Any, ClassVar, cast
 
 import ccxt.async_support as ccxt
 
+from clay.execution.adapter.ccxt_client import CcxtSpotClient
 from clay.execution.adapter.domain import (
     BalanceSnapshot,
     Fill,
@@ -315,7 +316,7 @@ class CcxtExchangeAdapter:
         return _str_or_empty(response.get("clientOrderId"))
 
     @abstractmethod
-    def _build_client(self, api_key: str, api_secret: str) -> ccxt.Exchange:
+    def _build_client(self, api_key: str, api_secret: str) -> CcxtSpotClient:
         """Create and return the venue-specific ccxt client."""
         ...
 
@@ -491,7 +492,7 @@ def _dec_upper_bound(
     return d
 
 
-def _apply_sandbox_routing(client: Any, environment: Environment) -> None:
+def _apply_sandbox_routing(client: CcxtSpotClient, environment: Environment) -> None:
     """Fail-closed env routing для венью без demo-режима.
 
     TESTNET → sandbox; PRODUCTION → no-op; иначе (DEMO/PAPER/unknown) → ConfigError.

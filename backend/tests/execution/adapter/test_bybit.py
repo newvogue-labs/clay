@@ -58,21 +58,22 @@ class FakeBybitClient:
         self._sandbox = enabled
         self._calls.append(("set_sandbox_mode", (enabled,), {}))
 
-    def enable_demo_trading(self, enabled: bool) -> None:
-        self._demo_trading = enabled
-        self._calls.append(("enable_demo_trading", (enabled,), {}))
+    def enable_demo_trading(self, enable: bool) -> None:
+        self._demo_trading = enable
+        self._calls.append(("enable_demo_trading", (enable,), {}))
 
-    async def load_markets(self) -> dict[str, Any]:
+    async def load_markets(
+        self, reload: bool = False, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         return self._markets
 
     async def create_order(
         self,
-        *,
         symbol: str,
         type: str,
         side: str,
-        amount: str,
-        price: str | None = None,
+        amount: float,
+        price: str | float | int | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         params = params or {}
@@ -84,9 +85,9 @@ class FakeBybitClient:
             "symbol": symbol,
             "side": side,
             "type": type,
-            "amount": amount,
-            "price": price or "0",
-            "filled": amount,
+            "amount": str(amount),
+            "price": str(price) if price else "0",
+            "filled": str(amount),
             "status": "closed",
             "timestamp": 1700000000000,
             "trades": [],
@@ -97,9 +98,9 @@ class FakeBybitClient:
 
     async def cancel_order(
         self,
-        *,
         id: str,
-        symbol: str,  # noqa: A002
+        symbol: str | None = None,  # noqa: A002
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if id not in self._orders:
             raise ccxt.OrderNotFound(f"order {id} not found")
@@ -107,28 +108,47 @@ class FakeBybitClient:
 
     async def fetch_order(
         self,
-        *,
         id: str,
-        symbol: str,  # noqa: A002
+        symbol: str | None = None,  # noqa: A002
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if id not in self._orders:
             raise ccxt.OrderNotFound(f"order {id} not found")
         return self._orders[id]
 
     async def fetch_open_orders(
-        self, symbol: str | None = None
+        self,
+        symbol: str | None = None,
+        since: int | None = None,
+        limit: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         return list(self._open_orders)
 
     async def fetch_orders(
-        self, symbol: str | None = None, since: int | None = None
+        self,
+        symbol: str | None = None,
+        since: int | None = None,
+        limit: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         return list(self._all_orders)
 
-    async def fetch_balance(self) -> dict[str, Any]:
+    async def fetch_balance(
+        self, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         return dict(self._balances)
 
-    async def close(self) -> None:
+    async def fetch_my_trades(
+        self,
+        symbol: str | None = None,
+        since: int | None = None,
+        limit: int | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        return []
+
+    async def close(self, clean_instance_data: bool = False) -> None:
         self._closed = True
 
 

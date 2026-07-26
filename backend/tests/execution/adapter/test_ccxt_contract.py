@@ -1,7 +1,7 @@
 """Контрактный тест границы ccxt (ADR-039, S-DEPS-POLICY-1 D5).
 
 Работает с РЕАЛЬНО установленной ccxt, без моков и без сети.
-Проверяет: версию, существование классов交易所, методов на экземпляре,
+Проверяет: версию, существование классов бирж, методов на экземпляре,
 и полный набор ловимых исключений.
 
 Форма market-structure (опциональность limits.*.max, D-23) офлайн не
@@ -14,7 +14,7 @@ import tomllib
 from pathlib import Path
 
 import ccxt
-import ccxt.async_support as ccxt_async  # noqa: E402 — prod layer
+import ccxt.async_support as ccxt_async
 import pytest
 
 # ── Версия из pyproject (пин) ──────────────────────────────────────────
@@ -59,7 +59,7 @@ class TestCcxtContract:
         )
 
     def test_async_exchange_classes_exist(self) -> None:
-        """Классы交易所 (async), которые мы строим, должны существовать."""
+        """Классы бирж (async), которые мы строим, должны существовать."""
         assert hasattr(ccxt_async, "binance"), "ccxt.async_support.binance не найден"
         assert hasattr(ccxt_async, "bybit"), "ccxt.async_support.bybit не найден"
 

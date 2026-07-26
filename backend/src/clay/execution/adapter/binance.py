@@ -17,6 +17,7 @@ from typing import Any, ClassVar
 
 import ccxt.async_support as ccxt
 
+from clay.execution.adapter.ccxt_client import CcxtSpotClient
 from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _apply_sandbox_routing,
@@ -75,7 +76,7 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
         *,
         api_key: str = "",
         api_secret: str = "",
-        client: ccxt.binance | Any | None = None,
+        client: CcxtSpotClient | None = None,
     ) -> None:
         self.environment = environment
         if client is not None:
@@ -101,7 +102,7 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
 
     # -- venue-specific hooks -------------------------------------------------
 
-    def _build_client(self, api_key: str, api_secret: str) -> ccxt.Exchange:
+    def _build_client(self, api_key: str, api_secret: str) -> CcxtSpotClient:
         """Create ccxt.binance with Spot-specific options."""
         return ccxt.binance(
             {
