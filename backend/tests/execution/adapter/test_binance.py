@@ -35,7 +35,6 @@ from clay.execution.adapter.errors import (
     TransientAdapterError,
 )
 from clay.execution.adapter.port import ExchangeAdapter
-from clay.execution.adapter.rules import MarketRules
 from clay.execution.resilience import RetryPolicy, ResilientExecutionAdapter
 
 
@@ -59,17 +58,18 @@ class FakeBinanceClient:
     def set_sandbox_mode(self, enabled: bool) -> None:
         self._sandbox = enabled
 
-    async def load_markets(self) -> dict[str, Any]:
+    async def load_markets(
+        self, reload: bool = False, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         return self._markets
 
     async def create_order(
         self,
-        *,
         symbol: str,
         type: str,
         side: str,
-        amount: str,
-        price: str | None = None,
+        amount: float,
+        price: str | float | int | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         params = params or {}
@@ -80,9 +80,9 @@ class FakeBinanceClient:
             "symbol": symbol,
             "side": side,
             "type": type,
-            "amount": amount,
-            "price": price or "0",
-            "filled": amount,
+            "amount": str(amount),
+            "price": str(price) if price else "0",
+            "filled": str(amount),
             "status": "closed",
             "timestamp": 1700000000000,
             "trades": [],
@@ -93,9 +93,9 @@ class FakeBinanceClient:
 
     async def cancel_order(
         self,
-        *,
         id: str,
-        symbol: str,  # noqa: A002
+        symbol: str | None = None,  # noqa: A002
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if id not in self._orders:
             raise ccxt.OrderNotFound(f"order {id} not found")
@@ -103,53 +103,53 @@ class FakeBinanceClient:
 
     async def fetch_order(
         self,
-        *,
         id: str,
-        symbol: str,  # noqa: A002
+        symbol: str | None = None,  # noqa: A002
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if id not in self._orders:
             raise ccxt.OrderNotFound(f"order {id} not found")
         return self._orders[id]
 
     async def fetch_open_orders(
-        self, symbol: str | None = None
+        self,
+        symbol: str | None = None,
+        since: int | None = None,
+        limit: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         return list(self._open_orders)
 
     async def fetch_orders(
-        self, symbol: str | None = None, since: int | None = None
+        self,
+        symbol: str | None = None,
+        since: int | None = None,
+        limit: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         return list(self._all_orders)
 
-    async def fetch_balance(self) -> dict[str, Any]:
+    async def fetch_balance(
+        self, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         return dict(self._balances)
 
-    async def close(self) -> None:
+    async def fetch_my_trades(
+        self,
+        symbol: str | None = None,
+        since: int | None = None,
+        limit: int | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        return []
+
+    async def close(self, clean_instance_data: bool = False) -> None:
         self._closed = True
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-def _make_rules(**overrides: object) -> MarketRules:
-    defaults: dict[str, object] = {
-        "min_amount": Decimal("0.001"),
-        "max_amount": Decimal("1000"),
-        "min_price": Decimal("0.01"),
-        "max_price": Decimal("1000000"),
-        "min_notional": Decimal("10"),
-        "amount_step": Decimal("0.001"),
-        "price_tick": Decimal("0.01"),
-        "precision_mode": PrecisionMode.TICK_SIZE,
-        "supported_order_types": frozenset(
-            {OrderType.MARKET, OrderType.LIMIT, OrderType.STOP_LIMIT}
-        ),
-        "supported_tif": frozenset({TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK}),
-    }
-    defaults.update(overrides)
-    return MarketRules(**defaults)  # type: ignore[arg-type]
 
 
 def _make_request(
@@ -209,7 +209,7 @@ def _make_binance_market() -> dict[str, Any]:
 def _adapter(client: FakeBinanceClient | None = None) -> BinanceExecutionAdapter:
     if client is None:
         client = FakeBinanceClient()
-    return BinanceExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+    return BinanceExecutionAdapter(Environment.PRODUCTION, client=client)
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +288,7 @@ class TestGetMarketRules:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBinanceClient()
-        client.load_markets = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.load_markets = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(TransientAdapterError):
@@ -297,7 +297,7 @@ class TestGetMarketRules:
     @pytest.mark.anyio
     async def test_auth_error_is_config(self) -> None:
         client = FakeBinanceClient()
-        client.load_markets = AsyncMock(side_effect=ccxt.AuthenticationError("bad"))  # type: ignore[assignment]
+        client.load_markets = AsyncMock(side_effect=ccxt.AuthenticationError("bad"))
         adapter = _adapter(client)
 
         with pytest.raises(ConfigError):
@@ -332,7 +332,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_insufficient_funds_error(self) -> None:
         client = FakeBinanceClient()
-        client.create_order = AsyncMock(side_effect=ccxt.InsufficientFunds("no funds"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.InsufficientFunds("no funds"))
         adapter = _adapter(client)
 
         with pytest.raises(InsufficientFundsError):
@@ -341,7 +341,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_invalid_order_error(self) -> None:
         client = FakeBinanceClient()
-        client.create_order = AsyncMock(side_effect=ccxt.InvalidOrder("bad qty"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.InvalidOrder("bad qty"))
         adapter = _adapter(client)
 
         with pytest.raises(InvalidOrderError):
@@ -350,7 +350,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_network_error_is_ambiguous(self) -> None:
         client = FakeBinanceClient()
-        client.create_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError):
@@ -359,7 +359,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_exchange_error_is_rejected(self) -> None:
         client = FakeBinanceClient()
-        client.create_order = AsyncMock(side_effect=ccxt.ExchangeError("generic"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.ExchangeError("generic"))
         adapter = _adapter(client)
 
         with pytest.raises(OrderRejectedError):
@@ -368,7 +368,7 @@ class TestPlaceOrder:
     @pytest.mark.anyio
     async def test_auth_error_is_config(self) -> None:
         client = FakeBinanceClient()
-        client.create_order = AsyncMock(side_effect=ccxt.AuthenticationError("bad key"))  # type: ignore[assignment]
+        client.create_order = AsyncMock(side_effect=ccxt.AuthenticationError("bad key"))
         adapter = _adapter(client)
 
         with pytest.raises(ConfigError):
@@ -431,7 +431,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBinanceClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.ExchangeError(_DUPLICATE_CID_SPOT_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="-4116"):
@@ -443,7 +443,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBinanceClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_FUTURES_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="-4116"):
@@ -455,7 +455,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBinanceClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.ExchangeError(_DUPLICATE_CID_SPOT_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="cid='test-001'"):
@@ -467,7 +467,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBinanceClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder("LOT_SIZE filter failure")
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(InvalidOrderError):
@@ -479,7 +479,7 @@ class TestPlaceOrderDuplicateCid:
         client = FakeBinanceClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.ExchangeError("some other error")
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(OrderRejectedError):
@@ -506,7 +506,7 @@ class TestDuplicateCidMessageRegression:
         client = FakeBinanceClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.ExchangeError(_DUPLICATE_CID_TEXT_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(
@@ -522,7 +522,7 @@ class TestDuplicateCidMessageRegression:
         client = FakeBinanceClient()
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder(_DUPLICATE_CID_FUTURES_MSG)
-        )  # type: ignore[assignment]
+        )
         adapter = _adapter(client)
 
         with pytest.raises(AmbiguousExecutionError, match="-4116"):
@@ -550,7 +550,7 @@ class TestCancelOrder:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBinanceClient()
-        client.cancel_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.cancel_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
         client._orders["v-1"] = {"id": "v-1"}
 
@@ -604,7 +604,7 @@ class TestGetOrder:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBinanceClient()
-        client.fetch_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.fetch_order = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(TransientAdapterError):
@@ -686,7 +686,7 @@ class TestReconcileOrders:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBinanceClient()
-        client.fetch_orders = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.fetch_orders = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(TransientAdapterError):
@@ -729,7 +729,7 @@ class TestGetBalances:
     @pytest.mark.anyio
     async def test_network_error_is_transient(self) -> None:
         client = FakeBinanceClient()
-        client.fetch_balance = AsyncMock(side_effect=ccxt.NetworkError("timeout"))  # type: ignore[assignment]
+        client.fetch_balance = AsyncMock(side_effect=ccxt.NetworkError("timeout"))
         adapter = _adapter(client)
 
         with pytest.raises(TransientAdapterError):
@@ -759,7 +759,7 @@ class TestClose:
 class TestConstructor:
     def test_injected_client_no_keys(self) -> None:
         client = FakeBinanceClient()
-        adapter = BinanceExecutionAdapter(Environment.PRODUCTION, client=client)  # type: ignore[arg-type]
+        adapter = BinanceExecutionAdapter(Environment.PRODUCTION, client=client)
         assert adapter.environment == Environment.PRODUCTION
 
     def test_no_client_no_keys_raises(self) -> None:
@@ -770,7 +770,7 @@ class TestConstructor:
         client = FakeBinanceClient()
         BinanceExecutionAdapter(
             Environment.TESTNET,
-            client=client,  # type: ignore[arg-type]
+            client=client,
         )
         assert client._sandbox is True
 
@@ -778,7 +778,7 @@ class TestConstructor:
         client = FakeBinanceClient()
         BinanceExecutionAdapter(
             Environment.PRODUCTION,
-            client=client,  # type: ignore[arg-type]
+            client=client,
         )
         assert client._sandbox is False
 
@@ -939,7 +939,7 @@ class TestDuplicateCidResilientIntegration:
         # 1st create_order: raises dup-cid ExchangeError (-4116)
         client.create_order = AsyncMock(
             side_effect=ccxt.ExchangeError(_DUPLICATE_CID_EXCHANGE_ERROR_MSG)
-        )  # type: ignore[assignment]
+        )
         # reconcile_orders returns existing order with matching cid
         client._all_orders = [
             {
@@ -957,7 +957,7 @@ class TestDuplicateCidResilientIntegration:
             }
         ]
 
-        resilient = ResilientExecutionAdapter(adapter, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(adapter, _fast_policy())
         req = _make_request()
 
         ack = await resilient.place_order(req)
@@ -978,9 +978,9 @@ class TestDuplicateCidResilientIntegration:
 
         client.create_order = AsyncMock(
             side_effect=ccxt.InvalidOrder("LOT_SIZE filter failure")
-        )  # type: ignore[assignment]
+        )
 
-        resilient = ResilientExecutionAdapter(adapter, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(adapter, _fast_policy())
         req = _make_request()
 
         with pytest.raises(InvalidOrderError):
@@ -996,9 +996,9 @@ class TestDuplicateCidResilientIntegration:
 
         client.create_order = AsyncMock(
             side_effect=ccxt.ExchangeError("some other error")
-        )  # type: ignore[assignment]
+        )
 
-        resilient = ResilientExecutionAdapter(adapter, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(adapter, _fast_policy())
         req = _make_request()
 
         with pytest.raises(OrderRejectedError):

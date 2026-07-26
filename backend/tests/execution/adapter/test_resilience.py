@@ -296,13 +296,13 @@ def _fast_policy() -> RetryPolicy:
 class TestProtocol:
     def test_resilient_satisfies_exchange_adapter(self) -> None:
         inner = FakeInnerAdapter()
-        resilient = ResilientExecutionAdapter(inner)  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner)
         assert isinstance(resilient, ExchangeAdapter)
 
     def test_environment_delegates_to_inner(self) -> None:
         inner = FakeInnerAdapter()
         inner.environment = Environment.TESTNET
-        resilient = ResilientExecutionAdapter(inner)  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner)
         assert resilient.environment == Environment.TESTNET
 
 
@@ -315,7 +315,7 @@ class TestPlaceOrderHappyPath:
     @pytest.mark.anyio
     async def test_passthrough_on_success(self) -> None:
         inner = FakeInnerAdapter()
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req()
 
         ack = await resilient.place_order(req)
@@ -335,7 +335,7 @@ class TestPlaceOrderAmbiguousReconcileHit:
         inner.set_place_effect(AmbiguousExecutionError("timeout"))
         # Reconcile returns matching snapshot
         inner.set_reconcile_effect([_make_snapshot()])
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req()
 
         ack = await resilient.place_order(req)
@@ -359,7 +359,7 @@ class TestPlaceOrderAmbiguousReconcileMiss:
         inner.set_reconcile_effect([])
         # Re-place: success
         inner.set_place_effect(_make_ack(_make_req()))
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req()
 
         ack = await resilient.place_order(req)
@@ -386,7 +386,7 @@ class TestPlaceOrderAmbiguousUnresolved:
         inner.set_place_effect(AmbiguousExecutionError("timeout"))
         # Final reconcile after loop: empty
         inner.set_reconcile_effect([])
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req()
 
         with pytest.raises(AmbiguousExecutionError, match="unresolved"):
@@ -414,7 +414,7 @@ class TestPlaceOrderTerminalPropagation:
         """Terminal errors bypass reconcile and propagate."""
         inner = FakeInnerAdapter()
         inner.set_place_effect(error_cls("terminal failure"))
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req()
 
         with pytest.raises(error_cls, match="terminal failure"):
@@ -438,7 +438,7 @@ class TestPlaceOrderTerminalPropagation:
         inner.set_reconcile_effect([])
         # Re-place: duplicate cid → InvalidOrderError (terminal)
         inner.set_place_effect(InvalidOrderError("duplicate clientOrderId"))
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req()
 
         with pytest.raises(InvalidOrderError, match="duplicate clientOrderId"):
@@ -472,7 +472,7 @@ class TestReadRetry:
                 )
             ]
         )
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
 
         result = await resilient.get_balances()
 
@@ -487,7 +487,7 @@ class TestReadRetry:
         inner.set_get_balances_effect(TransientAdapterError("net-1"))
         inner.set_get_balances_effect(TransientAdapterError("net-2"))
         inner.set_get_balances_effect(TransientAdapterError("net-3"))
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
 
         with pytest.raises(TransientAdapterError, match="net-3"):
             await resilient.get_balances()
@@ -499,7 +499,7 @@ class TestReadRetry:
         """Terminal error during read → immediate propagation, no retry."""
         inner = FakeInnerAdapter()
         inner.set_get_balances_effect(ConfigError("bad config"))
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
 
         with pytest.raises(ConfigError, match="bad config"):
             await resilient.get_balances()
@@ -510,7 +510,7 @@ class TestReadRetry:
     async def test_passthrough_sync_methods(self) -> None:
         """validate_order and quantize_order passthrough to inner."""
         inner = FakeInnerAdapter()
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req()
         rules = _default_rules()
 
@@ -533,7 +533,7 @@ class TestOrderNotFoundErrorPropagation:
         inner.set_get_order_effect(
             OrderNotFoundError("not found", symbol="BTCUSDT", venue_order_id="v-1")
         )
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
 
         with pytest.raises(OrderNotFoundError, match="not found"):
             await resilient.get_order("BTCUSDT", "v-1")
@@ -551,7 +551,7 @@ class TestOrderNotFoundErrorPropagation:
         )
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=_cb_policy(threshold=1, reset_s="999")
-        )  # type: ignore[arg-type]
+        )
 
         with pytest.raises(OrderNotFoundError):
             await resilient.get_order("BTCUSDT", "v-1")
@@ -799,7 +799,7 @@ class TestResilientAdapterCBIntegration:
         inner.set_place_effect(TransientAdapterError("net"))
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=_cb_policy(threshold=1, reset_s="999")
-        )  # type: ignore[arg-type]
+        )
         req = _make_req()
 
         # First call: transient → trips CB
@@ -823,7 +823,7 @@ class TestResilientAdapterCBIntegration:
         inner.set_get_balances_effect(TransientAdapterError("net-3"))
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=_cb_policy(threshold=1, reset_s="999")
-        )  # type: ignore[arg-type]
+        )
 
         # Trip CB via get_balances (exhausted retry → 1 CB failure → OPEN)
         with pytest.raises(TransientAdapterError, match="net-3"):
@@ -845,7 +845,7 @@ class TestResilientAdapterCBIntegration:
         inner.set_get_balances_effect(TransientAdapterError("net-3"))
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=_cb_policy(threshold=2)
-        )  # type: ignore[arg-type]
+        )
 
         # 1st exhausted retry → 1 CB failure
         with pytest.raises(TransientAdapterError, match="net-3"):
@@ -869,7 +869,7 @@ class TestResilientAdapterCBIntegration:
         inner.set_cancel_order_effect(TransientAdapterError("net"))
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=_cb_policy(threshold=5)
-        )  # type: ignore[arg-type]
+        )
 
         # cancel_order: transient → retry → success
         await resilient.cancel_order("BTCUSDT", "v-1")
@@ -884,7 +884,7 @@ class TestResilientAdapterCBIntegration:
         inner.set_place_effect(OrderRejectedError("rejected"))
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=_cb_policy(threshold=3)
-        )  # type: ignore[arg-type]
+        )
         req = _make_req()
 
         with pytest.raises(OrderRejectedError):
@@ -908,7 +908,7 @@ class TestReadFallbackChain:
         get_open_orders / reconcile_orders NOT called."""
         inner = FakeInnerAdapter()
         inner.set_get_by_client_order_id_effect(_make_snapshot(cid=CID))
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
 
         result = await resilient.get_by_client_order_id(SYMBOL, CID)
 
@@ -926,7 +926,7 @@ class TestReadFallbackChain:
         policy = ReadFallbackPolicy(enabled=True)
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         target = _make_snapshot(cid=CID)
         inner.set_get_open_orders_effect([target])
 
@@ -944,7 +944,7 @@ class TestReadFallbackChain:
         policy = ReadFallbackPolicy(enabled=True)
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         target = _make_snapshot(cid=CID)
         inner.set_get_open_orders_effect([])  # empty open orders
         inner.set_reconcile_effect([target])
@@ -963,7 +963,7 @@ class TestReadFallbackChain:
         policy = ReadFallbackPolicy(enabled=True)
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         inner.set_get_open_orders_effect([])  # no matches
         inner.set_reconcile_effect([])  # no matches
 
@@ -980,7 +980,7 @@ class TestReadFallbackChain:
         policy = ReadFallbackPolicy(enabled=True)
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         # Step 1: all transient (exhausts _retry_transient, trips CB)
         inner.set_get_open_orders_effect(TransientAdapterError("net-1"))
         inner.set_get_open_orders_effect(TransientAdapterError("net-2"))
@@ -1008,7 +1008,7 @@ class TestReadFallbackChain:
         )
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=cb_policy, read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         # Step 1: all transient
         inner.set_get_open_orders_effect(TransientAdapterError("net-a"))
         inner.set_get_open_orders_effect(TransientAdapterError("net-b"))
@@ -1028,7 +1028,7 @@ class TestReadFallbackChain:
         policy = ReadFallbackPolicy(enabled=True)
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         inner.set_get_open_orders_effect(ConfigError("bad config"))
 
         with pytest.raises(ConfigError, match="bad config"):
@@ -1044,7 +1044,7 @@ class TestReadFallbackChain:
         policy = ReadFallbackPolicy(enabled=True)
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         inner.set_get_open_orders_effect([])  # step1: empty, no match
         inner.set_reconcile_effect(ConfigError("auth failed"))
 
@@ -1067,7 +1067,7 @@ class TestReadFallbackChain:
         )
         resilient = ResilientExecutionAdapter(
             inner, _fast_policy(), cb_policy=cb_policy, read_fallback=policy
-        )  # type: ignore[arg-type]
+        )
         # Step 1: CircuitOpenError (CB wraps inner, sees TransientAdapterError subclass)
         inner.set_get_open_orders_effect(CircuitOpenError("circuit open"))
         # Step 2: finds the order
@@ -1108,7 +1108,7 @@ class TestD24ParseFailureAmbiguousReconcileHit:
         )
         # Reconcile: finds matching snapshot
         inner.set_reconcile_effect([_make_snapshot(cid="d24-cid")])
-        resilient = ResilientExecutionAdapter(inner, _fast_policy())  # type: ignore[arg-type]
+        resilient = ResilientExecutionAdapter(inner, _fast_policy())
         req = _make_req(cid="d24-cid")
 
         ack = await resilient.place_order(req)
