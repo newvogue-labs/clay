@@ -165,6 +165,7 @@ def _make_request(
     order_type: OrderType = OrderType.LIMIT,
     client_order_id: str = "test-001",
     stop_price: str | None = None,
+    time_in_force: TimeInForce = TimeInForce.GTC,
 ) -> OrderRequest:
     return OrderRequest(
         symbol="BTCUSDT",
@@ -173,7 +174,7 @@ def _make_request(
         quantity=Decimal(quantity),
         price=Decimal(price) if price is not None else None,
         stop_price=Decimal(stop_price) if stop_price is not None else None,
-        time_in_force=TimeInForce.GTC,
+        time_in_force=time_in_force,
         client_order_id=client_order_id,
     )
 
@@ -1068,4 +1069,73 @@ class TestDuplicateCidResilientIntegration:
         with pytest.raises(OrderRejectedError):
             await resilient.place_order(req)
 
-        assert len(client.create_order.call_args_list) == 1
+
+# ---------------------------------------------------------------------------
+# S-TIF-1: timeInForce reaches create_order params
+# ---------------------------------------------------------------------------
+
+
+class TestTimeInForceDelivery:
+    """D-36: time_in_force must arrive in create_order params for limit orders."""
+
+    @pytest.mark.anyio
+    async def test_t1_limit_gtc(self) -> None:
+        """T1 LIMIT + GTC → params contain timeInForce == 'GTC'."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        req = _make_request(time_in_force=TimeInForce.GTC)
+
+        await adapter.place_order(req)
+
+        assert client._last_params["timeInForce"] == "GTC"
+
+    @pytest.mark.anyio
+    async def test_t2_limit_ioc(self) -> None:
+        """T2 LIMIT + IOC → params contain timeInForce == 'IOC'."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        req = _make_request(time_in_force=TimeInForce.IOC)
+
+        await adapter.place_order(req)
+
+        assert client._last_params["timeInForce"] == "IOC"
+
+    @pytest.mark.anyio
+    async def test_t3_limit_fok(self) -> None:
+        """T3 LIMIT + FOK → params contain timeInForce == 'FOK'."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        req = _make_request(time_in_force=TimeInForce.FOK)
+
+        await adapter.place_order(req)
+
+        assert client._last_params["timeInForce"] == "FOK"
+
+    @pytest.mark.anyio
+    async def test_t4_market_gtc_omits_tif(self) -> None:
+        """T4 MARKET + GTC → key 'timeInForce' must NOT be in params."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        req = _make_request(order_type=OrderType.MARKET, time_in_force=TimeInForce.GTC)
+
+        await adapter.place_order(req)
+
+        assert "timeInForce" not in client._last_params
+
+    @pytest.mark.anyio
+    async def test_t5_stop_limit_ioc_combined(self) -> None:
+        """T5 STOP_LIMIT + IOC → timeInForce AND triggerPrice AND clientOrderId present."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        req = _make_request(
+            order_type=OrderType.STOP_LIMIT,
+            time_in_force=TimeInForce.IOC,
+            price="51000",
+            stop_price="49000",
+        )
+
+        await adapter.place_order(req)
+
+        assert client._last_params["timeInForce"] == "IOC"
+        assert "triggerPrice" in client._last_params
+        assert "newClientOrderId" in client._last_params

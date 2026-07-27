@@ -113,6 +113,7 @@ class CcxtExchangeAdapter:
         params = self._build_order_params(req)
         ccxt_type, extra_params = self._venue_order_type(req)
         params.update(extra_params)
+        params.update(self._venue_time_in_force(req, ccxt_type))
 
         try:
             response = await self._client.create_order(
@@ -121,7 +122,7 @@ class CcxtExchangeAdapter:
                 side=req.side.value,
                 # ccxt decimal_to_precision() does Decimal(str(n)) internally,
                 # so str is safe; float would lose precision for long decimal tails.
-                # Held by: test_create_order_decimal_precision_not_lost_via_float.
+                # Held by: test_decimal_precision_not_lost_via_float.
                 amount=str(req.quantity),  # pyright: ignore[reportArgumentType]
                 price=str(req.price) if req.price is not None else None,
                 params=params,
@@ -357,6 +358,27 @@ class CcxtExchangeAdapter:
                 raise InvalidOrderError(
                     f"{type(self).__name__}: unsupported order_type={req.order_type!r}"
                 )
+
+    def _venue_time_in_force(
+        self, req: OrderRequest, ccxt_type: Literal["limit", "market"]
+    ) -> dict[str, str]:
+        """Unified timeInForce mapping: TimeInForce → params dict.
+
+        Market orders omit timeInForce — neither Binance nor Bybit accept it
+        for market; the venue sets its own default, so we intentionally omit.
+        Limit and stop-limit orders always include it (no reliance on venue
+        default) with an exhaustive match that must cover every TimeInForce
+        variant without a catch-all ``case _``.
+        """
+        if ccxt_type == "market":
+            return {}
+        match req.time_in_force:
+            case TimeInForce.GTC:
+                return {"timeInForce": "GTC"}
+            case TimeInForce.IOC:
+                return {"timeInForce": "IOC"}
+            case TimeInForce.FOK:
+                return {"timeInForce": "FOK"}
 
     # -- private helpers ------------------------------------------------------
 

@@ -53,6 +53,7 @@ class FakeBybitClient:
         self._demo_trading = False
         self._closed = False
         self._calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+        self._last_params: dict[str, Any] = {}
 
     def set_sandbox_mode(self, enabled: bool) -> None:
         self._sandbox = enabled
@@ -76,6 +77,7 @@ class FakeBybitClient:
         price: str | float | int | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        self._last_params = dict(params) if params else {}
         params = params or {}
         # Bybit uses clientOrderId -> orderLinkId internally
         order_id = params.get("clientOrderId", "order-1")
@@ -163,6 +165,8 @@ def _make_request(
     quantity: str = "0.01",
     order_type: OrderType = OrderType.LIMIT,
     client_order_id: str = "test-001",
+    time_in_force: TimeInForce = TimeInForce.GTC,
+    stop_price: str | None = None,
 ) -> OrderRequest:
     return OrderRequest(
         symbol="BTCUSDT",
@@ -170,7 +174,8 @@ def _make_request(
         order_type=order_type,
         quantity=Decimal(quantity),
         price=Decimal(price) if price is not None else None,
-        time_in_force=TimeInForce.GTC,
+        stop_price=Decimal(stop_price) if stop_price is not None else None,
+        time_in_force=time_in_force,
         client_order_id=client_order_id,
     )
 
@@ -824,3 +829,46 @@ class TestExtractClientOrderId:
         }
         result = adapter._extract_client_order_id(response)
         assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# S-TIF-1: timeInForce reaches create_order params (Bybit)
+# ---------------------------------------------------------------------------
+
+
+class TestTimeInForceDelivery:
+    """D-36: time_in_force must arrive in create_order params for Bybit."""
+
+    @pytest.mark.anyio
+    async def test_t6_limit_ioc(self) -> None:
+        """T6 LIMIT + IOC → timeInForce == 'IOC' and clientOrderId present."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+        req = _make_request(time_in_force=TimeInForce.IOC)
+
+        await adapter.place_order(req)
+
+        assert client._last_params["timeInForce"] == "IOC"
+        assert "clientOrderId" in client._last_params
+
+    @pytest.mark.anyio
+    async def test_t7_limit_fok(self) -> None:
+        """T7 LIMIT + FOK → timeInForce == 'FOK'."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+        req = _make_request(time_in_force=TimeInForce.FOK)
+
+        await adapter.place_order(req)
+
+        assert client._last_params["timeInForce"] == "FOK"
+
+    @pytest.mark.anyio
+    async def test_t8_market_gtc_omits_tif(self) -> None:
+        """T8 MARKET + GTC → key 'timeInForce' must NOT be in params."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+        req = _make_request(order_type=OrderType.MARKET, time_in_force=TimeInForce.GTC)
+
+        await adapter.place_order(req)
+
+        assert "timeInForce" not in client._last_params
