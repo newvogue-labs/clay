@@ -54,6 +54,9 @@ class FakeBinanceClient:
         self._all_orders: list[dict[str, Any]] = []
         self._sandbox = False
         self._closed = False
+        self._called = False
+        self._last_type: str | None = None
+        self._last_params: dict[str, Any] = {}
 
     def set_sandbox_mode(self, enabled: bool) -> None:
         self._sandbox = enabled
@@ -72,6 +75,9 @@ class FakeBinanceClient:
         price: str | float | int | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        self._called = True
+        self._last_type = type
+        self._last_params = dict(params) if params else {}
         params = params or {}
         order_id = params.get("newClientOrderId", "order-1")
         response = {
@@ -158,6 +164,7 @@ def _make_request(
     quantity: str = "0.01",
     order_type: OrderType = OrderType.LIMIT,
     client_order_id: str = "test-001",
+    stop_price: str | None = None,
 ) -> OrderRequest:
     return OrderRequest(
         symbol="BTCUSDT",
@@ -165,6 +172,7 @@ def _make_request(
         order_type=order_type,
         quantity=Decimal(quantity),
         price=Decimal(price) if price is not None else None,
+        stop_price=Decimal(stop_price) if stop_price is not None else None,
         time_in_force=TimeInForce.GTC,
         client_order_id=client_order_id,
     )
@@ -373,6 +381,36 @@ class TestPlaceOrder:
 
         with pytest.raises(ConfigError):
             await adapter.place_order(_make_request())
+
+    @pytest.mark.anyio
+    async def test_stop_limit_with_price(self) -> None:
+        """STOP_LIMIT → type='limit', params['triggerPrice']=str(stop_price)."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        req = _make_request(
+            order_type=OrderType.STOP_LIMIT,
+            price="51000",
+            stop_price="49000",
+            client_order_id="stop-001",
+        )
+
+        ack = await adapter.place_order(req)
+
+        assert ack.client_order_id == "stop-001"
+        assert client._last_type == "limit"
+        assert client._last_params["triggerPrice"] == "49000"
+        assert client._last_params["newClientOrderId"] == "stop-001"
+
+    @pytest.mark.anyio
+    async def test_stop_limit_without_price(self) -> None:
+        """STOP_LIMIT без stop_price → InvalidOrderError, сеть не вызвана."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        req = _make_request(order_type=OrderType.STOP_LIMIT, price="51000")
+
+        with pytest.raises(InvalidOrderError, match="stop_price"):
+            await adapter.place_order(req)
+        assert not client._called
 
 
 # ---------------------------------------------------------------------------

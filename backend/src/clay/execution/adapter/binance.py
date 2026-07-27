@@ -13,7 +13,7 @@ Error-map (safety-critical):
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import ccxt.async_support as ccxt
 
@@ -120,10 +120,20 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
         return _is_duplicate_cid(exc)
 
     def _build_order_params(self, req: OrderRequest) -> dict[str, Any]:
-        params: dict[str, Any] = {"newClientOrderId": req.client_order_id}
-        if req.stop_price is not None:
-            params["stopPrice"] = str(req.stop_price)
-        return params
+        return {"newClientOrderId": req.client_order_id}
+
+    def _venue_order_type(
+        self, req: OrderRequest
+    ) -> tuple[Literal["limit", "market"], dict[str, Any]]:
+        match req.order_type:
+            case OrderType.MARKET:
+                return "market", {}
+            case OrderType.LIMIT:
+                return "limit", {}
+            case OrderType.STOP_LIMIT:
+                if req.stop_price is None:
+                    raise InvalidOrderError("STOP_LIMIT requires stop_price to be set")
+                return "limit", {"triggerPrice": str(req.stop_price)}
 
     async def get_market_rules(self, symbol: str) -> MarketRules:
         try:

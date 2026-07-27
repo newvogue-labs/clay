@@ -24,7 +24,7 @@ import logging
 from abc import abstractmethod
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Literal, cast
 
 import ccxt.async_support as ccxt
 
@@ -111,13 +111,15 @@ class CcxtExchangeAdapter:
 
     async def place_order(self, req: OrderRequest) -> OrderAck:
         params = self._build_order_params(req)
+        ccxt_type, extra_params = self._venue_order_type(req)
+        params.update(extra_params)
 
         try:
             response = await self._client.create_order(
                 symbol=req.symbol,
-                type=cast(Any, req.order_type.value),
+                type=ccxt_type,
                 side=req.side.value,
-                amount=cast(Any, str(req.quantity)),
+                amount=float(req.quantity),
                 price=str(req.price) if req.price is not None else None,
                 params=params,
             )
@@ -329,6 +331,29 @@ class CcxtExchangeAdapter:
     def _build_order_params(self, req: OrderRequest) -> dict[str, Any]:
         """Venue-specific create_order params (client-order-id key, stop encoding)."""
         ...
+
+    def _venue_order_type(
+        self, req: OrderRequest
+    ) -> tuple[Literal["limit", "market"], dict[str, Any]]:
+        """Unified order type mapping: OrderType → (ccxt type, extra params).
+
+        Base class handles MARKET and LIMIT.  Venues that support STOP_LIMIT
+        override this method to emit the correct unified encoding.
+        """
+        match req.order_type:
+            case OrderType.MARKET:
+                return "market", {}
+            case OrderType.LIMIT:
+                return "limit", {}
+            case OrderType.STOP_LIMIT:
+                raise InvalidOrderError(
+                    f"{type(self).__name__} does not support "
+                    f"order_type={req.order_type.value!r}"
+                )
+            case _:  # pragma: no cover — pyright exhaustive check
+                raise InvalidOrderError(
+                    f"{type(self).__name__}: unsupported order_type={req.order_type!r}"
+                )
 
     # -- private helpers ------------------------------------------------------
 
