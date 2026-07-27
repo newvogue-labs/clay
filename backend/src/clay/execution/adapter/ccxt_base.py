@@ -119,7 +119,10 @@ class CcxtExchangeAdapter:
                 symbol=req.symbol,
                 type=ccxt_type,
                 side=req.side.value,
-                amount=float(req.quantity),
+                # ccxt decimal_to_precision() does Decimal(str(n)) internally,
+                # so str is safe; float would lose precision for long decimal tails.
+                # Held by: test_create_order_decimal_precision_not_lost_via_float.
+                amount=str(req.quantity),  # pyright: ignore[reportArgumentType]
                 price=str(req.price) if req.price is not None else None,
                 params=params,
             )

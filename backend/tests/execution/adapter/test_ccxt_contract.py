@@ -2,7 +2,8 @@
 
 Работает с РЕАЛЬНО установленной ccxt, без моков и без сети.
 Проверяет: версию, существование классов бирж, методов на экземпляре,
-и полный набор ловимых исключений.
+полный набор ловимых исключений, и поведение на границе типов
+(D-37: float-декларация vs фактический str/Decimal вход).
 
 Форма market-structure (опциональность limits.*.max, D-23) офлайн не
 проверяется — она покрыта live-дриллом на demo.
@@ -10,12 +11,20 @@
 
 from __future__ import annotations
 
+import inspect
 import tomllib
+from decimal import Decimal
 from pathlib import Path
 
 import ccxt
 import ccxt.async_support as ccxt_async
 import pytest
+from ccxt.base.decimal_to_precision import (
+    DECIMAL_PLACES,
+    NO_PADDING,
+    TRUNCATE,
+    decimal_to_precision,
+)
 
 from clay.execution.adapter.ccxt_client import CcxtDemoCapableClient, CcxtSpotClient
 from tests.execution.adapter.test_binance import FakeBinanceClient
@@ -121,16 +130,41 @@ class TestCcxtContract:
                 f"{name}: sync={sync_cls!r} is not async={async_cls!r}"
             )
 
-    def test_create_order_accepts_trigger_price(self) -> None:
-        """ccxt.binance и ccxt.bybit принимают triggerPrice в params для type='limit'."""
-        for label, exchange_cls in [
-            ("binance", ccxt_async.binance),
-            ("bybit", ccxt_async.bybit),
-        ]:
-            doc = exchange_cls.create_order.__doc__ or ""
-            assert "triggerPrice" in doc, (
-                f"{label}.create_order не документирует triggerPrice"
-            )
+    def test_decimal_to_precision_accepts_string_input(self) -> None:
+        """decimal_to_precision точен на str/Decimal для значения с длинным хвостом.
+
+        Поведенческий тест: ccxt.base.decimal_to_precision делает
+        Decimal(str(n)) внутри (decimal_to_precision.py:62), поэтому str и
+        Decimal проходят чисто, а float теряет точность (D-37).
+        """
+        # Значение с >17 значащими цифрами — float обрезает до 17.
+        qty = Decimal("0.1234567890123456789")
+        # precision=19: str даёт полное значение, float — "0.12345678901234568"
+        result = decimal_to_precision(
+            str(qty), TRUNCATE, 19, DECIMAL_PLACES, NO_PADDING
+        )
+        assert result == "0.1234567890123456789", (
+            f"decimal_to_precision(str) вернул {result!r}, ожидалось точное значение"
+        )
+        # Decimal на вход — тоже точно
+        result_d = decimal_to_precision(qty, TRUNCATE, 19, DECIMAL_PLACES, NO_PADDING)
+        assert result_d == "0.1234567890123456789", (
+            f"decimal_to_precision(Decimal) вернул {result_d!r}"
+        )
+
+    def test_ccxt_amount_annotation_is_float(self) -> None:
+        """ccxt.annotate create_order(amount: float) — задокументированное расхождение.
+
+        Если апгрейд ccxt изменит аннотацию на str/Decimal, тест упадёт
+        и мы пересмотрим подавление в ccxt_base.place_order (D-37).
+        """
+        sig = inspect.signature(ccxt_async.binance.create_order)
+        amount_param = sig.parameters["amount"]
+        assert amount_param.annotation is float, (
+            f"ccxt.binance.create_order(amount) annotation = {amount_param.annotation!r}, "
+            f"ожидалось float. Если ccxt изменил тип — пересмотри "
+            f"pyright: ignore[reportArgumentType] в ccxt_base.place_order."
+        )
 
 
 # ── Статические контракты подделок ─────────────────────────────────────

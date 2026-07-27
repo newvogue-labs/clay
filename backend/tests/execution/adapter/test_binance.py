@@ -413,6 +413,32 @@ class TestPlaceOrder:
         assert not client._called
 
 
+class TestPlaceOrderDecimalPrecision:
+    """D-37: Decimal quantity must reach create_order without float truncation.
+
+    Value chosen so that float(Decimal(x)) prints differently from str(Decimal(x)):
+    str(Decimal) = "0.1234567890123456789"
+    str(float()) = "0.12345678901234568"   (float truncates at 17 significant digits)
+    """
+
+    @pytest.mark.anyio
+    async def test_decimal_precision_not_lost_via_float(self) -> None:
+        """quantity Decimal с длинным хвостом → create_order получает точное str-значение."""
+        client = FakeBinanceClient()
+        adapter = _adapter(client)
+        qty = Decimal("0.1234567890123456789")
+        req = _make_request(quantity=str(qty))
+
+        await adapter.place_order(req)
+
+        # FakeBinanceClient.create_order stores str(amount) in response["amount"]
+        assert client._orders["test-001"]["amount"] == "0.1234567890123456789", (
+            f"create_order получил {client._orders['test-001']['amount']!r}, "
+            f"ожидалось точное '0.1234567890123456789'. "
+            f"float дал бы '0.12345678901234568'."
+        )
+
+
 # ---------------------------------------------------------------------------
 # _is_duplicate_cid (unit)
 # ---------------------------------------------------------------------------
