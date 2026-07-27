@@ -267,3 +267,7 @@ CircuitBreaker перед венью-вызовами; выбор реализа
 - **Doc-drift исправлен по эмпирике дрилла.** D-26 doc утверждал, что Bybit не возвращает `status` → `NEW`. Живой дрилл M405 показал: ключ `status` присутствует и пуст → `UNKNOWN`. Исправлено: doc теперь описывает обе ветки `_status_from_response` без привязки к конкретной венью.
 - **Guard amount выровнен по образцу price.** Пустое, отсутствующее и нулевое `amount` трактуются как молчание венью — используется `requested.quantity` (D-27 §D1).
 - **Статус по-прежнему не фабрикуется.** `_status_from_response` и `_snapshot_from_response` не изменены.
+
+## Errata 2026-07-27 (D-36: timeInForce)
+
+- **`time_in_force` теперь доходит до венью.** Ранее `OrderRequest.time_in_force` валидировался, но не передавался в `create_order` params — IOC/FOK молча исполнялись как GTC. Добавлен venue-overridable хук `_venue_time_in_force(req, ccxt_type) -> dict[str, str]` с исчерпывающим match по `TimeInForce` (без `case _`). Для market-ордеров TIF intentionally omittается — ни Binance, ни Bybit его не принимают для market. Протокол `ccxt_client.py` не изменён; TIF уходит через `params` (как `triggerPrice` в M413).

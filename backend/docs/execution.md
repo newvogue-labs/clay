@@ -38,6 +38,20 @@ Unknown venue values revert to `binance` with a warning. Unknown mode values rev
 
 The helper `_dec_upper_bound()` in `ccxt_base.py` parses ccxt market data: `None`/missing → `None`, zero/negative → `None` + WARNING (observed via logging), positive → `Decimal`. The existing `_dec()` helper (used for min bounds and steps) is unchanged.
 
+### Time in Force (D-36)
+
+`OrderRequest.time_in_force` (`TimeInForce` enum: `GTC`, `IOC`, `FOK`) reaches the venue via the `_venue_time_in_force` hook in `CcxtExchangeAdapter`, which appends `{"timeInForce": "<VALUE>"}` to `create_order` params.
+
+**Delivery rules:**
+
+- **Limit orders** (`ccxt_type == "limit"`) — `timeInForce` is **always** set (GTC, IOC, or FOK). No reliance on venue default.
+- **Stop-limit orders** — same as limit; `timeInForce` is set alongside `triggerPrice` from `_venue_order_type`.
+- **Market orders** (`ccxt_type == "market"`) — `timeInForce` is **omitted**. Neither Binance nor Bybit accept it for market orders; the venue sets its own default. This is intentional and tested (`test_t4_market_gtc_omits_tif`, `test_t8_market_gtc_omits_tif`).
+
+**Why not fail-closed for market:** ccxt does not pass `timeInForce` for market orders on either venue. Sending it would result in an API error or silent rejection. Omitting is the correct behavior — the venue default (GTC for Binance, varies for Bybit) is appropriate for market orders.
+
+**Hook pattern:** `_venue_time_in_force` follows the same venue-overridable pattern as `_venue_order_type`. Venues can override the hook if they need different TIF encoding. The exhaustive `match` (no `case _`) ensures pyright flags new `TimeInForce` variants that are not yet handled.
+
 ### Read-Mapping None-Safety (D-24)
 
 All `.get()` calls in the read-mapping layer (`_ack_from_response`, `_snapshot_from_response`, `_fills_from_trades`, `_fill_from_my_trade`, `get_balances`) are guarded against `None` values from venue responses.
