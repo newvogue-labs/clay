@@ -467,6 +467,16 @@ class TestPlaceOrder:
         with pytest.raises(ConfigError):
             await adapter.place_order(_make_request())
 
+    @pytest.mark.anyio
+    async def test_stop_limit_not_supported(self) -> None:
+        """Bybit не поддерживает STOP_LIMIT → InvalidOrderError, сеть не вызвана."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+        req = _make_request(order_type=OrderType.STOP_LIMIT)
+
+        with pytest.raises(InvalidOrderError, match="does not support"):
+            await adapter.place_order(req)
+
 
 # ---------------------------------------------------------------------------
 # _is_duplicate_cid (unit)

@@ -121,6 +121,17 @@ class TestCcxtContract:
                 f"{name}: sync={sync_cls!r} is not async={async_cls!r}"
             )
 
+    def test_create_order_accepts_trigger_price(self) -> None:
+        """ccxt.binance и ccxt.bybit принимают triggerPrice в params для type='limit'."""
+        for label, exchange_cls in [
+            ("binance", ccxt_async.binance),
+            ("bybit", ccxt_async.bybit),
+        ]:
+            doc = exchange_cls.create_order.__doc__ or ""
+            assert "triggerPrice" in doc, (
+                f"{label}.create_order не документирует triggerPrice"
+            )
+
 
 # ── Статические контракты подделок ─────────────────────────────────────
 # Проверка при импорте модуля: fake-классы удовлетворяют протоколам.
