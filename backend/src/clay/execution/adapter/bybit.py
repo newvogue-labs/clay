@@ -154,7 +154,7 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
         return {"clientOrderId": req.client_order_id}
 
     def _extract_client_order_id(self, response: dict[str, Any]) -> str:
-        """Bybit:приоритет info.orderLinkId, fallback на unified clientOrderId (ccxt #23260)."""
+        """Bybit: приоритет info.orderLinkId, fallback на unified clientOrderId (ccxt #23260)."""
         info = response.get("info") or {}
         return _str_or_empty(info.get("orderLinkId")) or _str_or_empty(
             response.get("clientOrderId")
