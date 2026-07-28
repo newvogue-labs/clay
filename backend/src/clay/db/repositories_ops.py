@@ -278,7 +278,7 @@ class ProofDecisionRepository:
         since: datetime,
         exclude_client_order_id: str,
     ) -> bool:
-        """Проверка是否存在 prior ADMIT с тем же semantic_hash и ДРУГИМ CID в окне.
+        """Проверка наличия prior ADMIT с тем же semantic_hash и ДРУГИМ CID в окне.
 
         CID-exemption: легит-retry с тем же client_order_id НЕ считается дублем.
         """

@@ -78,7 +78,7 @@ Ranked signals из signal_engine (backend = источник истины; то
     SOLUSDT: breakout above resistance with above-average volume. MTF confluence bullish.
     BTCUSDT: holding support, trending upward on 1H.
   [news-sentiment-agent] (1 min ago):
-    Positive sentiment around SOL ecosystem developments. BTC institutional inflow叙事.
+    Positive sentiment around SOL ecosystem developments. BTC institutional inflow narrative.
   [forecast-model] (2 min ago):
     SOL directional probability elevated to 0.65. BTC moderate confidence 0.55.""",
     "mixed": _BASE_CTX.format(ts="2026-07-06T18:00:00+00:00")
