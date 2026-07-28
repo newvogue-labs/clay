@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-
 KnowledgeCategory = Literal["note", "strategy_rule", "checklist", "observation"]
 """Item category: ``note`` (general), ``strategy_rule`` (trading rule), ``checklist`` (process), ``observation`` (market finding)."""
 

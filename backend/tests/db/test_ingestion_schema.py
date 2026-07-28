@@ -3,9 +3,9 @@ from typing import cast
 from sqlalchemy import Table
 from sqlalchemy.orm import sessionmaker
 
+from clay.db.models_context import NewsItem, SentimentSnapshot
 from clay.db.models_demo import DemoTradeRecord
 from clay.db.models_knowledge import KnowledgeChunk, KnowledgeItem
-from clay.db.models_context import NewsItem, SentimentSnapshot
 from clay.db.models_market import MarketBar, MarketFreshnessStatus, OrderBookSummary
 from clay.db.models_ops import ConnectorStatusHistory, IngestRun, SourceHealthEvent
 from clay.db.models_review import SignalFeedback

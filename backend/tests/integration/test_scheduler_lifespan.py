@@ -37,7 +37,6 @@ from clay.settings.scheduler import SchedulerSettings
 
 from ._helpers import build_services_for_integration
 
-
 # Job ids from scheduler/service.py:107-112
 HEALTH_TICK = "health-tick"
 RELIABILITY_RECHECK = "reliability-recheck"

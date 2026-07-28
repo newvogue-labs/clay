@@ -1,11 +1,10 @@
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import func, select
 
 from clay.db.models_market import MarketBar, MarketFreshnessStatus
 from clay.db.repositories_context import ContextRepository
-import pytest
-
 from clay.db.repositories_market import MarketRepository, set_source_priority
 from clay.db.repositories_ops import OpsRepository
 

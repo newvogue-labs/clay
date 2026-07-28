@@ -17,9 +17,9 @@ from clay.ai_control.provider_pool import (
     Deployment,
     DeploymentRow,
     HealthOutcome,
+    KeyState,
     ProviderKey,
     ProviderPoolRepository,
-    KeyState,
 )
 
 KEY_COLS = [

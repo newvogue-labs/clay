@@ -16,7 +16,6 @@ from clay.ai_control.config_reconciler import (
     ProposedConfig,
 )
 
-
 _LIVE_CONFIG = """\
 model_list:
   - model_name: gemini-2.5-flash

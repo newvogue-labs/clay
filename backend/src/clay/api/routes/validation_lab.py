@@ -11,7 +11,6 @@ from clay.validation_lab.models import (
 )
 from clay.validation_lab.service import ValidationLabService
 
-
 router = APIRouter(prefix="/validation-lab", tags=["validation-lab"])
 
 

@@ -491,13 +491,14 @@ class OpsRetentionJob:
     def run(self) -> None:
         """Execute one ops-retention tick — prune all 3 tables, then commit."""
         from sqlalchemy import delete
-        from clay.retention.jobs import RETENTION_WINDOWS_DAYS
+
         from clay.db.models_ops import (
             AIAgentRun,
-            IngestRun,
             ConnectorStatusHistory,
+            IngestRun,
             SourceHealthEvent,
         )
+        from clay.retention.jobs import RETENTION_WINDOWS_DAYS
 
         now = datetime.now(UTC)
         deleted_total = 0

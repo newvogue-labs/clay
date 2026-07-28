@@ -15,7 +15,6 @@ from ruamel.yaml import YAML
 
 from clay.ai_control.provider_pool import DeploymentRow
 
-
 logger = logging.getLogger(__name__)
 
 _AVAILABLE = "available"

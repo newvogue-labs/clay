@@ -24,13 +24,12 @@ from clay.execution.adapter.enums import (
 )
 from clay.execution.ledger.controller import OrderLedgerController
 from clay.execution.ledger.reconcile import (
+    OrderReconcileService,
     ReconcileAdapter,
     ReconcileMismatchKind,
-    OrderReconcileService,
     map_venue_state,
 )
 from clay.execution.ledger.states import LedgerState
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

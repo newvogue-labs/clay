@@ -73,3 +73,7 @@ Ruff-хуки в `.pre-commit-config.yaml` ограничены `types: [python]
 ## Errata 2026-07-28 (D-33)
 
 - **Языковая гигиена дерева теперь enforced тестом-охранником.** `tests/policy/test_source_hygiene.py` сканирует радиус: backend/src, backend/tests, backend/scripts, docs, frontend/src, .github. Регулярное выражение CJK-класса — константа модуля (единый источник истины). Allowlist/исключений нет.
+
+## Errata 2026-07-28 (D-34)
+
+- **Объявлен набор правил линтера.** В `backend/pyproject.toml` задан `select = ["E4", "E7", "E9", "F", "I"]` — прежний дефолт ruff плюс isort (порядок импортов). Широкий E (в т.ч. E501 — 252 нарушения по замеру) не включён осознанно: длину строк держит форматтер. Исключения из I001: `alembic/versions/*` (генерируемые миграции), `alembic/env.py` и `tests/conftest.py` (порядок семантически значим).

@@ -23,7 +23,6 @@ from clay.events.bus import EventBus
 from clay.session_control.service import SessionControlService
 from clay.workspace.service import WorkspaceService
 
-
 OUTCOME_STATUSES: tuple[OutcomeStatus, ...] = (
     "matched",
     "missed",

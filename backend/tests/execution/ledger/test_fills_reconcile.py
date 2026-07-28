@@ -37,7 +37,6 @@ from clay.execution.ledger.reconcile import (
 from clay.execution.ledger.repository import OrderLedgerRepository
 from clay.execution.ledger.states import LedgerState
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------

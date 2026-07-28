@@ -34,7 +34,6 @@ from clay.db.models_ops import (
     WorkspaceFocus,
 )
 
-
 TModel = TypeVar("TModel")
 
 

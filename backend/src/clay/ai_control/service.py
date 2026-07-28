@@ -10,10 +10,6 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from clay.db.models_ops import AIAgentRun
-
-from clay.core.clock import Clock, SystemClock
-
 from clay.ai_control.models import (
     AIControlSnapshot,
     AIControlSummary,
@@ -21,20 +17,22 @@ from clay.ai_control.models import (
     ConflictSnapshot,
     FallbackSnapshot,
     ModelVersionSnapshot,
-    RPDBudget,
     RegistryVersionInfo,
     ReviewCardSnapshot,
     RoleDefinitionSnapshot,
     RoleRunSummary,
+    RPDBudget,
 )
-from clay.db.repositories_ops import OpsRepository
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
 from clay.config.models import RiskConfig
+from clay.core.clock import Clock, SystemClock
+from clay.db.models_ops import AIAgentRun
+from clay.db.repositories_ops import OpsRepository
 from clay.db.repositories_runtime_state import (
+    INITIAL_ASSIGNMENTS,
     AIAssignmentRepository,
     AIControlStateRepository,
-    INITIAL_ASSIGNMENTS,
 )
 from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService

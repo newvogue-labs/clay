@@ -10,7 +10,6 @@ satisfies the 5-session-in-a-row smoke and the negative guards.
 import pytest
 
 from clay.runtime.states import RuntimeState
-
 from tests.session_control.test_session_control_service import (
     build_session_service,
     seed_session_data,

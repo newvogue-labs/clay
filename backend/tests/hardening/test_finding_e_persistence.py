@@ -31,7 +31,6 @@ from clay.settings.ingestion import IngestionSettings
 from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
 
-
 # =========================================================================
 #  Хелперы
 # =========================================================================

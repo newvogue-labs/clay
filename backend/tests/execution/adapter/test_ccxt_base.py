@@ -30,7 +30,6 @@ from clay.execution.adapter.enums import (
 from clay.execution.adapter.errors import AmbiguousExecutionError, ConfigError
 from clay.execution.adapter.rules import MarketRules
 
-
 # ---------------------------------------------------------------------------
 # Minimal concrete subclass for testing CcxtExchangeAdapter methods
 # ---------------------------------------------------------------------------

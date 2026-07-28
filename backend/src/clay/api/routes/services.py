@@ -1,10 +1,10 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Literal
 
 from clay.bootstrap import audit_writer, event_bus, registry, supervisor
 from clay.services.supervisor import ServiceActionNotAllowedError
-
 
 router = APIRouter(prefix="/services", tags=["services"])
 

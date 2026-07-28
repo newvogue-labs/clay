@@ -2,11 +2,13 @@ from collections.abc import AsyncGenerator
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from clay.ai_control.service import AIControlService
+from clay.alpha.service import AlphaReadinessService
 from clay.bootstrap import (
     ai_control_service,
     alpha_readiness_service,
-    control_center_service,
     context_connector_manager,
+    control_center_service,
     demo_trading_service,
     event_bus,
     execution_client,
@@ -24,8 +26,6 @@ from clay.bootstrap import (
     validation_lab_service,
     workspace_service,
 )
-from clay.ai_control.service import AIControlService
-from clay.alpha.service import AlphaReadinessService
 from clay.control_center.service import ControlCenterService
 from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
@@ -39,8 +39,8 @@ from clay.knowledge.service import KnowledgeService
 from clay.reliability.service import ReliabilityService
 from clay.session_control.service import SessionControlService
 from clay.session_review.service import SessionReviewService
-from clay.signal_engine.service import SignalEngineService
 from clay.settings.ingestion import IngestionSettings
+from clay.signal_engine.service import SignalEngineService
 from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
 

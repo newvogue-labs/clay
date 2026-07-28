@@ -11,14 +11,14 @@ Run:
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 from clay.bootstrap import (
     ai_control_service,
     knowledge_service,
     session_factory,
     signal_engine_service,
 )
-from unittest.mock import MagicMock
-
 from clay.scheduler.ai_agent_job import (
     AIAgentCycleJob,
     _render_context,

@@ -26,7 +26,6 @@ from clay.execution.adapter.enums import (
 from clay.execution.adapter.errors import AmbiguousExecutionError
 from clay.execution.config import ExecutionConfig
 
-
 # ── FakeBinanceClient (minimal) ───────────────────────────────────
 
 
@@ -519,8 +518,8 @@ def test_circuit_open_returns_503_with_audit(
 
 def _make_rules_from_client() -> Any:
     """Build a MarketRules-compatible object from FakeProbeClient data."""
+    from clay.execution.adapter.enums import OrderType, PrecisionMode, TimeInForce
     from clay.execution.adapter.rules import MarketRules as RealRules
-    from clay.execution.adapter.enums import PrecisionMode, OrderType, TimeInForce
 
     return RealRules(
         min_amount=Decimal("0.001"),

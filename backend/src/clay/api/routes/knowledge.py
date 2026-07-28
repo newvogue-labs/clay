@@ -7,7 +7,6 @@ from clay.api.dependencies import get_db_session, get_knowledge_service
 from clay.knowledge.models import KnowledgeCreateCommand
 from clay.knowledge.service import KnowledgeService
 
-
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 

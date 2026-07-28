@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from clay.alpha.service import AlphaReadinessService
 from clay.api.dependencies import get_alpha_readiness_service, get_db_session
 
-
 router = APIRouter(prefix="/alpha", tags=["alpha"])
 
 

@@ -16,7 +16,6 @@ from clay.execution.adapter.domain import (
 )
 from clay.execution.adapter.enums import OrderSide, OrderState, OrderType, TimeInForce
 
-
 # ---------------------------------------------------------------------------
 # OrderRequest
 # ---------------------------------------------------------------------------

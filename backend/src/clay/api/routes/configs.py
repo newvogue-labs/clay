@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from clay.bootstrap import audit_writer, config_loader, event_bus
 from clay.config.loader import UnknownConfigScopeError
 
-
 router = APIRouter(prefix="/configs", tags=["configs"])
 
 

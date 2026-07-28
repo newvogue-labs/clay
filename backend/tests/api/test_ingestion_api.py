@@ -9,15 +9,15 @@ from clay.api.routes.shortlist import get_shortlist_metrics
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
-from clay.settings.ingestion import IngestionSettings
-from tests.support.factories import make_ingestion_settings
 from clay.ingestion.context.connectors.demo_news import DemoNewsConnector
 from clay.ingestion.context.connectors.demo_sentiment import DemoSentimentConnector
 from clay.ingestion.context.manager import ContextConnectorManager
-from clay.ingestion.market.models import NormalizedMarketBar
 from clay.ingestion.market.exchange_config import ExchangeConfig
+from clay.ingestion.market.models import NormalizedMarketBar
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
+from clay.settings.ingestion import IngestionSettings
+from tests.support.factories import make_ingestion_settings
 
 
 def _market_service(client: Any, settings: Any) -> MarketIngestionService:

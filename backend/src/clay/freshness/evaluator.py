@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 
 from clay.freshness.models import FreshnessResult
 
-
 MARKET_THRESHOLDS = {
     "5m": timedelta(minutes=10),
     "15m": timedelta(minutes=25),

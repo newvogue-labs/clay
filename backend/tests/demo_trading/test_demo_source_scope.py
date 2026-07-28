@@ -12,8 +12,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from clay.db.repositories_demo import DEFAULT_READ_SCOPE, DemoRepository
+
 from clay.db.models_demo import DemoTradeRecord
+from clay.db.repositories_demo import DEFAULT_READ_SCOPE, DemoRepository
 
 
 def _make_record(session, source: str, session_id: str = "s1") -> DemoTradeRecord:

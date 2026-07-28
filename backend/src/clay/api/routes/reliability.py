@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from clay.api.dependencies import get_db_session, get_reliability_service
 from clay.reliability.service import ReliabilityService
 
-
 router = APIRouter(prefix="/reliability", tags=["reliability"])
 
 

@@ -2,7 +2,6 @@ from fastapi import APIRouter
 
 from clay.bootstrap import preflight_service
 
-
 router = APIRouter(prefix="/preflight", tags=["preflight"])
 
 

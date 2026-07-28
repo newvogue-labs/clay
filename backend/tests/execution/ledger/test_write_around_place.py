@@ -113,6 +113,7 @@ class TestWriteAroundPlace:
         # Verify projection is in ACKNOWLEDGED state
         with session_factory() as s:
             from sqlalchemy import select
+
             from clay.db.models_orders import OrderCurrentState
 
             proj = (
@@ -142,6 +143,7 @@ class TestWriteAroundPlace:
         # Verify projection is in UNKNOWN state
         with session_factory() as s:
             from sqlalchemy import select
+
             from clay.db.models_orders import OrderCurrentState
 
             proj = (
@@ -170,6 +172,7 @@ class TestWriteAroundPlace:
         # Verify projection is in REJECTED state
         with session_factory() as s:
             from sqlalchemy import select
+
             from clay.db.models_orders import OrderCurrentState
 
             proj = (
@@ -214,6 +217,7 @@ class TestWriteAroundPlace:
         # Verify projection is in SUBMITTING state
         with session_factory() as s:
             from sqlalchemy import select
+
             from clay.db.models_orders import OrderCurrentState
 
             proj = (

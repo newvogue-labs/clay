@@ -19,7 +19,6 @@ from clay.ai_control.provider_pool import (
     ProviderPool,
 )
 
-
 _EPOCH = datetime(2026, 6, 17, 12, 0, 0, tzinfo=UTC)
 
 

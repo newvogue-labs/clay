@@ -9,8 +9,8 @@ from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.services.registry import ServiceRegistry
 from clay.signal_engine.service import SignalEngineService
-from clay.workspace.service import WorkspaceService
 from clay.workspace.models import WorkspaceStateSnapshot
+from clay.workspace.service import WorkspaceService
 
 
 @pytest.fixture

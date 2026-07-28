@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from clay.knowledge.vault_core import VaultFile
 from clay.tools.notion_publish import (
     NotionKnowledgePublisher,
     NotionManifest,
@@ -16,8 +17,6 @@ from clay.tools.notion_publish import (
     NotionPublisherConfig,
     RealNotionUpsertClient,
 )
-from clay.knowledge.vault_core import VaultFile
-
 
 SMA_CROSSOVER_FM = """\
 ---

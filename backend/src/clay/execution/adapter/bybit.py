@@ -24,13 +24,13 @@ from typing import Any, ClassVar
 
 import ccxt.async_support as ccxt
 
-from clay.execution.adapter.ccxt_client import CcxtDemoCapableClient
 from clay.execution.adapter.ccxt_base import (
     CcxtExchangeAdapter,
     _dec,
     _dec_upper_bound,
     _str_or_empty,
 )
+from clay.execution.adapter.ccxt_client import CcxtDemoCapableClient
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.adapter.enums import (
     Environment,

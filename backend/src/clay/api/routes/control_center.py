@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from clay.api.dependencies import get_control_center_service, get_db_session
 from clay.control_center.service import ControlCenterService
 
-
 router = APIRouter(prefix="/control-center", tags=["control-center"])
 
 

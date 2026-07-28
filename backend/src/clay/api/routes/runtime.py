@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from clay.bootstrap import audit_writer, event_bus, runtime_manager
 from clay.runtime.states import RuntimeState
 
-
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
 

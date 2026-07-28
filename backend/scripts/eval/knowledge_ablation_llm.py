@@ -18,8 +18,8 @@ import asyncio
 import os
 
 from clay.ai_control.runner import (
-    AgentRunResult,
     AgentRunner,
+    AgentRunResult,
     LiteLLMModelClient,
     OllamaNativeClient,
     RoutingModelClient,
@@ -146,6 +146,7 @@ async def _run_eval() -> None:
         )
 
         from unittest.mock import MagicMock
+
         from clay.scheduler.ai_agent_job import AIAgentCycleJob
 
         dummy = AIAgentCycleJob(

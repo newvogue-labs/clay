@@ -50,14 +50,23 @@ markers = [
 target-version = "py314"
 line-length = 88
 
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
 [tool.ruff.lint.per-file-ignores]
+# Файлы миграций генерируются и исторически заморожены — порядок импортов в них не выравниваем.
+"alembic/versions/*" = ["I001"]
 # alembic/env.py импортит clay-модули ПОСЛЕ load_dotenv(), чтобы IngestionSettings
 # видел .env. Не-инвазивно: глушим E402 и F401 (side-effect imports для metadata)
-# точечно, не переписывая env.py.
-"alembic/env.py" = ["E402", "F401"]
+# точечно, не переписывая env.py. Порядок импортов семантически значим.
+"alembic/env.py" = ["E402", "F401", "I001"]
 # tests/conftest.py: side-effect imports (модели регистрируются в Base.metadata),
 # E402 по design (DB URL setup precedes clay imports).
-"tests/conftest.py" = ["E402", "F401"]
+# Порядок импортов семантически значим.
+"tests/conftest.py" = ["E402", "F401", "I001"]
+# seed_demo_signal_data.py: sys.path.insert() между блоками импортов,
+# порядок sqlalchemy/clay-импортов семантически значим.
+"scripts/seed_demo_signal_data.py" = ["E402", "I001"]
 
 [tool.ruff.format]
 

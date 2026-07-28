@@ -2,39 +2,39 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from clay.api.lifespan import lifespan
-from clay.core.logging import configure_clay_logging
 from clay.api.routes.ai_control import router as ai_control_router
 from clay.api.routes.ai_control_stream import router as ai_control_stream_router
 from clay.api.routes.alpha import router as alpha_router
+from clay.api.routes.configs import router as configs_router
+from clay.api.routes.context_data import router as context_data_router
 from clay.api.routes.control_center import router as control_center_router
 from clay.api.routes.control_center_stream import router as control_center_stream_router
-from clay.api.routes.context_data import router as context_data_router
-from clay.api.routes.configs import router as configs_router
 from clay.api.routes.demo_trading import router as demo_trading_router
 from clay.api.routes.demo_trading_stream import router as demo_trading_stream_router
 from clay.api.routes.events import router as events_router
+from clay.api.routes.execution import router as execution_router
 from clay.api.routes.health import router as health_router
 from clay.api.routes.ingestion import router as ingestion_router
 from clay.api.routes.knowledge import router as knowledge_router
 from clay.api.routes.knowledge_stream import router as knowledge_stream_router
 from clay.api.routes.market_data import router as market_data_router
+from clay.api.routes.override import router as override_router
 from clay.api.routes.preflight import router as preflight_router
 from clay.api.routes.reliability import router as reliability_router
 from clay.api.routes.reliability_stream import router as reliability_stream_router
 from clay.api.routes.runtime import router as runtime_router
+from clay.api.routes.services import router as services_router
 from clay.api.routes.session_control import router as session_control_router
 from clay.api.routes.session_review import router as session_review_router
 from clay.api.routes.session_review_stream import router as session_review_stream_router
 from clay.api.routes.session_stream import router as session_stream_router
-from clay.api.routes.signals import router as signals_router
 from clay.api.routes.shortlist import router as shortlist_router
-from clay.api.routes.services import router as services_router
+from clay.api.routes.signals import router as signals_router
 from clay.api.routes.validation_lab import router as validation_lab_router
 from clay.api.routes.validation_lab_stream import router as validation_lab_stream_router
 from clay.api.routes.workspace import router as workspace_router
 from clay.api.routes.workspace_stream import router as workspace_stream_router
-from clay.api.routes.override import router as override_router
-from clay.api.routes.execution import router as execution_router
+from clay.core.logging import configure_clay_logging
 
 
 def create_app() -> FastAPI:

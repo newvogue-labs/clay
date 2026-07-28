@@ -37,7 +37,6 @@ from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
-from tests.support.factories import make_ingestion_settings
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
@@ -47,6 +46,7 @@ from clay.session_review.service import SessionReviewService
 from clay.signal_engine.service import SignalEngineService
 from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
+from tests.support.factories import make_ingestion_settings
 
 
 def build_service(session_factory: sessionmaker, tmp_path: Path) -> ReliabilityService:

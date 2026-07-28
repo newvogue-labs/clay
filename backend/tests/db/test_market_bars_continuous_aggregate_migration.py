@@ -16,7 +16,6 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Engine
 
-
 ALEMBIC_DIR = Path(__file__).resolve().parents[2] / "alembic"
 MIGRATION_FILE = ALEMBIC_DIR / "versions" / "0031_market_bars_continuous_aggregate.py"
 

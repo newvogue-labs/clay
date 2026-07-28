@@ -14,7 +14,6 @@ from clay.db.models_ops import ExecutionOverride
 from clay.db.repositories_ops import OverrideRepository
 from clay.execution.config import ExecutionConfig
 
-
 logger = logging.getLogger(__name__)
 
 OVERRIDE_TTL = timedelta(hours=1)

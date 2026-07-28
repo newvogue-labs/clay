@@ -17,7 +17,6 @@ from clay.execution.config import (
     environment_from_mode,
 )
 
-
 # ---------------------------------------------------------------------------
 # environment_from_mode (D2)
 # ---------------------------------------------------------------------------
@@ -310,9 +309,10 @@ class TestRouteGuard:
 
     def test_demo_passes_mode_guard(self) -> None:
         """mode=demo → NOT 409 on mode guard (hits client=None guard instead)."""
+        from fastapi.testclient import TestClient
+
         from clay.api.dependencies import get_execution_client, get_execution_config
         from clay.api.main import create_app
-        from fastapi.testclient import TestClient
 
         app = create_app()
         try:
@@ -337,9 +337,10 @@ class TestRouteGuard:
 
     def test_testnet_passes_mode_guard(self) -> None:
         """mode=testnet → NOT 409 on mode guard (hits client=None guard instead)."""
+        from fastapi.testclient import TestClient
+
         from clay.api.dependencies import get_execution_client, get_execution_config
         from clay.api.main import create_app
-        from fastapi.testclient import TestClient
 
         app = create_app()
         try:

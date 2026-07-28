@@ -8,7 +8,6 @@ from clay.bootstrap import audit_writer, event_bus
 from clay.workspace.models import FocusCommand
 from clay.workspace.service import WorkspaceService
 
-
 router = APIRouter(prefix="/workspace/trading", tags=["workspace"])
 
 

@@ -28,16 +28,15 @@ from clay.db.models_ops import (
     WorkspaceFocus,
 )
 from clay.db.repositories_runtime_state import (
+    INITIAL_ASSIGNMENTS,
     AIAssignmentRepository,
     AIControlStateRepository,
     ReliabilityStateRepository,
     SessionStateRepository,
     StrategyStateRepository,
     WorkspaceFocusRepository,
-    INITIAL_ASSIGNMENTS,
 )
 from clay.db.types import UTCDateTime
-
 
 # === AIAssignmentRepository (multi-row) ===
 

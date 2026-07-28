@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from email import utils as email_utils
@@ -17,8 +18,6 @@ from clay.ingestion.context.manager import ConnectorRunResult, ContextConnectorM
 from clay.ingestion.market.protocol import MarketDataClient
 from clay.ingestion.market.service import MarketIngestionService
 from clay.settings.ingestion import IngestionSettings
-
-import logging
 
 logger = logging.getLogger(__name__)
 

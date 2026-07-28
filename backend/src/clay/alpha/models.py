@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-
 AlphaGateStatus = Literal["pass", "warn", "fail"]
 AlphaReadinessStatus = Literal["blocked", "needs_attention", "operator_path_ready"]
 

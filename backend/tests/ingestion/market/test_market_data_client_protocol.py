@@ -17,7 +17,6 @@ Why ``runtime_checkable`` is enough for E1:
 
 from __future__ import annotations
 
-
 from clay.ingestion.market.binance_client import BinanceSpotClient
 from clay.ingestion.market.bybit_client import BybitClient
 from clay.ingestion.market.protocol import MarketDataClient

@@ -16,11 +16,11 @@ from clay.db.models_ops import (
     IngestRun,
     SourceHealthEvent,
 )
-from clay.scheduler.jobs import OpsRetentionJob
 from clay.retention.jobs import (
     RETENTION_WINDOWS_DAYS,
     retention_cutoff_days,
 )
+from clay.scheduler.jobs import OpsRetentionJob
 
 pytestmark = [
     pytest.mark.usefixtures("sqlite_session_factory"),
@@ -160,7 +160,7 @@ def _seed_ops_data(
 
 
 def _count_rows(session: Session, table: str) -> int:
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
 
     model_map = {
         "ai_agent_runs": AIAgentRun,

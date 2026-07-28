@@ -159,10 +159,9 @@ class TestMigrationSmoke:
         import importlib.util
         from pathlib import Path
 
-        from sqlalchemy import inspect as sa_inspect
-
         from alembic.operations import Operations
         from alembic.runtime.migration import MigrationContext
+        from sqlalchemy import inspect as sa_inspect
 
         from clay.db.session import build_engine
         from clay.settings.ingestion import IngestionSettings

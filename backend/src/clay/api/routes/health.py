@@ -9,7 +9,6 @@ from clay.bootstrap import ingestion_session_factory
 from clay.db.repositories_ops import OpsRepository
 from clay.settings.scheduler import SchedulerSettings
 
-
 router = APIRouter(prefix="/health", tags=["health"])
 
 

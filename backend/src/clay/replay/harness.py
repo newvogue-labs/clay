@@ -3,13 +3,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from clay.db.models_market import MarketBar
-
 from clay.core.clock import VirtualClock
 from clay.db.models_demo import DemoTradeRecord
+from clay.db.models_market import MarketBar
 from clay.db.repositories_demo import DemoRepository
 from clay.demo_trading.service import DemoTradingService
 from clay.replay.models import ReplayRunSummary, ReplayTradeResult

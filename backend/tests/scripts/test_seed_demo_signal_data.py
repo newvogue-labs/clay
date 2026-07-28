@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import cast
 
 from scripts.seed_demo_signal_data import clean, seed
-
 from tests.signal_engine.test_signal_engine_service import build_signal_engine
 
 

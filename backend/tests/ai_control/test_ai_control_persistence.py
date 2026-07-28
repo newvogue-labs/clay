@@ -29,9 +29,9 @@ from sqlalchemy.orm import sessionmaker
 from clay.ai_control.service import AIControlService
 from clay.db.models_ops import AIAssignment, AIControlState
 from clay.db.repositories_runtime_state import (
+    INITIAL_ASSIGNMENTS,
     AIAssignmentRepository,
     AIControlStateRepository,
-    INITIAL_ASSIGNMENTS,
 )
 
 

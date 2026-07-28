@@ -18,7 +18,6 @@ from clay.signal_engine.sizing import (
     wilson_lower,
 )
 
-
 # ── Wilson lower bound ──────────────────────────────────────────────────────
 
 

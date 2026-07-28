@@ -19,13 +19,12 @@ from clay.execution.adapter.enums import (
     OrderSide,
     OrderState,
     OrderType,
+    PrecisionMode,
     TimeInForce,
 )
 from clay.execution.adapter.normalization import quantize_order, validate_order
 from clay.execution.adapter.port import ExchangeAdapter
 from clay.execution.adapter.rules import MarketRules
-from clay.execution.adapter.enums import PrecisionMode
-
 
 # ---------------------------------------------------------------------------
 # FakeAdapter — in-memory, satisfies ExchangeAdapter

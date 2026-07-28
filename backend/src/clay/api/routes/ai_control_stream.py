@@ -8,7 +8,6 @@ from clay.api.dependencies import get_event_bus
 from clay.events.bus import EventBus
 from clay.events.sse import sse_event_stream
 
-
 router = APIRouter(prefix="/ai-control", tags=["ai-control"])
 
 RELEVANT_EVENTS = {

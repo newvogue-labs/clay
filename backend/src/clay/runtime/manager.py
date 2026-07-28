@@ -3,7 +3,6 @@ from clay.runtime.transitions import get_allowed_transitions, validate_transitio
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 
-
 # States that ``reconcile_to`` is allowed to project the runtime into.
 # These are the *only* states a restored ``session_state`` row can map
 # to (see ``SessionControlService.reconcile_runtime_state``):

@@ -10,7 +10,6 @@ from clay.session_control.models import (
 )
 from clay.session_control.service import SessionControlService
 
-
 router = APIRouter(prefix="/session", tags=["session"])
 
 
