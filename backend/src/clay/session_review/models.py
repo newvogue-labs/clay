@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-
 FeedbackLabel = Literal["useful", "noise", "needs_follow_up"]
 
 

@@ -20,7 +20,6 @@ from clay.freshness.evaluator import (
 from clay.ingestion.service import IngestionCycleBusy, IngestionCycleService
 from clay.settings.ingestion import IngestionSettings
 
-
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
 
 

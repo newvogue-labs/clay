@@ -6,7 +6,6 @@ from typing import Any
 from clay.config.models import RiskConfig, RuntimeConfig
 from clay.config.paths import XdgPaths, build_xdg_paths
 
-
 CONFIG_MODELS = {
     "runtime": RuntimeConfig,
     "risk": RiskConfig,

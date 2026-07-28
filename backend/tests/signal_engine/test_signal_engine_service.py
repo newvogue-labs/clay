@@ -3,6 +3,9 @@ from datetime import UTC, datetime, timedelta
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
+from clay.db.repositories_context import ContextRepository
+from clay.db.repositories_market import MarketRepository
+from clay.db.repositories_ops import OpsRepository
 from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
@@ -10,9 +13,6 @@ from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.settings.ingestion import IngestionSettings
 from clay.signal_engine.service import SignalEngineService
-from clay.db.repositories_context import ContextRepository
-from clay.db.repositories_market import MarketRepository
-from clay.db.repositories_ops import OpsRepository
 from tests.support.factories import make_ingestion_settings
 
 

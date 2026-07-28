@@ -32,7 +32,6 @@ import pytest
 from clay.audit.writer import AuditWriter
 from clay.settings.audit import AuditSettings
 
-
 # =========================================================================
 #  1) Concurrency: 8 threads × 200 writes — no torn lines
 # =========================================================================

@@ -7,7 +7,6 @@ from clay.ai_control.models import AssignmentApplyCommand, AssignmentReviewComma
 from clay.ai_control.service import AIControlService
 from clay.api.dependencies import get_ai_control_service, get_db_session
 
-
 router = APIRouter(prefix="/ai-control", tags=["ai-control"])
 
 

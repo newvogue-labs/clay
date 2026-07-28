@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 ValidationRunType = Literal["strategy_replay", "model_comparison", "signal_quality"]
 ActivationTargetType = Literal["strategy_mode", "model_assignment"]
 ActivationSeverity = Literal["info", "warning", "critical"]

@@ -17,7 +17,6 @@ from clay.execution.adapter.errors import InvalidOrderError
 from clay.execution.adapter.normalization import quantize_order, validate_order
 from clay.execution.adapter.rules import MarketRules
 
-
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from clay.execution.ledger.fsm import is_legal_transition
-from clay.execution.ledger.states import LedgerState, TERMINAL_STATES
+from clay.execution.ledger.states import TERMINAL_STATES, LedgerState
 
 
 class TestTerminalStates:

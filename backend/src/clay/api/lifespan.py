@@ -45,30 +45,14 @@ hand-rolled bundle.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-import logging
 
-from fastapi import FastAPI
 import httpx
+from fastapi import FastAPI
 
-from clay.bootstrap import (
-    ai_control_service as _ai_control_service,
-    audit_writer as _audit_writer,
-    event_bus as _event_bus,
-    health_monitor as _health_monitor,
-    ingestion_cycle_service as _ingestion_cycle_service,
-    ingestion_settings as _ingestion_settings,
-    knowledge_service as _knowledge_service,
-    market_ingestion_service as _market_ingestion_service,
-    override_service as _override_service,
-    registry as _registry,
-    reliability_service as _reliability_service,
-    scheduler_settings,
-    session_factory as _session_factory,
-    signal_engine_service as _signal_engine_service,
-)
 from clay.ai_control.runner import (
     AgentRunner,
     LiteLLMModelClient,
@@ -76,14 +60,56 @@ from clay.ai_control.runner import (
     RoutingModelClient,
     ServiceModelResolver,
 )
-from clay.llm import LLMAdapter
-from clay.settings.llm import LLMSettings
-from clay.scheduler.ai_agent_job import AIAgentCycleJob
-from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
+from clay.bootstrap import (
+    ai_control_service as _ai_control_service,
+)
+from clay.bootstrap import (
+    audit_writer as _audit_writer,
+)
+from clay.bootstrap import (
+    event_bus as _event_bus,
+)
+from clay.bootstrap import (
+    health_monitor as _health_monitor,
+)
+from clay.bootstrap import (
+    ingestion_cycle_service as _ingestion_cycle_service,
+)
+from clay.bootstrap import (
+    ingestion_settings as _ingestion_settings,
+)
+from clay.bootstrap import (
+    knowledge_service as _knowledge_service,
+)
+from clay.bootstrap import (
+    market_ingestion_service as _market_ingestion_service,
+)
+from clay.bootstrap import (
+    override_service as _override_service,
+)
+from clay.bootstrap import (
+    registry as _registry,
+)
+from clay.bootstrap import (
+    reliability_service as _reliability_service,
+)
+from clay.bootstrap import (
+    scheduler_settings,
+)
+from clay.bootstrap import (
+    session_factory as _session_factory,
+)
+from clay.bootstrap import (
+    signal_engine_service as _signal_engine_service,
+)
 from clay.execution.ledger.fatal_halt import FatalHaltWiring
-from clay.scheduler.reconcile_job import OrderReconcileJob
+from clay.llm import LLMAdapter
+from clay.scheduler.ai_agent_job import AIAgentCycleJob
 from clay.scheduler.prompts import CHIEF_AGENT_SYSTEM_PROMPT
+from clay.scheduler.provider_pool_reconcile_job import ProviderPoolReconcileJob
+from clay.scheduler.reconcile_job import OrderReconcileJob
 from clay.scheduler.service import ClayScheduler
+from clay.settings.llm import LLMSettings
 from clay.settings.ollama import OllamaSettings
 
 logger = logging.getLogger(__name__)

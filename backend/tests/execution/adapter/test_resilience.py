@@ -50,10 +50,9 @@ from clay.execution.adapter.rules import MarketRules
 from clay.execution.resilience import (
     CircuitBreakerPolicy,
     ReadFallbackPolicy,
-    RetryPolicy,
     ResilientExecutionAdapter,
+    RetryPolicy,
 )
-
 
 # ---------------------------------------------------------------------------
 # FakeInnerAdapter — configurable, in-memory

@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 from clay.bootstrap import event_bus
 from clay.events.sse import sse_event_stream
 
-
 router = APIRouter(prefix="/events", tags=["events"])
 
 

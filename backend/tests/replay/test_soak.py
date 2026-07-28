@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from clay.ai_control.service import AIControlService
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
@@ -28,8 +30,6 @@ from clay.services.registry import ServiceRegistry
 from clay.session_control.service import SessionControlService
 from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
-
-import pytest
 
 START_AS_OF = datetime(2026, 6, 2, 0, 0, 0, tzinfo=UTC)
 SYMBOL = "SOLUSDT"

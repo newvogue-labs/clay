@@ -8,14 +8,14 @@ from typing import cast
 
 from sqlalchemy.orm import Session
 
-from clay.ai_control.service import AIControlService
 from clay.ai_control.models import AssignmentSnapshot
-from clay.core.clock import Clock, SystemClock
+from clay.ai_control.service import AIControlService
 from clay.config.loader import ConfigLoader
 from clay.config.models import KellyConfig, RiskConfig
+from clay.core.clock import Clock, SystemClock
+from clay.db.models_market import MarketBar
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
-from clay.db.models_market import MarketBar
 from clay.db.repositories_ops import OpsRepository
 from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
@@ -29,7 +29,6 @@ from clay.signal_engine.models import (
     SignalEngineSnapshot,
 )
 from clay.signal_engine.sizing import SizingStats, compute_sizing_stats
-
 
 logger = logging.getLogger(__name__)
 

@@ -35,8 +35,7 @@ from clay.execution.adapter.errors import (
     TransientAdapterError,
 )
 from clay.execution.adapter.port import ExchangeAdapter
-from clay.execution.resilience import RetryPolicy, ResilientExecutionAdapter
-
+from clay.execution.resilience import ResilientExecutionAdapter, RetryPolicy
 
 # ---------------------------------------------------------------------------
 # FakeBinanceClient — in-memory stand-in for ccxt.binance

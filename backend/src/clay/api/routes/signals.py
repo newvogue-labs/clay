@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from clay.api.dependencies import get_db_session, get_signal_engine_service
 from clay.signal_engine.service import SignalEngineService
 
-
 router = APIRouter(prefix="/signals", tags=["signals"])
 
 

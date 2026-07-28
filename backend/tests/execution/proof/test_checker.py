@@ -9,10 +9,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-import pytest
-
 
 from clay.execution.adapter.domain import BalanceSnapshot, OrderRequest, OrderSnapshot
 from clay.execution.adapter.enums import (

@@ -15,9 +15,9 @@ branch. Dark-launch by default — logs would-inject; inject mode appends
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
 import logging
 import re
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session, sessionmaker
 

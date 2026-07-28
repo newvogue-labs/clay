@@ -57,13 +57,13 @@ Design constraints (carry-forward from B0 / A6 / B1):
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from typing import Awaitable, Callable
 
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers.base import STATE_RUNNING
-from datetime import UTC
 from sqlalchemy.orm import sessionmaker
 
 from clay.audit.writer import AuditWriter

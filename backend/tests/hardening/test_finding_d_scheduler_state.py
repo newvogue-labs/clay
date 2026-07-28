@@ -47,7 +47,6 @@ from clay.services.models import ServiceCriticality
 from clay.services.registry import ServiceRegistry
 from clay.settings.scheduler import SchedulerSettings
 
-
 # =========================================================================
 #  helpers
 # =========================================================================

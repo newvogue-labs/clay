@@ -54,7 +54,6 @@ from clay.db.types import UTCDateTime
 from clay.scheduler.jobs import OpsRetentionJob
 from clay.settings.ingestion import IngestionSettings
 
-
 # =========================================================================
 #  1) Round-trip: 3 legacy ops tables → UTC-aware on SQLite
 # =========================================================================
@@ -228,7 +227,7 @@ def test_utcdatetime_compiles_to_same_ddl_as_datetime_with_tz() -> None:
     ``UTCDateTime.impl = DateTime(timezone=True)``, so the rendered
     DDL is byte-for-byte identical to the pre-fix column type.
     """
-    from sqlalchemy import DateTime, MetaData, Column, Table
+    from sqlalchemy import Column, DateTime, MetaData, Table
     from sqlalchemy.dialects import sqlite
     from sqlalchemy.schema import CreateTable
 
@@ -264,7 +263,8 @@ def test_utcdatetime_runtime_sqlite_schema_matches_datetime_with_tz(
     compares ``inspector.get_columns(...)`` results, and this is
     what those would see.
     """
-    from sqlalchemy import DateTime, Integer, MetaData, Column, Table, inspect
+    from sqlalchemy import Column, DateTime, Integer, MetaData, Table, inspect
+
     from clay.db.session import build_engine
 
     db_path = tmp_path / "schema-compare.db"

@@ -27,6 +27,7 @@ os.environ["CLAY_DATABASE_URL"] = os.environ.get(
 )
 
 from collections import defaultdict
+
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
@@ -40,6 +41,7 @@ from clay.db.repositories_demo import DEFAULT_READ_SCOPE, DemoRepository
 from clay.db.repositories_market import MarketRepository
 from clay.demo_trading.service import DemoTradingService
 from clay.events.bus import EventBus
+from clay.freshness.evaluator import resolve_market_freshness_status
 from clay.preflight.service import PreflightService
 from clay.replay.harness import ReplayHarness
 from clay.runtime.manager import RuntimeManager
@@ -48,7 +50,6 @@ from clay.services.registry import ServiceRegistry
 from clay.session_control.service import SessionControlService
 from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
-from clay.freshness.evaluator import resolve_market_freshness_status
 
 PG_URL = os.environ["CLAY_DATABASE_URL"]
 SYMBOL = "SOLUSDT"

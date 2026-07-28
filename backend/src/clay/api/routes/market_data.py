@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from clay.api.dependencies import get_db_session
 from clay.db.repositories_market import MarketRepository
 
-
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
 

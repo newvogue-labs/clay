@@ -7,9 +7,9 @@ Base.metadata (ORM models) and the create_all schema.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from collections.abc import Generator
 from typing import Protocol, runtime_checkable
 
 import pytest
@@ -18,11 +18,10 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import Inspector, create_engine, inspect, text
 from sqlalchemy.engine import Engine
 
-from clay.db.base import Base
-from clay.db.session import SQLITE_SCHEMA_TRANSLATE_MAP
-
 # Импорт моделей чтобы Base.metadata видел таблицы
 from clay.db import models_orders  # noqa: F401
+from clay.db.base import Base
+from clay.db.session import SQLITE_SCHEMA_TRANSLATE_MAP
 
 ALEMBIC_DIR = Path(__file__).resolve().parents[2] / "alembic"
 MIGRATION_FILE = ALEMBIC_DIR / "versions" / "0026_order_ledger_schema.py"

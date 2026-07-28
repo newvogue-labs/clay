@@ -8,7 +8,6 @@ from clay.db.repositories_market import MarketRepository
 from clay.settings.ingestion import IngestionSettings
 from clay.shortlist.read_models import build_shortlist_metrics
 
-
 router = APIRouter(prefix="/shortlist", tags=["shortlist"])
 
 

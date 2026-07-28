@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 OverallAIStatus = Literal["healthy", "degraded"]
 """Aggregate health of all AI-control assignments: ``healthy`` when no degraded roles, ``degraded`` otherwise."""
 

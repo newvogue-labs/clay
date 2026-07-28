@@ -13,14 +13,13 @@ from typing import Protocol
 
 from sqlalchemy.orm import sessionmaker
 
+from clay.db.models_orders import OrderCurrentState
 from clay.execution.adapter.domain import Fill, OrderSnapshot
 from clay.execution.adapter.enums import OrderState
-from clay.db.models_orders import OrderCurrentState
 from clay.execution.ledger.controller import OrderLedgerController
 from clay.execution.ledger.errors import IllegalTransitionError
 from clay.execution.ledger.repository import OrderLedgerRepository
 from clay.execution.ledger.states import LedgerState
-
 
 # ---------------------------------------------------------------------------
 # D2: venue → ledger state mapping

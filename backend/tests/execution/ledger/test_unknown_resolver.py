@@ -99,8 +99,9 @@ def session_factory():
 
 def _create_unknown_projection(session_factory, *, cid: str = "test-cid-001") -> None:
     """Helper: create a projection in UNKNOWN state."""
-    from clay.db.models_orders import OrderCurrentState
     from datetime import UTC, datetime
+
+    from clay.db.models_orders import OrderCurrentState
 
     with session_factory() as s:
         proj = OrderCurrentState(
@@ -143,6 +144,7 @@ class TestUnknownResolver:
         # Verify projection is now FILLED
         with session_factory() as s:
             from sqlalchemy import select
+
             from clay.db.models_orders import OrderCurrentState
 
             proj = (

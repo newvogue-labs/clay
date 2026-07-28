@@ -15,8 +15,8 @@ from clay.db.base import Base
 from clay.db.session import SQLITE_SCHEMA_TRANSLATE_MAP
 from clay.execution.adapter.domain import OrderSnapshot
 from clay.execution.ledger.reconcile import OrderReconcileService
-from clay.execution.ledger.states import LedgerState
 from clay.execution.ledger.startup_reconciliation import StartupReconciliation
+from clay.execution.ledger.states import LedgerState
 
 
 def _make_engine() -> Engine:
@@ -255,7 +255,8 @@ class TestStartupReconciliationFatalWiring:
     @pytest.mark.asyncio
     async def test_escalated_engages_latch(self, session_factory) -> None:
         """Age-escalated UNKNOWNs → halt-latch engaged via wiring."""
-        from unittest.mock import AsyncMock, MagicMock as MockMagic
+        from unittest.mock import AsyncMock
+        from unittest.mock import MagicMock as MockMagic
 
         from clay.execution.ledger.fatal_halt import FatalHaltWiring
         from clay.execution.ledger.halt_latch import HaltLatchRepository

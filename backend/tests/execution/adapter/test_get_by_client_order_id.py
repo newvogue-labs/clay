@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import pytest
 
+from clay.execution.adapter.ccxt_base import CcxtExchangeAdapter
 from clay.execution.adapter.domain import OrderSnapshot
 from clay.execution.adapter.enums import (
     Environment,
@@ -14,7 +15,6 @@ from clay.execution.adapter.enums import (
     OrderState,
     OrderType,
 )
-from clay.execution.adapter.ccxt_base import CcxtExchangeAdapter
 
 
 def _make_snapshot(

@@ -34,7 +34,6 @@ from clay.execution.adapter.errors import (
 )
 from clay.execution.adapter.port import ExchangeAdapter
 
-
 # ---------------------------------------------------------------------------
 # FakeBybitClient -- in-memory stand-in for ccxt.bybit
 # ---------------------------------------------------------------------------

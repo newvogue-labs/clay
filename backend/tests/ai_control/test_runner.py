@@ -14,15 +14,15 @@ import httpx
 import pytest
 
 from clay.ai_control.runner import (
-    AgentRunner,
     DEFAULT_SYSTEM_PROMPT,
+    AgentRunner,
     LiteLLMModelClient,
     ModelResponse,
     ModelUnavailableError,
     OllamaNativeClient,
     ServiceModelResolver,
 )
-from clay.llm import ChatMessage, ChatCompletionResponse
+from clay.llm import ChatCompletionResponse, ChatMessage
 from clay.settings.ollama import OllamaSettings
 
 
@@ -306,8 +306,8 @@ def test_litellm_client_reasoning_content_fallback() -> None:
     """
     from unittest.mock import MagicMock
 
-    from clay.llm import ChatCompletionChoice, ChatMessage as LLMChatMessage
-    from clay.llm import LLMAdapter
+    from clay.llm import ChatCompletionChoice, LLMAdapter
+    from clay.llm import ChatMessage as LLMChatMessage
 
     adapter = MagicMock(spec=LLMAdapter)
     adapter._settings = MagicMock()

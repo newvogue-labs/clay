@@ -3,7 +3,6 @@ from sqlalchemy.orm import sessionmaker
 
 from clay.settings.ingestion import IngestionSettings
 
-
 SQLITE_SCHEMA_TRANSLATE_MAP = {
     "market": None,
     "context": None,

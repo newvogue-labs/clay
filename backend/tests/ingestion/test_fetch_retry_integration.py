@@ -22,9 +22,9 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from clay.ingestion.market.exchange_config import ExchangeConfig
-from tests.support.factories import make_ingestion_settings
 from clay.ingestion.market.service import MarketIngestionService
 from clay.ingestion.service import IngestionCycleService
+from tests.support.factories import make_ingestion_settings
 
 
 class _ThrowingBinanceClient:

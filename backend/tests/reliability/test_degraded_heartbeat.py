@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 from clay.core.clock import VirtualClock
 from clay.reliability.heartbeat import DegradedHeartbeat, DegradedHeartbeatState
 
-
 # ── Unit tests ────────────────────────────────────────────────────────────────
 
 

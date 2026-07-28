@@ -8,12 +8,11 @@ Scope:
 from __future__ import annotations
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from clay.api.main import create_app
-from fastapi import HTTPException
-
 from clay.api.routes.override import (
     OverrideConfirmPayload,
     OverrideRequestPayload,

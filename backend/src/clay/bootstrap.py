@@ -41,12 +41,12 @@ from clay.events.bus import EventBus
 from clay.execution.adapter.binance import BinanceExecutionAdapter
 from clay.execution.adapter.bybit import BybitExecutionAdapter
 from clay.execution.config import ExecutionConfig, environment_from_mode
+from clay.execution.ledger.halt_probe import build_halt_latch_mode_probe
 from clay.execution.proof.gate import ExecutionProofGate
 from clay.execution.proof.probe import (
     build_duplicate_intent_probe,
     build_submit_rate_probe,
 )
-from clay.execution.ledger.halt_probe import build_halt_latch_mode_probe
 from clay.execution.proof.snapshot import FreshnessPolicy
 from clay.execution.resilience import CircuitBreakerPolicy, ResilientExecutionAdapter
 from clay.execution.service import OverrideService
@@ -63,20 +63,19 @@ from clay.preflight.service import PreflightService
 from clay.reliability.heartbeat import DegradedHeartbeat
 from clay.reliability.service import ReliabilityService
 from clay.runtime.manager import RuntimeManager
-from clay.session_control.service import SessionControlService
-from clay.session_control.session_risk import build_session_risk_probe
-from clay.session_review.service import SessionReviewService
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
-from clay.signal_engine.service import SignalEngineService
+from clay.session_control.service import SessionControlService
+from clay.session_control.session_risk import build_session_risk_probe
+from clay.session_review.service import SessionReviewService
 from clay.settings.audit import AuditSettings
 from clay.settings.db_size import DbSizeMonitorSettings
 from clay.settings.ingestion import IngestionSettings
 from clay.settings.scheduler import SchedulerSettings
+from clay.signal_engine.service import SignalEngineService
 from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
-
 
 # B3a: the stale-detection threshold now lives in
 # ``SchedulerSettings.health_stale_after_seconds`` (env:

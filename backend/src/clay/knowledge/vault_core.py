@@ -7,7 +7,6 @@ from typing import Literal
 
 from ruamel.yaml import YAML
 
-
 _yaml = YAML(typ="safe")
 
 _EXCLUDED_FILES = frozenset({"index.md", "log.md", "AGENTS.md", "sync-manifest.json"})

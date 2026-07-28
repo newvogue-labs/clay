@@ -1,16 +1,15 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from clay.core.clock import Clock, SystemClock
-from clay.execution.config import ExecutionConfig
-from clay.execution.service import OverrideService
-
 from sqlalchemy.orm import Session, sessionmaker
 
+from clay.core.clock import Clock, SystemClock
 from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
 from clay.db.repositories_runtime_state import WorkspaceFocusRepository
+from clay.execution.config import ExecutionConfig
+from clay.execution.service import OverrideService
 from clay.freshness.evaluator import (
     collapse_market_statuses,
     resolve_market_freshness_status,

@@ -7,7 +7,6 @@ from clay.api.dependencies import get_db_session, get_session_review_service
 from clay.session_review.models import FeedbackCreateCommand
 from clay.session_review.service import SessionReviewService
 
-
 router = APIRouter(prefix="/session-review", tags=["session-review"])
 
 

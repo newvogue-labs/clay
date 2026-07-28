@@ -2,10 +2,8 @@ import json
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
-
-from sqlalchemy import func
 
 from clay.db.models_ops import (
     AIAgentRun,

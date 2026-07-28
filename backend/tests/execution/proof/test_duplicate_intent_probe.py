@@ -432,9 +432,9 @@ class TestDuplicateIntentGateIntegration:
     @pytest.mark.asyncio
     async def test_enforce_false_probe_not_called(self) -> None:
         """double-off: enforce_session=False → probe never called, ADMIT."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request as mk
-
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner
+        from tests.execution.proof.test_gate import _make_request as mk
 
         inner = FakeInner()
         di_probe = MagicMock(return_value=True)
@@ -456,10 +456,10 @@ class TestDuplicateIntentGateIntegration:
     @pytest.mark.asyncio
     async def test_duplicate_intent_buy_denied(self) -> None:
         """duplicate_intent=True → DENY[SESSION_DUPLICATE_INTENT] (both-sides deny)."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request as mk
-
         from clay.execution.proof.errors import ProofGateDeniedError
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner
+        from tests.execution.proof.test_gate import _make_request as mk
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)
@@ -483,10 +483,10 @@ class TestDuplicateIntentGateIntegration:
     @pytest.mark.asyncio
     async def test_duplicate_intent_sell_also_denied(self) -> None:
         """duplicate_intent=True + SELL → DENY (both-sides deny, no reduce-bypass)."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request as mk
-
         from clay.execution.proof.errors import ProofGateDeniedError
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner
+        from tests.execution.proof.test_gate import _make_request as mk
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)
@@ -510,9 +510,9 @@ class TestDuplicateIntentGateIntegration:
     @pytest.mark.asyncio
     async def test_probe_not_duplicate_admits(self) -> None:
         """duplicate_intent=False → ADMIT (no session violation)."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request as mk
-
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner
+        from tests.execution.proof.test_gate import _make_request as mk
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)
@@ -535,9 +535,9 @@ class TestDuplicateIntentGateIntegration:
     @pytest.mark.asyncio
     async def test_probe_none_not_duplicate(self) -> None:
         """probe=None → not duplicate (off-by-default), ADMIT."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request as mk
-
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner
+        from tests.execution.proof.test_gate import _make_request as mk
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)
@@ -558,10 +558,10 @@ class TestDuplicateIntentGateIntegration:
     @pytest.mark.asyncio
     async def test_probe_raises_fail_closed(self) -> None:
         """DB error in probe → fail-closed → DENY[SESSION_DUPLICATE_INTENT]."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request as mk
-
         from clay.execution.proof.errors import ProofGateDeniedError
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner
+        from tests.execution.proof.test_gate import _make_request as mk
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)
@@ -585,9 +585,8 @@ class TestDuplicateIntentGateIntegration:
     @pytest.mark.asyncio
     async def test_probe_receives_quantized_request(self) -> None:
         """Probe receives the quantized OrderRequest, not the original."""
-        from tests.execution.proof.test_gate import FakeInner
-
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)

@@ -5,20 +5,22 @@ import asyncio
 import json
 import os
 import sys
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from clay.knowledge.vault_core import PlanAction as CorePlanAction
 from clay.knowledge.vault_core import (
     VaultFile,
+)
+from clay.knowledge.vault_core import (
     build_plan as core_build_plan,
+)
+from clay.knowledge.vault_core import (
     read_vault_files as core_read_vault_files,
 )
-from clay.knowledge.vault_core import PlanAction as CorePlanAction
-
-
-from collections.abc import MutableMapping
 
 
 class _VersionRestorer:

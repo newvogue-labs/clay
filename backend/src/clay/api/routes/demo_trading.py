@@ -7,7 +7,6 @@ from clay.api.dependencies import get_db_session, get_demo_trading_service
 from clay.demo_trading.models import DemoResultIngestCommand, DemoTradeLogCommand
 from clay.demo_trading.service import DemoTradingService
 
-
 router = APIRouter(prefix="/demo-trading", tags=["demo-trading"])
 
 

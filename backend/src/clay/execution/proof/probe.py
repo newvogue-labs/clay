@@ -17,9 +17,9 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import sessionmaker
 
+from clay.db.repositories_ops import ProofDecisionRepository
 from clay.execution.adapter.domain import OrderRequest
 from clay.execution.proof.checker import semantic_intent_hash
-from clay.db.repositories_ops import ProofDecisionRepository
 
 
 def build_submit_rate_probe(

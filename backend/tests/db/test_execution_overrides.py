@@ -16,7 +16,6 @@ from clay.db.models_ops import ExecutionOverride
 from clay.db.repositories_ops import OverrideRepository
 from clay.retention.jobs import RETENTION_WINDOWS_DAYS
 
-
 pytestmark = [
     pytest.mark.usefixtures("sqlite_session_factory"),
 ]

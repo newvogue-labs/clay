@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 from clay.control_center.models import IncidentSnapshot
 
-
 ReliabilityCheckStatus = Literal["pass", "warn", "fail"]
 ReliabilityOverallStatus = Literal["healthy", "degraded"]
 ReleaseReadinessStatus = Literal["blocked", "needs_attention", "ready_for_demo"]

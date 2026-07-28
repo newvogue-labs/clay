@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from clay.db.models_market import MarketBar, MarketFreshnessStatus
 
-
 _source_priority: list[str] | None = None
 
 

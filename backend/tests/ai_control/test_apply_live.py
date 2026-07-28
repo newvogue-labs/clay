@@ -6,8 +6,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import MagicMock, patch
 
-import pytest
 import httpx
+import pytest
 
 from clay.ai_control.config_reconciler import (
     ConfigReconciler,

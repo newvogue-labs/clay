@@ -4,9 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from clay.api.dependencies import get_override_service
-from clay.execution.service import ExecutionConfigError
-from clay.execution.service import OverrideService
-
+from clay.execution.service import ExecutionConfigError, OverrideService
 
 router = APIRouter(prefix="/workspace/trading/override", tags=["override"])
 

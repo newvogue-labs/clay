@@ -7,12 +7,12 @@ from clay.db.repositories_context import ContextRepository
 from clay.db.repositories_market import MarketRepository
 from clay.db.repositories_ops import OpsRepository
 from clay.events.bus import EventBus
+from clay.preflight.service import PreflightService
 from clay.runtime.manager import RuntimeManager
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.signal_engine.service import SignalEngineService
 from clay.workspace.service import WorkspaceService
-from clay.preflight.service import PreflightService
 
 
 def build_workspace_service() -> WorkspaceService:

@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from clay.api.dependencies import get_db_session
 from clay.db.repositories_context import ContextRepository
 
-
 router = APIRouter(prefix="/context-data", tags=["context-data"])
 
 

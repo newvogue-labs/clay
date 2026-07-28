@@ -25,7 +25,6 @@ from clay.events.bus import EventBus
 from clay.preflight.service import PreflightService
 from clay.reliability.service import ReliabilityService
 from clay.runtime.manager import RuntimeManager
-from tests.support.factories import make_ingestion_settings
 from clay.services.models import ServiceCriticality, ServiceStatus
 from clay.services.registry import ServiceRegistry
 from clay.services.supervisor import ProcessSupervisor
@@ -34,7 +33,7 @@ from clay.session_review.service import SessionReviewService
 from clay.signal_engine.service import SignalEngineService
 from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
-
+from tests.support.factories import make_ingestion_settings
 
 AS_OF = datetime(2026, 6, 25, 12, 0, 0, tzinfo=UTC)
 

@@ -6,8 +6,6 @@ from typing import Any
 import httpx
 
 from clay.ai_control.service import AIControlService
-from tests.support.factories import make_ingestion_settings
-from tests.support.bundles import AlphaBundle
 from clay.alpha.service import AlphaReadinessService
 from clay.api.dependencies import (
     get_alpha_readiness_service,
@@ -49,6 +47,8 @@ from clay.signal_engine.service import SignalEngineService
 from clay.validation_lab.models import ValidationRunCommand
 from clay.validation_lab.service import ValidationLabService
 from clay.workspace.service import WorkspaceService
+from tests.support.bundles import AlphaBundle
+from tests.support.factories import make_ingestion_settings
 
 
 def build_alpha_bundle(tmp_path: Path) -> AlphaBundle:

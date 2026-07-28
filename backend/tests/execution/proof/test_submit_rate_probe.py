@@ -253,9 +253,8 @@ class TestSubmitRateGateIntegration:
     @pytest.mark.asyncio
     async def test_enforce_false_probe_not_called(self) -> None:
         """D5: enforce_session=False → probe never called, ADMIT."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request
-
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner, _make_request
 
         inner = FakeInner()
         sr_probe = MagicMock(return_value=True)
@@ -277,10 +276,9 @@ class TestSubmitRateGateIntegration:
     @pytest.mark.asyncio
     async def test_submit_rate_exceeded_buy_denied(self) -> None:
         """D6: non-reduce BUY denied with SESSION_SUBMIT_RATE_EXCEEDED."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request
-
         from clay.execution.proof.errors import ProofGateDeniedError
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner, _make_request
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)
@@ -304,9 +302,8 @@ class TestSubmitRateGateIntegration:
     @pytest.mark.asyncio
     async def test_submit_rate_exceeded_sell_admits(self) -> None:
         """D6: reduce SELL bypasses submit-rate limit."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request
-
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner, _make_request
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)
@@ -329,10 +326,9 @@ class TestSubmitRateGateIntegration:
     @pytest.mark.asyncio
     async def test_submit_rate_probe_raises_fail_closed(self) -> None:
         """DB error in probe → fail-closed → denied."""
-        from tests.execution.proof.test_gate import FakeInner, _make_request
-
         from clay.execution.proof.errors import ProofGateDeniedError
         from clay.execution.proof.gate import ExecutionProofGate
+        from tests.execution.proof.test_gate import FakeInner, _make_request
 
         inner = FakeInner()
         ks_probe = MagicMock(return_value=False)

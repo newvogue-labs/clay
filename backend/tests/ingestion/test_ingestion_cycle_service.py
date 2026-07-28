@@ -211,8 +211,9 @@ async def test_run_once_emit_false_skips_audit_and_bus(
 
         # E2: freshness records carry source from the data path (latest_bar.source),
         # not from a hardcoded literal.
-        from clay.db.models_market import MarketFreshnessStatus
         from sqlalchemy import select
+
+        from clay.db.models_market import MarketFreshnessStatus
 
         freshness_rows = session.scalars(select(MarketFreshnessStatus)).all()
         for row in freshness_rows:
@@ -498,6 +499,7 @@ async def test_two_exchange_seam_dispatches_clients_correctly(
 
     with sqlite_session_factory() as session:
         from sqlalchemy import select
+
         from clay.db.models_market import MarketBar
 
         rows = session.scalars(select(MarketBar)).all()
@@ -575,6 +577,7 @@ async def test_per_exchange_failure_isolation_continues_healthy_exchange(
 
     with sqlite_session_factory() as session:
         from sqlalchemy import select
+
         from clay.db.models_market import MarketBar, MarketFreshnessStatus
 
         # Healthy bars are persisted

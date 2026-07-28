@@ -138,6 +138,7 @@ def _make_runner() -> "AgentRunner":  # noqa: F821
 def _build_inject_context(base_ctx: str) -> str:
     """Build inject context: retrieve cards + append advisory section."""
     from unittest.mock import MagicMock
+
     from clay.bootstrap import knowledge_service, session_factory
     from clay.scheduler.ai_agent_job import AIAgentCycleJob
 
