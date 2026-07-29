@@ -149,12 +149,12 @@ async def testnet_probe(
             if payload.time_in_force
             else TimeInForce.GTC
         )
-    except ValueError:
+    except ValueError as exc:
         raise HTTPException(
             status_code=422,
             detail=f"Invalid time_in_force: {payload.time_in_force!r}. "
             f"Must be one of {[e.value for e in TimeInForce]}",
-        )
+        ) from exc
 
     req = OrderRequest(
         symbol=payload.symbol,
