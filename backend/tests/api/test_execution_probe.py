@@ -260,6 +260,8 @@ def test_t1_stop_limit_with_stop_price(app, testnet_config: ExecutionConfig) -> 
     )
 
     assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["stop_price"] == "100.00"
     assert spy.last_request is not None
     assert spy.last_request.order_type == OrderType.STOP_LIMIT
     assert spy.last_request.stop_price == Decimal("100.00")
@@ -373,6 +375,28 @@ def test_t6_extra_field_rejected(app, testnet_config: ExecutionConfig) -> None:
     )
 
     assert resp.status_code == 422, f"Expected 422, got {resp.status_code}"
+
+
+def test_t7_no_stop_price_echoes_none(app, testnet_config: ExecutionConfig) -> None:
+    """No stop_price in request -> response body has stop_price=None."""
+    spy = SpyAdapter()
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: spy
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "limit",
+            "price": "99.00",
+        },
+    )
+
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["stop_price"] is None
 
 
 def test_happy_path_returns_200_with_order_fields(
