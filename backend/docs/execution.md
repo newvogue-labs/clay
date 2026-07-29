@@ -210,3 +210,15 @@ Ingests venue trades via `get_my_trades` cursor (`fromId` + `since`) and writes 
 - **Orphan fills** — fills with `venue_order_id` matching no projection → `LEDGER_ORPHAN` (signal-only, not fatal).
 
 **Not doing:** Bybit execId pagination / scheduler / halt / bootstrap wiring.
+
+### Probe payload (stop_price, time_in_force)
+
+The `POST /workspace/trading/execution/testnet-probe` endpoint accepts two optional fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `stop_price` | `str` | `None` | Stop price for STOP_LIMIT orders |
+| `time_in_force` | `str` | `"gtc"` | Time in force: `"gtc"`, `"ioc"`, or `"fok"` |
+
+Default behaviour is byte-identical to the previous contract (GTC, no stop price).
+The `stop_price` field in the response echoes the requested value; it is **not** venue-confirmed truth — `OrderAck` does not carry a stop price field.

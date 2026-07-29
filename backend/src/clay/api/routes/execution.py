@@ -78,6 +78,8 @@ class TestnetProbeRequest(BaseModel):
     order_type: str
     price: str | None = None
     client_order_id: str | None = None
+    stop_price: str | None = None
+    time_in_force: str | None = None
 
 
 # -- Mapper: adapter domain -> pydantic response ----
@@ -140,14 +142,29 @@ async def testnet_probe(
     # build raw domain request (gate handles validate + quantize + admit)
     from decimal import Decimal
 
+    # Parse optional time_in_force
+    try:
+        tif = (
+            TimeInForce(payload.time_in_force)
+            if payload.time_in_force
+            else TimeInForce.GTC
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid time_in_force: {payload.time_in_force!r}. "
+            f"Must be one of {[e.value for e in TimeInForce]}",
+        )
+
     req = OrderRequest(
         symbol=payload.symbol,
         side=OrderSide(payload.side),
         order_type=OrderType(payload.order_type),
         quantity=Decimal(payload.quantity),
-        time_in_force=TimeInForce.GTC,
+        time_in_force=tif,
         client_order_id=cid,
         price=Decimal(payload.price) if payload.price else None,
+        stop_price=Decimal(payload.stop_price) if payload.stop_price else None,
     )
 
     # place via gate (admit → persist → delegate)
@@ -218,4 +235,8 @@ async def testnet_probe(
         },
     )
 
-    return _ack_to_response(ack)
+    resp = _ack_to_response(ack)
+    # Echo of the requested stop_price: OrderAck has no stop_price field, so this is
+    # NOT venue-confirmed truth. Replace with ack-derived value when OrderAck gains it.
+    resp.stop_price = payload.stop_price
+    return resp

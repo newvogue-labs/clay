@@ -20,10 +20,14 @@ from fastapi.testclient import TestClient
 from clay.api.dependencies import get_execution_client, get_execution_config
 from clay.api.main import create_app
 from clay.execution.adapter.binance import BinanceExecutionAdapter
+from clay.execution.adapter.domain import OrderAck, OrderRequest
 from clay.execution.adapter.enums import (
     Environment,
+    OrderState,
+    OrderType,
+    TimeInForce,
 )
-from clay.execution.adapter.errors import AmbiguousExecutionError
+from clay.execution.adapter.errors import AmbiguousExecutionError, InvalidOrderError
 from clay.execution.config import ExecutionConfig
 
 # ── FakeBinanceClient (minimal) ───────────────────────────────────
@@ -178,7 +182,197 @@ def app():
     application.dependency_overrides.clear()
 
 
+# ── Spy adapter for probe payload tests ────────────────────────────
+
+
+class SpyAdapter:
+    """Minimal ExchangeAdapter that captures OrderRequest for assertions.
+
+    Raises InvalidOrderError for STOP_LIMIT with no stop_price.
+    """
+
+    def __init__(self) -> None:
+        self.last_request: OrderRequest | None = None
+        self._closed = False
+
+    def set_sandbox_mode(self, enabled: bool) -> None:
+        pass
+
+    async def load_markets(self) -> dict[str, Any]:
+        return {}
+
+    async def place_order(self, req: OrderRequest) -> OrderAck:
+        self.last_request = req
+        if req.order_type == OrderType.STOP_LIMIT and req.stop_price is None:
+            raise InvalidOrderError("STOP_LIMIT requires stop_price to be set")
+        return OrderAck(
+            client_order_id=req.client_order_id,
+            venue_order_id="exch_test_001",
+            symbol=req.symbol,
+            side=req.side,
+            order_type=req.order_type,
+            state=OrderState.FILLED,
+            quantity=req.quantity,
+            price=req.price,
+            transact_time=1700000000000,
+        )
+
+    async def close(self) -> None:
+        self._closed = True
+
+    async def fetch_order(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {}
+
+    async def fetch_open_orders(
+        self, *args: Any, **kwargs: Any
+    ) -> list[dict[str, Any]]:
+        return []
+
+    async def fetch_balance(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {"total": {}, "free": {}, "used": {}}
+
+    async def cancel_order(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+
 # ── Tests ─────────────────────────────────────────────────────────
+
+
+# ── Probe payload tests (S-PROBE-STOP-1) ───────────────────────────
+
+
+def test_t1_stop_limit_with_stop_price(app, testnet_config: ExecutionConfig) -> None:
+    """STOP_LIMIT + stop_price -> adapter receives expected OrderRequest."""
+    spy = SpyAdapter()
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: spy
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "stop_limit",
+            "price": "99.00",
+            "stop_price": "100.00",
+        },
+    )
+
+    assert resp.status_code == 200, resp.json()
+    assert spy.last_request is not None
+    assert spy.last_request.order_type == OrderType.STOP_LIMIT
+    assert spy.last_request.stop_price == Decimal("100.00")
+    assert spy.last_request.price == Decimal("99.00")
+    assert spy.last_request.time_in_force == TimeInForce.GTC
+
+
+def test_t2_stop_limit_without_stop_price(app, testnet_config: ExecutionConfig) -> None:
+    """STOP_LIMIT without stop_price -> HTTP 422."""
+    spy = SpyAdapter()
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: spy
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "stop_limit",
+            "price": "99.00",
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "stop_price" in resp.json()["detail"]
+
+
+def test_t3_time_in_force_ioc(app, testnet_config: ExecutionConfig) -> None:
+    """time_in_force="ioc" -> adapter receives TimeInForce.IOC."""
+    spy = SpyAdapter()
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: spy
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "limit",
+            "price": "99.00",
+            "time_in_force": "ioc",
+        },
+    )
+
+    assert resp.status_code == 200, resp.json()
+    assert spy.last_request is not None
+    assert spy.last_request.time_in_force == TimeInForce.IOC
+
+
+def test_t4_no_time_in_force_uses_gtc(app, testnet_config: ExecutionConfig) -> None:
+    """No time_in_force -> adapter receives TimeInForce.GTC (backward compat)."""
+    spy = SpyAdapter()
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: spy
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "limit",
+            "price": "99.00",
+        },
+    )
+
+    assert resp.status_code == 200, resp.json()
+    assert spy.last_request is not None
+    assert spy.last_request.time_in_force == TimeInForce.GTC
+
+
+def test_t5_invalid_time_in_force(app, testnet_config: ExecutionConfig) -> None:
+    """Invalid time_in_force="xxx" -> HTTP 422 (not 500)."""
+    spy = SpyAdapter()
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: spy
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "limit",
+            "price": "99.00",
+            "time_in_force": "xxx",
+        },
+    )
+
+    assert resp.status_code == 422, f"Expected 422, got {resp.status_code}"
+    assert resp.status_code != 500
+
+
+def test_t6_extra_field_rejected(app, testnet_config: ExecutionConfig) -> None:
+    """Extra field (bogus) -> HTTP 422 (extra="forbid" preserved)."""
+    spy = SpyAdapter()
+    app.dependency_overrides[get_execution_config] = lambda: testnet_config
+    app.dependency_overrides[get_execution_client] = lambda: spy
+
+    resp = TestClient(app).post(
+        "/workspace/trading/execution/testnet-probe",
+        json={
+            "symbol": "BTCUSDT",
+            "side": "buy",
+            "quantity": "0.001",
+            "order_type": "market",
+            "bogus": "value",
+        },
+    )
+
+    assert resp.status_code == 422, f"Expected 422, got {resp.status_code}"
 
 
 def test_happy_path_returns_200_with_order_fields(
