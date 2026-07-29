@@ -27,6 +27,13 @@ environment <value> not supported by Bybit adapter
 
 **Lead (not fixed in this slice):** The same fail-open latent exists in `ccxt_base` / `binance` — `Environment.PAPER` silently falls through to production client. Flagged for future attention.
 
+Errata (2026-07-29, verified @ fb09f6930aaa82c840bd423fc886bbdcd4ffaeff):
+утверждение выше неверно для текущего кода. _apply_sandbox_routing в
+ccxt_base.py отказывает (ConfigError) на DEMO/PAPER/неизвестном окружении до
+любого сетевого вызова. PRODUCTION в адаптере — no-op, но недостижим, так как
+environment_from_mode не возвращает PRODUCTION; это охраняется
+tests/policy/test_no_production_path.py.
+
 ## Demo credentials
 
 Demo trading credentials are supplied exclusively through environment variables:

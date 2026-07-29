@@ -16,6 +16,8 @@ def environment_from_mode(mode: str) -> Environment | None:
     Returns ``None`` for modes that must NOT build a live adapter
     (``dry_run``, ``live`` without override, unknown).
     """
+    # Боевой режим намеренно недостижим: не включается конфигом.
+    # Held by: tests/policy/test_no_production_path.py::test_no_production_branch
     if mode == "testnet":
         return Environment.TESTNET
     if mode == "demo":

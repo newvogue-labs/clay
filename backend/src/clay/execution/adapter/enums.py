@@ -12,7 +12,9 @@ class Environment(StrEnum):
     PRODUCTION = "production"
     TESTNET = "testnet"
     DEMO = "demo"
-    PAPER = "paper"
+    PAPER = (
+        "paper"  # reserved: unsupported by all adapters, serves as negative test input
+    )
 
 
 class OrderSide(StrEnum):
