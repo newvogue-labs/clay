@@ -132,6 +132,90 @@ def _runtime_env_names(repo: Path) -> set[str]:
     return names
 
 
+_ADR_STATUS_WORDS = {
+    "Proposed",
+    "Accepted",
+    "Rejected",
+    "Superseded",
+    "Deprecated",
+}
+
+_ADR_STATUS_ANY_RE = re.compile(
+    r"\b(" + "|".join(sorted(_ADR_STATUS_WORDS)) + r")\b", re.IGNORECASE
+)
+_ADR_ROW_RE = re.compile(
+    r"^\|\s*(\S+?)\s*\|\s*(.+?)\s*\|\s*(\S+?)\s*\|\s*(\S+?)\s*\|\s*(.+?)\s*\|$"
+)
+
+
+def _status_word_in_line(line: str) -> str | None:
+    match = _ADR_STATUS_ANY_RE.search(line)
+    if match:
+        return match.group(1).capitalize()
+    return None
+
+
+def _extract_adr_status(path: Path) -> str | None:
+    """Извлечь токен статуса ADR из шапки файла.
+
+    Формат строки статуса свободный: ``- **Status:** Accepted (... )``,
+    ``**Status:** …``, ``> Status: …``, ``Статус: …`` или секция
+    ``## Status`` со значением в следующей строке. Токен — первое слово
+    из словаря; всё после него (скобки, тире, пояснение) игнорируется.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    head = lines[:40]
+    for i, line in enumerate(head):
+        if line.strip().lstrip("#").strip() in {"Status", "Статус"}:
+            for nxt in head[i + 1 : i + 5]:
+                word = _status_word_in_line(nxt)
+                if word:
+                    return word
+    for line in head:
+        if re.search(r"(?:Status|Статус)\s*:", line):
+            word = _status_word_in_line(line)
+            if word:
+                return word
+    return None
+
+
+def _parse_adr_index(readme: Path) -> list[dict[str, str]]:
+    """Распарсить таблицу ADR в README.
+
+    Пропускаются явно и осознанно: строки без трёхзначного номера ADR
+    (аддендумы, резервы, «040+») и строки со статусом «—» (reserved-gap,
+    резервы номеров) — у них нет ни номера ADR, ни статуса.
+    """
+    rows: list[dict[str, str]] = []
+    for line in readme.read_text(encoding="utf-8").splitlines():
+        match = _ADR_ROW_RE.match(line)
+        if not match:
+            continue
+        number, title, status, location, link = match.groups()
+        if not re.fullmatch(r"\d{3}", number):
+            continue
+        if status == "—":
+            continue
+        rows.append(
+            {
+                "number": number,
+                "title": title,
+                "status": status,
+                "location": location,
+                "link": link,
+            }
+        )
+    return rows
+
+
+def _adr_file_for_row(row: dict[str, str], repo: Path) -> Path:
+    base = re.search(r"([\w-]+\.md)\)", row["link"])
+    assert base, f"не удалось извлечь имя файла из ссылки: {row['link']}"
+    if row["location"] == "mc-archive":
+        return repo / "docs" / "mission-control" / "adrs" / base.group(1)
+    return repo / "docs" / "adr" / base.group(1)
+
+
 class TestDocHygiene:
     """Проверки документальной гигиены (D-53, D-55)."""
 
@@ -284,4 +368,114 @@ class TestDocHygiene:
         assert not violations, (
             "Путь tests/policy/ без префикса backend/ "
             "(правильная форма — backend/tests/policy/):\n" + "\n".join(violations)
+        )
+
+    def test_g8_adr_statuses_consistent(self) -> None:
+        """G8: статусы ADR в индексе совпадают с шапками файлов.
+
+        (а) статус в таблице == токену из файла (регистронезависимо), значение
+        обязано быть из словаря; (б) если ADR Accepted и в его тексте «заменён
+        на … (ADR-NNN)», целевой ADR-NNN не может быть Proposed; (в) строки
+        таблицы без числового номера и со статусом «—» пропускаются явно в
+        ``_parse_adr_index``, не побочным эффектом.
+        """
+        violations: list[str] = []
+        rows = _parse_adr_index(_ADR_DIR / "README.md")
+        if not rows:
+            violations.append("README.md: в таблице ADR не найдено ни одной строки")
+        by_number: dict[str, dict[str, str]] = {}
+        for row in rows:
+            number = row["number"]
+            by_number[number] = row
+            path = _adr_file_for_row(row, _REPO)
+            if not path.exists():
+                violations.append(
+                    f"{number}: файл не существует {path.relative_to(_REPO)}"
+                )
+                continue
+            file_status = _extract_adr_status(path)
+            if file_status is None:
+                violations.append(
+                    f"{number}: в файле {path.relative_to(_REPO)} не найдена "
+                    "строка статуса"
+                )
+                continue
+            if row["status"].lower() != file_status.lower():
+                violations.append(
+                    f"{number}: индекс {row['status']!r} != файл {file_status!r} "
+                    f"({path.relative_to(_REPO)})"
+                )
+        for row in rows:
+            if row["status"].lower() != "accepted":
+                continue
+            path = _adr_file_for_row(row, _REPO)
+            if not path.exists():
+                continue
+            text = path.read_text(encoding="utf-8")
+            for match in re.finditer(
+                r"(?:заменён|заменены)\s+(?:на|→|->).*?ADR-(\d{3})",
+                text,
+                re.IGNORECASE,
+            ):
+                target = by_number.get(match.group(1))
+                if target is not None and target["status"].lower() == "proposed":
+                    violations.append(
+                        f"{row['number']} (Accepted) объявляет замену на "
+                        f"ADR-{target['number']}, но та всё ещё Proposed"
+                    )
+        assert not violations, "Несогласованность статусов ADR:\n" + "\n".join(
+            violations
+        )
+
+    def test_g8_status_dictionary_defined_in_readme(self) -> None:
+        """G8: словарь статусов в README (## Правило) == хардкод в тесте."""
+        readme = (_ADR_DIR / "README.md").read_text(encoding="utf-8")
+        rule = readme.split("## Полная таблица", 1)[0]
+        listed = {
+            word
+            for word in re.findall(r"`([A-Za-z]+)`", rule)
+            if word[0].isupper() and any(ch.islower() for ch in word[1:])
+        }
+        assert listed == _ADR_STATUS_WORDS, (
+            "Словарь статусов в README (## Правило) расходится с хардкодом в "
+            f"тесте: в README {sorted(listed)} vs код {sorted(_ADR_STATUS_WORDS)}"
+        )
+
+    def test_g9_doc_relative_paths_exist(self) -> None:
+        """G9: все относительные .md-пути в документации существуют.
+
+        Собираются plain-пути вида ``docs/….md``/``backend/….md`` и
+        markdown-ссылки ``[...](….md)`` из всех .md в docs/ и backend/docs/;
+        каждый резолвится относительно файла или корня репо. Пустой вход
+        (ноль ссылок) — падение, «нет данных» не читается как «нет нарушений».
+        """
+        md_link_re = re.compile(r"\]\(([^)]+?\.md)(?:#[^)]*)?\)")
+        plain_re = re.compile(r"(?<![\w/-])((?:docs|backend)/[\w./-]+\.md)(?![\w])")
+        refs: list[tuple[Path, int, str]] = []
+        roots = [_REPO / "docs", _REPO / "backend" / "docs"]
+        for root in roots:
+            for path in sorted(root.rglob("*.md")):
+                for i, line in enumerate(
+                    path.read_text(encoding="utf-8", errors="replace").splitlines(), 1
+                ):
+                    for match in md_link_re.finditer(line):
+                        ref = match.group(1)
+                        if ref.startswith(("http", "/", "#")):
+                            continue
+                        refs.append((path, i, ref))
+                    for match in plain_re.finditer(line):
+                        refs.append((path, i, match.group(1)))
+        refs = sorted(set(refs))
+        violations: list[str] = []
+        if not refs:
+            violations.append("не найдено ни одной .md-ссылки — пустой вход")
+        for path, i, ref in refs:
+            candidates = [
+                (path.parent / ref).resolve(),
+                (_REPO / ref).resolve(),
+            ]
+            if not any(candidate.exists() for candidate in candidates):
+                violations.append(f"{path.relative_to(_REPO)}:{i} → {ref}")
+        assert not violations, (
+            "Битые относительные .md-пути в документации:\n" + "\n".join(violations)
         )

@@ -6,7 +6,8 @@ tags:
 
 # ADR-032: Exchange Execution Adapter (Multi-Venue)
 
-- **Status:** Proposed
+- **Status:** Accepted
+- **Accepted:** 2026-07-31 — адаптеры `BinanceExecutionAdapter`/`BybitExecutionAdapter` смержены и живут в проде (testnet/demo), ADR-025 объявил ADR-032 своей заменой (errata 2026-07-13).
 - **Date:** 2026-07-12
 - **Supersedes:** —
 - **Replaces:** —
@@ -14,6 +15,8 @@ tags:
 - **Donor-ref:** ccxt, vn.py, Hummingbot, Nautilus, Barter, freqtrade (pattern-only), daily_stock_analysis
 
 ## Context
+
+> **Поправка (2026-07-31, со статусом Accepted).** Абзац ниже описывает состояние на 2026-07-12. С тех пор `ExecutionClient`/`TestnetExecutionClient`/`LiveExecutionClient` и `build_execution_client` фабрика удалены (errata ADR-025, 2026-07-13); их заменили `ExchangeAdapter` port + `BinanceExecutionAdapter`/`BybitExecutionAdapter`. Описание legacy-адаптера ниже — историческая справка о мотивации, а не текущее состояние.
 
 ADR-025 ввёл `ExecutionClient` Protocol и первый конкретный адаптер `TestnetExecutionClient`, который **жёстко зашит на одну биржу**: `ccxt.binance(...)`, `set_sandbox_mode(True)`, spot-URL в константе класса. Это корректно для testnet-bring-up (S-TESTNET-1, закрыт @ `d5bb2a9`), но не масштабируется:
 

@@ -6,7 +6,10 @@ When any test in this file fails, real-money trading is reachable via config.
 
 from __future__ import annotations
 
+import ast
 import inspect
+import pathlib
+import re
 
 from clay.execution.config import ExecutionConfig, environment_from_mode
 
@@ -23,11 +26,40 @@ class TestEnvironmentFromModeReturnsNone:
 
 
 class TestNoProductionBranch:
-    def test_source_has_no_production_branch(self) -> None:
+    def test_returns_only_testnet_demo_or_none(self) -> None:
+        """Функция может возвращать только TESTNET, DEMO или None.
+
+        Белый список: каждый Return в теле функции обязан быть None или
+        членом ``Environment`` из {TESTNET, DEMO}. Комментарии и докстринги
+        в AST не попадают. Это ловит и ``Environment.PRODUCTION``, и любой
+        будущий боевой член enum, названный иначе.
+        """
         source = inspect.getsource(environment_from_mode)
-        assert "PRODUCTION" not in source, (
-            "environment_from_mode must not contain PRODUCTION — "
-            "adding it would make real-money trading reachable via config"
+        tree = ast.parse(source)
+        func = next(node for node in tree.body if isinstance(node, ast.FunctionDef))
+        allowed = {"TESTNET", "DEMO"}
+        violations: list[str] = []
+        for node in ast.walk(func):
+            if not isinstance(node, ast.Return):
+                continue
+            if node.value is None or (
+                isinstance(node.value, ast.Constant) and node.value.value is None
+            ):
+                continue
+            if (
+                isinstance(node.value, ast.Attribute)
+                and isinstance(node.value.value, ast.Name)
+                and node.value.value.id == "Environment"
+                and node.value.attr in allowed
+            ):
+                continue
+            violations.append(
+                f"return {ast.unparse(node.value)} — разрешены только "
+                "Environment.TESTNET, Environment.DEMO, None"
+            )
+        assert not violations, (
+            "environment_from_mode нарушает белый список возвратов:\n"
+            + "\n".join(violations)
         )
 
 
@@ -68,9 +100,23 @@ class TestBuildExecutionClientReturnsNone:
 
 
 class TestCommentLock:
-    def test_comment_lock_present(self) -> None:
+    def test_comment_lock_references_existing_test(self) -> None:
+        """Комментарий-замок обязан ссылаться на реально существующий тест.
+
+        Из комментария вытаскивается ``backend/tests/policy/<file>.py::<test>``
+        и проверяется, что функция с таким именем реально определена в этом
+        файле. Расхождение между замком и тестом — нарушение.
+        """
         source = inspect.getsource(environment_from_mode)
-        assert "test_no_production_path" in source, (
-            "environment_from_mode must contain the comment-lock referencing "
-            "test_no_production_path — without it the guard can be silently removed"
+        match = re.search(r"backend/tests/policy/([\w/]+\.py)::([a-z0-9_]+)", source)
+        assert match, (
+            "environment_from_mode должен содержать комментарий-замок вида "
+            "backend/tests/policy/test_no_production_path.py::<имя_теста>"
+        )
+        test_file = pathlib.Path(__file__).resolve().parent / match.group(1)
+        test_name = match.group(2)
+        content = test_file.read_text(encoding="utf-8")
+        assert re.search(rf"def {test_name}\(", content), (
+            f"комментарий-замок ссылается на {match.group(1)}::{test_name}, "
+            "но такого теста в этом файле нет"
         )
