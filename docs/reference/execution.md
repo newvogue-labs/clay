@@ -73,11 +73,6 @@
 
 ### Schema (migration 0026)
 
-> Tables in the `ops` schema:
-> - `order_events` — append-only event journal (one row per state change)
-> - `order_current_state` — current-state snapshot per order (optimistic-CAS via `version`)
-> - `fills` — trade-level fill records
-
 ::: clay.db.models_orders
 
 ### FSM States

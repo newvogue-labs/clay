@@ -176,10 +176,25 @@ class TestDocHygiene:
         )
 
     def test_g3_reference_is_mkdocstrings_only(self) -> None:
-        """G3: docs/reference/*.md — только заголовки, :::, опции и баннеры."""
+        """G3: в теле docs/reference/*.md (от первой :::) проза запрещена.
+
+        Файл делится границей — первая строка, начинающаяся с ``:::``.
+        Зона шапки (всё до неё) — место вводного баннера, разрешено что
+        угодно. Зона тела (от первой ``:::`` и до конца): только пустые
+        строки, заголовки ``#``, строки ``:::`` и строки с ведущим
+        пробелом/табом (опции директив). Любая иная непустая строка —
+        включая начинающиеся с ``>`` и с ``-`` — нарушение.
+        """
         violations: list[str] = []
         for path in sorted(_REFERENCE_DIR.glob("*.md")):
-            for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            boundary = next(
+                (i for i, line in enumerate(lines) if line.strip().startswith(":::")),
+                len(lines),
+            )
+            for i, line in enumerate(lines, 1):
+                if i <= boundary:
+                    continue
                 stripped = line.strip()
                 if not stripped:
                     continue
@@ -187,12 +202,13 @@ class TestDocHygiene:
                     continue
                 if stripped.startswith(":::"):
                     continue
-                if stripped.startswith(">"):
-                    continue
                 if line[:1] in {" ", "\t"}:
                     continue
                 violations.append(f"{path.relative_to(_REPO)}:{i}")
-        assert not violations, "Прозa в generated-справке:\n" + "\n".join(violations)
+        assert not violations, (
+            "Проза в теле generated-справки — перенесите факт в "
+            "backend/docs/execution.md:\n" + "\n".join(violations)
+        )
 
     def test_g4_test_names_exist(self) -> None:
         """G4: каждый test_*-токен канона существует как def в backend/tests."""

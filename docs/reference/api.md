@@ -1,9 +1,9 @@
 # API
 
-> Файл генерируется из докстрингов кода; HTTP-контракт (пути, методы,
-> request/response-схемы, статусы) — источник истины OpenAPI: живой Swagger
-> `/docs` и `/openapi.json`. Ниже — Python-поверхность приложения: фабрика,
-> lifespan и dependency injection провайдеры.
+Clay API — локальный control plane на FastAPI. HTTP-контракт (пути, методы,
+request/response-схемы, статусы) — источник истины OpenAPI: живой Swagger
+`/docs` и `/openapi.json`. Ниже — Python-поверхность приложения: фабрика,
+lifespan и dependency injection провайдеры.
 
 ## Application Factory
 
