@@ -413,7 +413,8 @@ class TestDocHygiene:
                 continue
             text = path.read_text(encoding="utf-8")
             for match in re.finditer(
-                r"(?:заменён|заменены)\s+(?:на|→|->).*?ADR-(\d{3})",
+                r"(?:superseded\s+by|replaced\s+by|заменён(?:\s+на)?"
+                r"|заменены(?:\s+на)?|замена\s+на).*?ADR-(\d{3})",
                 text,
                 re.IGNORECASE,
             ):
@@ -428,14 +429,25 @@ class TestDocHygiene:
         )
 
     def test_g8_status_dictionary_defined_in_readme(self) -> None:
-        """G8: словарь статусов в README (## Правило) == хардкод в тесте."""
+        """G8: словарь статусов в README (## Правило) == хардкод в тесте.
+
+        Ищется строка, начинающаяся с ``**Статусы ADR (канонический словарь):``,
+        и словарь собирается ТОЛЬКО из неё — остальная преамбула на результат
+        не влияет (иначе случайный CapitalCase-токен в бэктиках ложно ронял бы
+        тест).
+        """
         readme = (_ADR_DIR / "README.md").read_text(encoding="utf-8")
         rule = readme.split("## Полная таблица", 1)[0]
-        listed = {
-            word
-            for word in re.findall(r"`([A-Za-z]+)`", rule)
-            if word[0].isupper() and any(ch.islower() for ch in word[1:])
-        }
+        dictionary_line = next(
+            (
+                line
+                for line in rule.splitlines()
+                if line.strip().startswith("**Статусы ADR (канонический словарь):")
+            ),
+            "",
+        )
+        assert dictionary_line, "В README (## Правило) нет строки словаря статусов"
+        listed = set(re.findall(r"`([A-Za-z]+)`", dictionary_line))
         assert listed == _ADR_STATUS_WORDS, (
             "Словарь статусов в README (## Правило) расходится с хардкодом в "
             f"тесте: в README {sorted(listed)} vs код {sorted(_ADR_STATUS_WORDS)}"
@@ -444,14 +456,16 @@ class TestDocHygiene:
     def test_g9_doc_relative_paths_exist(self) -> None:
         """G9: все относительные .md-пути в документации существуют.
 
-        Собираются plain-пути вида ``docs/….md``/``backend/….md`` и
-        markdown-ссылки ``[...](….md)`` из всех .md в docs/ и backend/docs/;
-        каждый резолвится относительно файла или корня репо. Пустой вход
-        (ноль ссылок) — падение, «нет данных» не читается как «нет нарушений».
+        Два раздельных вида ссылок с раздельным резолвом:
+        ``kind="md"`` — markdown-ссылки ``[...](….md)``, резолвятся ТОЛЬКО
+        от ``path.parent``; ``kind="plain"`` — пути вида
+        ``docs/….md``/``backend/….md`` в тексте, резолвятся ТОЛЬКО от корня
+        репо. Пустой вход (ноль ссылок) — падение, «нет данных» не читается
+        как «нет нарушений».
         """
         md_link_re = re.compile(r"\]\(([^)]+?\.md)(?:#[^)]*)?\)")
         plain_re = re.compile(r"(?<![\w/-])((?:docs|backend)/[\w./-]+\.md)(?![\w])")
-        refs: list[tuple[Path, int, str]] = []
+        refs: list[tuple[Path, int, str, str]] = []
         roots = [_REPO / "docs", _REPO / "backend" / "docs"]
         for root in roots:
             for path in sorted(root.rglob("*.md")):
@@ -462,20 +476,24 @@ class TestDocHygiene:
                         ref = match.group(1)
                         if ref.startswith(("http", "/", "#")):
                             continue
-                        refs.append((path, i, ref))
+                        refs.append((path, i, ref, "md"))
                     for match in plain_re.finditer(line):
-                        refs.append((path, i, match.group(1)))
+                        refs.append((path, i, match.group(1), "plain"))
         refs = sorted(set(refs))
         violations: list[str] = []
         if not refs:
             violations.append("не найдено ни одной .md-ссылки — пустой вход")
-        for path, i, ref in refs:
-            candidates = [
-                (path.parent / ref).resolve(),
-                (_REPO / ref).resolve(),
-            ]
-            if not any(candidate.exists() for candidate in candidates):
-                violations.append(f"{path.relative_to(_REPO)}:{i} → {ref}")
+        for path, i, ref, kind in refs:
+            target = (
+                (path.parent / ref).resolve()
+                if kind == "md"
+                else (_REPO / ref).resolve()
+            )
+            if not target.exists():
+                violations.append(
+                    f"{path.relative_to(_REPO)}:{i} → [{kind}] {ref} "
+                    f"(ожидался {target.relative_to(_REPO)})"
+                )
         assert not violations, (
             "Битые относительные .md-пути в документации:\n" + "\n".join(violations)
         )
