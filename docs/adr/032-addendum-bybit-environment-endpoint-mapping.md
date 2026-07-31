@@ -2,7 +2,7 @@
 
 > Date: 2026-07-24
 > Status: Accepted
-> Related: ADR-032 (adapter-level enumerations), F-D12-10 smoke
+> Related: ADR-032: Exchange Execution Adapter (Multi-Venue), F-D12-10 smoke
 
 ## Context
 
@@ -32,7 +32,7 @@ Errata (2026-07-29, verified @ fb09f6930aaa82c840bd423fc886bbdcd4ffaeff):
 ccxt_base.py отказывает (ConfigError) на DEMO/PAPER/неизвестном окружении до
 любого сетевого вызова. PRODUCTION в адаптере — no-op, но недостижим, так как
 environment_from_mode не возвращает PRODUCTION; это охраняется
-tests/policy/test_no_production_path.py.
+backend/tests/policy/test_no_production_path.py.
 
 ## Demo credentials
 

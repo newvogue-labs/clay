@@ -49,10 +49,10 @@ Ruff-хуки в `.pre-commit-config.yaml` ограничены `types: [python]
 
 Политика проверяется автоматически:
 
-- **Python-реестр** (pyproject.toml + uv.lock): `tests/policy/test_dependency_policy.py` — падает при specifier-е без верхней границы (класс C) или при ослаблении пиннинга класса A. Запускается в CI через `uv run pytest`.
-- **Согласованность тулчейна** (Node/pnpm версии, frozen-режимы): `tests/policy/test_toolchain_consistency.py` — сверяет три точки (ci.yml, .nvmrc, package.json engines), наличие frozen-lockfile и отсутствие packageManager. Запускается в CI через `uv run pytest`.
+- **Python-реестр** (pyproject.toml + uv.lock): `backend/tests/policy/test_dependency_policy.py` — падает при specifier-е без верхней границы (класс C) или при ослаблении пиннинга класса A. Запускается в CI через `uv run pytest`.
+- **Согласованность тулчейна** (Node/pnpm версии, frozen-режимы): `backend/tests/policy/test_toolchain_consistency.py` — сверяет три точки (ci.yml, .nvmrc, package.json engines), наличие frozen-lockfile и отсутствие packageManager. Запускается в CI через `uv run pytest`.
 - **Типовой контракт границы ccxt** задан собственным протоколом (`ccxt_client.py`), `Any` на границе не допускается; проверяется pyright.
-- **Языковая гигиена дерева** (D-33): `tests/policy/test_source_hygiene.py` — сканирует backend/src, backend/tests, backend/scripts, docs, frontend/src, .github на CJK-символы. Падает при любом попадании с перечислением путь:строка. Allowlist/исключений нет.
+- **Языковая гигиена дерева** (D-33): `backend/tests/policy/test_source_hygiene.py` — сканирует backend/src, backend/tests, backend/scripts, docs, frontend/src, .github на CJK-символы. Падает при любом попадании с перечислением путь:строка. Allowlist/исключений нет.
 
 **Не проверяется автоматически:** мажорные теги GitHub Actions (@v4/@v6) и версия Python в workflow — сверяются вручную при касании CI.
 
@@ -72,7 +72,7 @@ Ruff-хуки в `.pre-commit-config.yaml` ограничены `types: [python]
 
 ## Errata 2026-07-28 (D-33)
 
-- **Языковая гигиена дерева теперь enforced тестом-охранником.** `tests/policy/test_source_hygiene.py` сканирует радиус: backend/src, backend/tests, backend/scripts, docs, frontend/src, .github. Регулярное выражение CJK-класса — константа модуля (единый источник истины). Allowlist/исключений нет.
+- **Языковая гигиена дерева теперь enforced тестом-охранником.** `backend/tests/policy/test_source_hygiene.py` сканирует радиус: backend/src, backend/tests, backend/scripts, docs, frontend/src, .github. Регулярное выражение CJK-класса — константа модуля (единый источник истины). Allowlist/исключений нет.
 
 ## Errata 2026-07-28 (D-34)
 

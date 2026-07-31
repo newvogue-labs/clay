@@ -1,5 +1,11 @@
 # Execution Layer
 
+> **Канон слоя исполнения.** Этот файл — единственный источник правды по
+> поведению execution-слоя. При расхождении с любым другим документом прав
+> он. `docs/reference/execution.md` генерируется из докстрингов кода и
+> утверждений о поведении не содержит; `docs/mission-control/execution-backlog-v1.md` —
+> замороженный планировочный слой, историческая справка, не источник правды.
+
 ## Venue Selection (D-venue)
 
 The execution layer supports multiple exchanges via `CLAY_EXECUTION_VENUE`:

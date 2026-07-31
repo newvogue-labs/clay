@@ -1,5 +1,7 @@
 # Execution
 
+> Файл генерируется из докстрингов кода; канон поведения — `backend/docs/execution.md`.
+
 ## Adapter Protocol
 
 ::: clay.execution.adapter.port
@@ -69,17 +71,12 @@
 
 ## Order Ledger
 
-Order Ledger — append-only event journal + current-state projection for
-order lifecycle tracking.  **Disabled by default** (`CLAY_ORDER_LEDGER_ENABLED=0`);
-not yet wired to any production code path.
-
 ### Schema (migration 0026)
 
-Tables in the `ops` schema:
-
-- `order_events` — append-only event journal (one row per state change)
-- `order_current_state` — current-state snapshot per order (optimistic-CAS via `version`)
-- `fills` — trade-level fill records
+> Tables in the `ops` schema:
+> - `order_events` — append-only event journal (one row per state change)
+> - `order_current_state` — current-state snapshot per order (optimistic-CAS via `version`)
+> - `fills` — trade-level fill records
 
 ::: clay.db.models_orders
 

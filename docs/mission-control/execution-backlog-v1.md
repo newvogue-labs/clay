@@ -1,5 +1,9 @@
 # CLAY Mission Control v1 — Execution Backlog
 
+> Замороженный планировочный документ, историческая справка, не источник
+> правды по текущему поведению. Канон поведения execution-слоя —
+> `backend/docs/execution.md`.
+
 Дата: 2026-03-30
 Основа: `/home/emma/Documents/Obsidian/CachyOS/Trading/CLAY_Mission_Control/blueprint-v1.md`
 Статус: decomposition for implementation
