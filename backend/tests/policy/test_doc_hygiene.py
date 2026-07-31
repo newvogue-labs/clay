@@ -183,14 +183,15 @@ class TestDocHygiene:
         угодно. Зона тела (от первой ``:::`` и до конца): только пустые
         строки, заголовки ``#``, строки ``:::`` и строки с ведущим
         пробелом/табом (опции директив). Любая иная непустая строка —
-        включая начинающиеся с ``>`` и с ``-`` — нарушение.
+        включая начинающиеся с ``>`` и с ``-`` — нарушение. Если в файле
+        нет ни одной директивы ``:::``, весь файл считается зоной тела.
         """
         violations: list[str] = []
         for path in sorted(_REFERENCE_DIR.glob("*.md")):
             lines = path.read_text(encoding="utf-8").splitlines()
             boundary = next(
                 (i for i, line in enumerate(lines) if line.strip().startswith(":::")),
-                len(lines),
+                0,
             )
             for i, line in enumerate(lines, 1):
                 if i <= boundary:
