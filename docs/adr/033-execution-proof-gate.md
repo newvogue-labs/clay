@@ -7,7 +7,8 @@ tags:
 
 # ADR-033: Execution Proof-Gate
 
-- **Status:** Implemented (per-order + portfolio invariants landed; session class CLOSED)
+- **Status:** Accepted
+- **Implemented:** 2026-07-14 — per-order + portfolio invariants landed; session class CLOSED
 - **Date:** 2026-07-14
 - **Depends on:** ADR-032 (Exchange Execution Adapter, Multi-Venue), ADR-025 (Execution Modes & Override Gate)
 - **References:** ADR-021 / ADR-029 (Session & Exposure Risk-Limits), ADR-030 & M278 (knowledge ≠ execution red line), S-LIVE-2/3/4 (notional guard, killswitch, arming)

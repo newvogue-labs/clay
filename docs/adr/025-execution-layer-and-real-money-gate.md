@@ -62,6 +62,9 @@ class ExecutionClient(Protocol):
 
 **Примечание:** Protocol — contract, не ccxt wrapper. Адаптер решает, как маппить поля на биржевой API.
 
+> ⚠️ **Superseded by ADR-032** (см. `## Errata 2026-07-13 (S-ADAPT-2C)`). Описанное ниже — решение на 2026-06-26; действующая реализация другая. Канон текущего поведения — `backend/docs/execution.md`.
+>
+
 ### (b) CLAY_EXECUTION_MODE
 
 Три режима, env var + immutable runtime config:
@@ -73,6 +76,9 @@ class ExecutionClient(Protocol):
 | `live` | Реальные ордера на prod | `LiveExecutionClient` | Prod-ключи | **High** |
 
 **Default:** `dry_run`. **Нет авто-переключения** между режимами — только operator-initiated.
+
+> ⚠️ **Superseded by ADR-032** (см. `## Errata 2026-07-13 (S-ADAPT-2C)`). Описанное ниже — решение на 2026-06-26; действующая реализация другая. Канон текущего поведения — `backend/docs/execution.md`.
+>
 
 ### (c) RV8 — Hard Real-Money Gate
 
@@ -109,6 +115,9 @@ class ExecutionConfig:
 - `can_open_binance = True` только если `execution_mode != "live"` **или** `override_state == "confirmed"`.
 - При `execution_mode = "live"` без override → `can_open_binance = False`, `blocking_reason = "Live execution requires Q5 override"`.
 
+> ⚠️ **Superseded by ADR-032** (см. `## Errata 2026-07-13 (S-ADAPT-2C)`). Описанное ниже — решение на 2026-06-26; действующая реализация другая. Канон текущего поведения — `backend/docs/execution.md`.
+>
+
 ### (d) ExecutionConfig (отдельный от ExchangeConfig)
 
 `ExchangeConfig` — market data ingestion (url, symbols, timeframes).  
@@ -127,6 +136,9 @@ class ExecutionConfig:
 ```
 
 **Secrets path:** только env (`CLAY_BINANCE_API_KEY`, `CLAY_BINANCE_API_SECRET`) или secret manager. Никогда — в репо, TOML, или логах.
+
+> ⚠️ **Superseded by ADR-032** (см. `## Errata 2026-07-13 (S-ADAPT-2C)`). Описанное ниже — решение на 2026-06-26; действующая реализация другая. Канон текущего поведения — `backend/docs/execution.md`.
+>
 
 ### (e) Адаптер: TestnetExecutionClient (первый concrete)
 
@@ -186,6 +198,9 @@ ProvenanceSource = Literal[
 6. **ADR-008 unchanged. Асимметрия осознанная:** Market data ingestion (`ExchangeConfig`, `MarketDataClient`, httpx-клиенты) — untouched. Execution-слой получает `ccxt` как новую зависимость: лёгкость на read-пути (`httpx`), надёжность на safety-critical order-пути (`ccxt` — testnet/prod endpoints, HMAC, rate limits, error taxonomy).
 
 ## Config
+
+> ⚠️ **Superseded by ADR-032** (см. `## Errata 2026-07-13 (S-ADAPT-2C)`). Описанное ниже — решение на 2026-06-26; действующая реализация другая. Канон текущего поведения — `backend/docs/execution.md`.
+>
 
 Новые env vars:
 
@@ -268,7 +283,7 @@ dependencies = [
 
 ## Ссылки
 
-- ADR-008: `docs/adr/008-exchange-abstraction-and-multi-exchange-portability.md`
+- ADR-008: `docs/mission-control/adrs/adr-008-exchange-abstraction-and-multi-exchange-portability.md`
 - ADR-024: `docs/adr/024-deterministic-replay-and-trade-provenance.md`
 - S-EGRESS-RECON-1: `docs/mission-control/egress-recon/S-EGRESS-RECON-1.md`
 - `backend/src/clay/demo_trading/service.py` — advisory-only service
