@@ -1,5 +1,11 @@
 # Execution Layer
 
+> **Канон слоя исполнения.** Этот файл — единственный источник правды по
+> поведению execution-слоя. При расхождении с любым другим документом прав
+> он. `docs/reference/execution.md` генерируется из докстрингов кода и
+> утверждений о поведении не содержит; `docs/mission-control/execution-backlog-v1.md` —
+> замороженный планировочный слой, историческая справка, не источник правды.
+
 ## Venue Selection (D-venue)
 
 The execution layer supports multiple exchanges via `CLAY_EXECUTION_VENUE`:
@@ -88,6 +94,7 @@ The order ledger records trade-level fills with dedup and automatic recalculatio
 
 ### Overview
 
+- **Schema (migration 0026)** — три таблицы в схеме `ops`: `order_events` (append-only event journal, одна строка на изменение состояния), `order_current_state` (current-state snapshot per order, optimistic-CAS via `version`), `fills` (trade-level fill records).
 - **Dormant by default** — `order_ledger_enabled` is `False`; no production call-sites exist yet.
 - **Dedup key** — `UNIQUE(venue, trade_id)` on `OrderFillRecord`. Duplicate trade IDs are silently skipped.
 - **Filled recalculation** — after each batch insert, `filled_qty` is recomputed as the sum of all `quantity` values (Decimal in Python, not server-side SUM on Text).

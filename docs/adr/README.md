@@ -46,6 +46,7 @@
 | 030 | Advisory #knowledge → chief-agent (advisory-only) | Accepted | docs/adr | [`030-advisory-knowledge-chief-agent.md`](030-advisory-knowledge-chief-agent.md) |
 | 031 | Notion-mirror publisher — односторонний sync vault → Notion | Accepted | docs/adr | [`031-notion-mirror-publisher.md`](031-notion-mirror-publisher.md) |
 | 032 | Exchange Execution Adapter (Multi-Venue) | Proposed | docs/adr | [`032-exchange-execution-adapter-multi-venue.md`](032-exchange-execution-adapter-multi-venue.md) |
+| — | Addendum 032: Bybit Environment → Endpoint Mapping | Accepted | docs/adr | [`032-addendum-bybit-environment-endpoint-mapping.md`](032-addendum-bybit-environment-endpoint-mapping.md) |
 | 033 | Execution Proof-Gate | Proposed | docs/adr | [`033-execution-proof-gate.md`](033-execution-proof-gate.md) |
 | 034 | Unknown Resolver + Durable Halt Latch | accepted | docs/adr | [`034-unknown-resolver-halt-latch.md`](034-unknown-resolver-halt-latch.md) |
 | 035 | Advisory DB-Size Monitor (D-13 #1) | accepted | docs/adr | [`035-db-size-monitor.md`](035-db-size-monitor.md) |
@@ -63,6 +64,7 @@
 | 018 | pool-health | переименован из ADR-015 (коллизия разрешена 2026-06-24; mc ADR-015 = «Degraded-mode AI-слоя» сохраняет 015) |
 | 019 | резерв | freqtrade-донор |
 | 022 | резерв | AgentQuant-донор |
+| 032 | один номер, один ADR + один аддендум | аддендум не занимает собственный номер, файл с префиксом 032-addendum- |
 | — | ccxt без нового номера | реализация ADR-008 (exchange abstraction) |
 
 ## Разрешение коллизии 015
