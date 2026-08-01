@@ -60,6 +60,13 @@ class FakeBinanceClient:
     def set_sandbox_mode(self, enabled: bool) -> None:
         self._sandbox = enabled
 
+    def market(self, symbol: str) -> dict[str, Any]:
+        """Sync ccxt-like resolve: accepts unified symbol and market id."""
+        for m in self._markets.values():
+            if m.get("id") == symbol or m.get("symbol") == symbol:
+                return m
+        raise ccxt.BadSymbol(f"binance does not have market symbol {symbol}")
+
     async def load_markets(
         self, reload: bool = False, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:

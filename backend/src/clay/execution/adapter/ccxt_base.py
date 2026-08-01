@@ -419,11 +419,11 @@ class CcxtExchangeAdapter:
             else (requested.side if requested is not None else OrderSide.BUY)
         )
 
-        venue_type = response.get("type")
-        order_type = (
-            OrderType(_str_or_empty(venue_type))
-            if venue_type
-            else (requested.order_type if requested is not None else OrderType.LIMIT)
+        order_type = _order_type_from_response(
+            response,
+            fallback=(
+                requested.order_type if requested is not None else OrderType.LIMIT
+            ),
         )
 
         venue_symbol = response.get("symbol")
@@ -442,7 +442,7 @@ class CcxtExchangeAdapter:
             state=state,
             quantity=quantity,
             price=price,
-            transact_time=int(response.get("timestamp") or 0),
+            transact_time=_venue_timestamp_ms(response),
             fills=tuple(fills),
         )
 
@@ -461,12 +461,12 @@ class CcxtExchangeAdapter:
             venue_order_id=_str_or_empty(response.get("id")),
             symbol=_str_or_empty(response.get("symbol")),
             side=OrderSide(str(response.get("side") or "buy")),
-            order_type=OrderType(str(response.get("type") or "limit")),
+            order_type=_order_type_from_response(response, fallback=OrderType.LIMIT),
             state=state,
             quantity=_dec(response.get("amount")),
             executed_qty=filled_qty,
             price=price,
-            transact_time=int(response.get("timestamp") or 0),
+            transact_time=_venue_timestamp_ms(response),
             fills=tuple(fills),
         )
 
@@ -486,7 +486,7 @@ class CcxtExchangeAdapter:
                 price=_dec(fill.get("price")),
                 commission=_dec(fill.get("commission")),
                 commission_asset=_str_or_empty(fill.get("commissionAsset")),
-                transact_time=int(fill.get("timestamp") or 0),
+                transact_time=max(0, int(fill.get("timestamp") or 0)),
             )
             for fill in trades
         ]
@@ -510,6 +510,40 @@ def _str_or_empty(value: object) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _venue_timestamp_ms(response: dict[str, Any]) -> int:
+    """Extract a sane ms-epoch from a ccxt unified order dict (D-44).
+
+    Binance spot encodes ``workingTime=-1`` for an un-triggered stop order;
+    ccxt's unified ``timestamp`` then becomes ``-1`` even though the raw
+    ``info.transactTime`` is valid.  Prefer a positive ``timestamp``, fall
+    back to ``info.transactTime``, and never emit ``-1``.
+    """
+    ts = response.get("timestamp")
+    if ts is not None and int(ts) > 0:
+        return int(ts)
+    raw = (response.get("info") or {}).get("transactTime")
+    if raw is not None and int(raw) > 0:
+        return int(raw)
+    return 0
+
+
+def _order_type_from_response(
+    response: dict[str, Any], fallback: OrderType
+) -> OrderType:
+    """Map a ccxt unified order dict back to a domain ``OrderType`` (D-43).
+
+    Venue-agnostic: a positive ``triggerPrice``/``stopPrice`` marks a stop
+    order even though ccxt reports unified ``type="limit"`` for stop-limits.
+    """
+    trig = response.get("triggerPrice") or response.get("stopPrice")
+    if trig is not None and _dec(trig) > 0:
+        return OrderType.STOP_LIMIT
+    vt = response.get("type")
+    if vt:
+        return OrderType(_str_or_empty(vt))
+    return fallback
 
 
 def _dec_upper_bound(

@@ -466,6 +466,10 @@ Control plane обязан поддерживать:
 - state/logs: `~/.local/state/clay-mission-control/`
 - cache: `~/.cache/clay-mission-control/`
 
+> **Errata (2026-08):** фактический путь — `~/.local/state/clay`
+> (`build_xdg_paths(app_name="clay")`, см. канон `backend/docs/execution.md` →
+> «Audit & order-ledger paths»). Запись выше — планинг-ориентированная.
+
 Planning-документы и архитектурные артефакты продолжают жить отдельно в Obsidian/Git.
 
 ## 14. UI interactions required in E1

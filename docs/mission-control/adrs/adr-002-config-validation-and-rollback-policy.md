@@ -61,6 +61,11 @@ Runtime-конфиги должны жить в XDG-friendly layout:
 - `~/.config/clay-mission-control/` — active config scopes и metadata
 - `~/.local/state/clay-mission-control/` — audit, apply results, rollback incidents
 
+> **Errata (2026-08):** фактический путь — `~/.local/state/clay`
+> (`build_xdg_paths(app_name="clay")`, см. канон `backend/docs/execution.md` →
+> «Audit & order-ledger paths»). Запись выше — планинг-ориентированная, код её
+> не использует.
+
 Planning-документы в Obsidian/Git не являются runtime-config storage.
 
 ### Revision model

@@ -63,6 +63,9 @@ class CcxtSpotClient(Protocol):
         self, reload: bool = False, params: dict[str, Any] | None = None
     ) -> Any: ...
 
+    def market(self, symbol: str) -> Any:
+        """Resolve a market dict by unified symbol or exchange market-id (D-42)."""
+
     async def close(self, clean_instance_data: bool = False) -> None: ...
 
     def set_sandbox_mode(self, enabled: bool, /) -> None: ...
