@@ -62,6 +62,12 @@ class FakeBybitClient:
         self._demo_trading = enable
         self._calls.append(("enable_demo_trading", (enable,), {}))
 
+    def market(self, symbol: str) -> dict[str, Any]:
+        for m in self._markets.values():
+            if m.get("id") == symbol or m.get("symbol") == symbol:
+                return m
+        raise ccxt.BadSymbol(f"bybit does not have market symbol {symbol}")
+
     async def load_markets(
         self, reload: bool = False, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:

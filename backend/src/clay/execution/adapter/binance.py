@@ -137,7 +137,7 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
 
     async def get_market_rules(self, symbol: str) -> MarketRules:
         try:
-            markets = await self._client.load_markets()
+            await self._client.load_markets()
         except ccxt.NetworkError as exc:
             raise TransientAdapterError(str(exc)) from exc
         except ccxt.AuthenticationError as exc:
@@ -145,9 +145,12 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
         except ccxt.ExchangeError as exc:
             raise OrderRejectedError(str(exc)) from exc
 
-        market = markets.get(symbol)
-        if market is None:
-            raise InvalidOrderError(f"unknown symbol: {symbol}")
+        # Толерантная нормализация (D-42): market() принимает и unified
+        # "BTC/USDT", и биржевой market-id "BTCUSDT" (ccxt мапит id -> symbol).
+        try:
+            market = self._client.market(symbol)
+        except ccxt.BadSymbol as exc:
+            raise InvalidOrderError(f"unknown symbol: {symbol}") from exc
 
         info: dict[str, Any] = market.get("info", {})
         filters: list[dict[str, Any]] = info.get("filters", [])

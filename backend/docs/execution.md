@@ -229,3 +229,19 @@ The `POST /workspace/trading/execution/testnet-probe` endpoint accepts two optio
 
 Default behaviour is byte-identical to the previous contract (GTC, no stop price).
 The `stop_price` field in the response echoes the requested value; it is **not** venue-confirmed truth — `OrderAck` does not carry a stop price field.
+
+## Audit & order-ledger paths (канон)
+
+Файловый аудит и order-ledger живут в РАЗНЫХ хранилищах:
+
+- **Файловый аудит** (`AuditWriter`): `state_dir / "audit.jsonl"`, где
+  `state_dir = ~/.local/state/clay` (`build_xdg_paths(app_name="clay")`,
+  `XDG_STATE_HOME` переопределяет базовую папку). Конструктор:
+  `AuditWriter(config_loader.paths.state_dir, ...)` в `bootstrap.build_services`.
+  **НЕ** `~/.local/state/clay-mission-control/` — это устаревшая планинг-запись
+  (ADR-002 / e1 §13, см. errata там).
+- **Order-ledger** (`OrderLedgerController`): таблицы в PostgreSQL, схема `ops`
+  (`order_events` / `order_current_state` / `fills`). Флаг
+  `CLAY_ORDER_LEDGER_ENABLED` → `ExecutionConfig.order_ledger_enabled` СЕЙЧАС
+  без прод-калл-сайта (см. `db/models_orders.py`: "Not yet wired to any
+  production code").
