@@ -1,0 +1,81 @@
+name: Soak Harness Smoke
+
+# Ручной e2e-прогон soak-харнесса в smoke-режиме (минуты): доказывает, что
+# CLI реально стартует на хосте-раннере, опрашивает health-эндпоинт,
+# пишет артефакты и выставляет вердикт PASS. PR НЕ блокирует (workflow_dispatch
+# не триггерится пушами/PR). Полный 24ч soak — ручной веховый прогон на хосте
+# (см. ADR-040): CI-раннеры обрываются на ~6ч и не ходят к бирже через тоннель.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  soak-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install Python 3.14
+        run: uv python install 3.14
+      - name: Sync (locked, dev group included)
+        run: uv sync --locked
+      - name: Start fake health endpoint
+        run: |
+          python - <<'PY' &
+          import json
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+
+          class Handler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  body = json.dumps({
+                      "summary": {"overall_status": "healthy"},
+                      "readiness_checks": [
+                          {"check_id": "runtime-stability", "status": "pass"},
+                          {"check_id": "data-freshness", "status": "pass"},
+                      ],
+                  }).encode()
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def log_message(self, *args):
+                  pass
+
+          HTTPServer(("127.0.0.1", 8787), Handler).serve_forever()
+          PY
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:8787/reliability/overview >/dev/null && break
+            sleep 0.5
+          done
+      - name: Run soak harness smoke (e2e launch check)
+        env:
+          SOAK_BASE_URL: http://127.0.0.1:8787
+        run: |
+          uv run python -m clay.ops.soak_harness \
+            --smoke \
+            --state-dir "$RUNNER_TEMP/soak-smoke" \
+            --run-id ci-smoke
+      - name: Assert smoke artifacts + PASS verdict
+        run: |
+          test -s "$RUNNER_TEMP/soak-smoke/soak/verdict.json"
+          test -s "$RUNNER_TEMP/soak-smoke/soak/verdict.txt"
+          uv run python - <<'PY'
+          import json
+          import os
+
+          path = os.path.join(os.environ["RUNNER_TEMP"], "soak-smoke", "soak", "verdict.json")
+          verdict = json.load(open(path, encoding="utf-8"))
+          assert verdict["verdict"] == "PASS", verdict
+          assert verdict["sample_count"] >= 5, verdict
+          assert verdict["reasons"] == [], verdict
+          print("soak smoke OK:", verdict["verdict"], verdict["sample_count"], "samples")
+          PY

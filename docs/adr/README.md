@@ -56,7 +56,8 @@
 | 037 | TimescaleDB Retention for market_bars — default-OFF (D-13 #3) | Accepted | docs/adr | [`037-market-bars-retention.md`](037-market-bars-retention.md) |
 | 038 | TimescaleDB Continuous Aggregate market_bars_1d (D-13 #4) | Accepted | docs/adr | [`038-market-bars-continuous-aggregate.md`](038-market-bars-continuous-aggregate.md) |
 | 039 | Политика зависимостей — пиннинг, отказ от вендоринга, контракт на границе | Accepted | docs/adr | [`039-dependency-policy.md`](039-dependency-policy.md) |
-| 040+ | свободны | — | — | |
+| 040 | Soak-harness — ручной 24ч soak vs CI, повторяемое оснащение (D-58) | Accepted | docs/adr | [`040-soak-harness-manual-24h.md`](040-soak-harness-manual-24h.md) |
+| 041+ | свободны | — | — | |
 
 ## Карта номеров
 
