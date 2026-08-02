@@ -33,6 +33,7 @@ from clay.ai_control.service import AIControlService
 from clay.alpha.service import AlphaReadinessService
 from clay.audit.writer import AuditWriter
 from clay.config.loader import ConfigLoader
+from clay.config.paths import resolve_audit_journal_path
 from clay.control_center.service import ControlCenterService
 from clay.db.repositories_market import set_source_priority
 from clay.db.session import build_session_factory
@@ -198,8 +199,10 @@ def build_services(
     config_loader.ensure_default_configs()
     config_loader.load_all()
     audit_settings = AuditSettings()
+    audit_journal_path = resolve_audit_journal_path(config_loader.paths.state_dir)
+    logger.info("audit journal path: %s", audit_journal_path)
     audit_writer = AuditWriter(
-        config_loader.paths.state_dir,
+        audit_journal_path.parent,
         max_bytes=audit_settings.max_bytes,
         backup_count=audit_settings.backup_count,
     )
