@@ -60,7 +60,10 @@ select = ["E4", "E7", "E9", "F", "I"]
 # видел .env. Не-инвазивно: глушим E402 и F401 (side-effect imports для metadata)
 # точечно, не переписывая env.py. Порядок импортов семантически значим.
 "alembic/env.py" = ["E402", "F401", "I001"]
-# tests/conftest.py: side-effect imports (модели регистрируются в Base.metadata),
+# clay/api/main.py: configure_clay_logging() должен выполниться ДО импорта
+# lifespan (clay.bootstrap печатает стартовый лог "audit journal path" на import,
+# D-45). Семантически значимый порядок — глушим E402 точечно.
+"src/clay/api/main.py" = ["E402"]# tests/conftest.py: side-effect imports (модели регистрируются в Base.metadata),
 # E402 по design (DB URL setup precedes clay imports).
 # Порядок импортов семантически значим.
 "tests/conftest.py" = ["E402", "F401", "I001"]

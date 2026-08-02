@@ -1,6 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from clay.core.logging import configure_clay_logging
+
+# Настроить логирование ДО импорта lifespan: clay.bootstrap выполняет
+# build_services() на импорте модуля, и стартовые лог-строки (например,
+# "audit journal path", D-45) печатаются в этот момент — без handler здесь
+# они теряются на root-logger (WARNING).
+configure_clay_logging()
+
 from clay.api.lifespan import lifespan
 from clay.api.routes.ai_control import router as ai_control_router
 from clay.api.routes.ai_control_stream import router as ai_control_stream_router
@@ -34,7 +42,6 @@ from clay.api.routes.validation_lab import router as validation_lab_router
 from clay.api.routes.validation_lab_stream import router as validation_lab_stream_router
 from clay.api.routes.workspace import router as workspace_router
 from clay.api.routes.workspace_stream import router as workspace_stream_router
-from clay.core.logging import configure_clay_logging
 
 
 def create_app() -> FastAPI:
