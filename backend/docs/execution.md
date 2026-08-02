@@ -245,3 +245,56 @@ The `stop_price` field in the response echoes the requested value; it is **not**
   `CLAY_ORDER_LEDGER_ENABLED` → `ExecutionConfig.order_ledger_enabled` СЕЙЧАС
   без прод-калл-сайта (см. `db/models_orders.py`: "Not yet wired to any
   production code").
+
+## Soak Harness (D-58) — повторяемый 24ч soak-gate
+
+`backend/src/clay/ops/soak_harness.py` — стандалон-инструмент оператора для
+вехового soak-прогона перед Ring 1. Система должна проработать сама,
+непрерывно healthy 24ч+, без ручного присмотра.
+
+**Что делает:** каждые `interval` (дефолт 600с) в течение `duration` (дефолт
+24ч) опрашивает health-агрегатор `GET /reliability/overview`
+(`ReliabilityService.build_snapshot` → `summary.overall_status` +
+`readiness_checks[]`) и append-only JSONL-строкой пишет сэмпл в
+`<state_dir>/soak/<run-id>.jsonl`. По завершении — машинно-читаемый
+`verdict.json` + человекочитаемая `verdict.txt` (PASS/FAIL).
+
+**Запуск (ручной, на хосте, где работает Clay):**
+
+```bash
+uv run python -m clay.ops.soak_harness \
+  --base-url http://127.0.0.1:8000 \
+  --state-dir "$HOME/.local/state/clay"
+```
+
+Коды возврата: `0` = PASS, `1` = FAIL, `2` = usage/runtime-ошибка.
+
+**Пути (единый канон, D-45):** `state_dir` резолвится через
+`build_xdg_paths` / `resolve_audit_journal_path`
+(`$XDG_STATE_HOME/clay`, дефолт `~/.local/state/clay`); soak-артефакты живут
+в `<state_dir>/soak/`. Путь НЕ хардкодится.
+
+**Вердикт (чистая функция `evaluate_soak`):** PASS только если лог непустой,
+span (последний−первый сэмпл + один интервал) ≥ требуемой длительности,
+число сэмплов ≥ пола, нет разрывов сэмплирования > `max_gap` (дефолт 2×
+интервал), и нет НЕ-артефактных degraded-эпизодов. Аномалия с
+самовосстановлением < `anomaly_threshold` (дефолт 600с, напр. operator
+TUN-свитч) PASS не роняет, но помечается в сводке.
+
+**Возобновляемость:** прерывание/рестарт дописывают существующий лог; вердикт
+считается по объединению. Разрыв сэмплирования > `max_gap` = FAIL («не
+молчит»).
+
+**Границы:** 0 торговых сетевых вызовов (единственная сеть — локальный
+HTTP-опрос собственного `/reliability/overview`); в lifespan/scheduler не
+вплетён; live-путь байт-идентичен. Артефакты недоступного агрегатора
+фиксируются как degraded-сэмплы (с причиной) — харнесс не падает mid-soak.
+
+**CI:** автоматический 24ч job НЕ делается (раннеры обрываются на ~6ч и не
+ходят к бирже через тоннель) — см. ADR-040. Обычный CI гоняет быстрые
+юнит-тесты вердикта (`test_golden_healthy_pass`, `test_real_degradation_fails`,
+`test_quick_artifact_passes_with_anomaly`, `test_interrupt_then_resume_merges_log`,
+`test_sampling_gap_fails`) и охранник (`test_degraded_episode_fails`,
+`test_empty_log_fails`, `test_broken_verdict_json_is_not_pass`); workflow-джоба
+`.github/workflows/soak-smoke.yml` (workflow_dispatch) — ручной smoke (минуты,
+5 сэмплов) как e2e-проверка запускаемости, PR не блокирует.
