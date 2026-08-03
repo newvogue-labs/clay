@@ -24,7 +24,7 @@ from clay.execution.adapter.ccxt_base import (
     _dec_upper_bound,
 )
 from clay.execution.adapter.ccxt_client import CcxtSpotClient
-from clay.execution.adapter.domain import OrderRequest
+from clay.execution.adapter.domain import OrderRequest, OrderSnapshot
 from clay.execution.adapter.enums import (
     Environment,
     OrderType,
@@ -134,6 +134,20 @@ class BinanceExecutionAdapter(CcxtExchangeAdapter):
                 if req.stop_price is None:
                     raise InvalidOrderError("STOP_LIMIT requires stop_price to be set")
                 return "limit", {"triggerPrice": str(req.stop_price)}
+
+    async def get_open_orders(self, symbol: str | None = None) -> list[OrderSnapshot]:
+        """Binance Spot rejects ``GET /openOrders`` without ``symbol`` (D-63).
+
+        Fail-fast instead of sending a request the venue would reject:
+        a symbol-less open-orders query raises ``InvalidOrderError`` with a
+        clear message.  Always pass the symbol when it is known.
+        """
+        if not symbol:
+            raise InvalidOrderError(
+                "Binance Spot requires symbol for get_open_orders; "
+                "pass an explicit symbol or iterate known symbols"
+            )
+        return await super().get_open_orders(symbol)
 
     async def get_market_rules(self, symbol: str) -> MarketRules:
         try:
