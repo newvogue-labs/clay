@@ -715,12 +715,30 @@ class TestGetOpenOrders:
         assert isinstance(orders[0].quantity, Decimal)
 
     @pytest.mark.anyio
-    async def test_empty(self) -> None:
+    async def test_empty_with_symbol(self) -> None:
         client = FakeBinanceClient()
         adapter = _adapter(client)
 
-        orders = await adapter.get_open_orders()
+        orders = await adapter.get_open_orders("BTCUSDT")
         assert orders == []
+
+    @pytest.mark.anyio
+    async def test_without_symbol_fails_fast(self) -> None:
+        """D-63: Binance Spot rejects open-orders without symbol.
+
+        The adapter must fail fast with a clear error and NOT send a
+        request the venue would reject.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = MagicMock()
+        client.fetch_open_orders = AsyncMock()
+        adapter = _adapter(client)
+
+        with pytest.raises(InvalidOrderError, match="requires symbol"):
+            await adapter.get_open_orders()
+
+        client.fetch_open_orders.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

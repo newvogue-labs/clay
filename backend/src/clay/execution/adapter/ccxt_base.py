@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, ClassVar, Literal, cast
@@ -151,7 +152,7 @@ class CcxtExchangeAdapter:
             raise OrderRejectedError(str(exc)) from exc
 
         try:
-            return self._ack_from_response(
+            ack = self._ack_from_response(
                 req.client_order_id,
                 cast("dict[str, Any]", response),
                 requested=req,
@@ -169,6 +170,48 @@ class CcxtExchangeAdapter:
                 f"order may have been placed but response could not be parsed "
                 f"(reconcile required, cid={req.client_order_id!r}): {exc}"
             ) from exc
+
+        # D-61: prefer actual fill time from fetch_my_trades (venue truth)
+        # over the create_order response timestamp.  Multiple fills → the
+        # last fill's timestamp.  If trades are unavailable/empty — log and
+        # keep the create-order time (no crash).
+        if ack.state in (OrderState.FILLED, OrderState.PARTIALLY_FILLED):
+            ack = await self._ack_with_fill_time(ack)
+        return ack
+
+    async def _ack_with_fill_time(self, ack: OrderAck) -> OrderAck:
+        """Return an ``OrderAck`` whose ``transact_time`` is the last fill time.
+
+        D-61: fetch ``fetch_my_trades`` for ``ack.symbol``, filter by
+        ``venue_order_id``, take the max (last) fill timestamp.  On any
+        failure or empty result — log and fall back to the original
+        ``transact_time`` (from create_order), never raising.
+        """
+        symbol = ack.symbol
+        venue_order_id = ack.venue_order_id
+        if not symbol or not venue_order_id:
+            return ack
+        try:
+            fills = await self.get_my_trades(symbol)
+        except Exception as exc:
+            logger.warning(
+                "clay.place_order: fetch_my_trades unavailable for %s/%s "
+                "(D-61 fallback: keep create-order time): %s",
+                symbol,
+                venue_order_id,
+                exc,
+            )
+            return ack
+        match = [f.transact_time for f in fills if f.venue_order_id == venue_order_id]
+        if not match:
+            logger.warning(
+                "clay.place_order: no trades for %s/%s "
+                "(D-61 fallback: keep create-order time)",
+                symbol,
+                venue_order_id,
+            )
+            return ack
+        return replace(ack, transact_time=max(match))
 
     async def cancel_order(self, symbol: str, venue_order_id: str) -> CancelResult:
         try:
@@ -314,6 +357,18 @@ class CcxtExchangeAdapter:
 
     async def close(self) -> None:
         await self._client.close()
+
+    async def __aenter__(self) -> CcxtExchangeAdapter:
+        """Async-context entry — adapter usable as ``async with``.
+
+        D-62: the underlying ccxt connector must be released on every
+        exit path (success or error).  ``async with adapter:`` guarantees
+        ``close()`` via ``__aexit__`` in ``finally``-like semantics.
+        """
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        await self.close()
 
     # -- venue-specific hooks -------------------------------------------------
 
