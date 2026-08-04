@@ -8,12 +8,21 @@ Tier 1 (ROUND-TRIP, only if CLAY_BYBIT_SMOKE_PLACE_ORDER=1):
     get_order/fetch_order → record orderLinkId empiric comparison (ccxt #23260)
     → cancel_order.
 
+Tier 2 (STOP-LIMIT DEMO, only if CLAY_BYBIT_SMOKE_STOP_ORDER=1):
+    Place STOP_LIMIT BUY above market (untriggered) → verify triggerPrice
+    echo, orderFilter='StopOrder', orderLinkId match → cancel → confirm
+    0 open conditional orders.
+
 Run:
     CLAY_BYBIT_DEMO_API_KEY=... CLAY_BYBIT_DEMO_API_SECRET=... \\
     python scripts/smoke_bybit_demo.py
 
 Tier 1:
     CLAY_BYBIT_SMOKE_PLACE_ORDER=1 \\
+    python scripts/smoke_bybit_demo.py
+
+Tier 2:
+    CLAY_BYBIT_SMOKE_STOP_ORDER=1 \\
     python scripts/smoke_bybit_demo.py
 
     # Optional overrides:
@@ -84,6 +93,26 @@ class SmokeEvidence:
     cancel_error: str | None = None
     tier1_error: str | None = None
 
+    # -- Tier 2 (STOP_LIMIT) --
+    tier2_enabled: bool = False
+    stop_trigger_price: str = ""
+    stop_limit_price: str = ""
+    stop_order_qty: str = ""
+    stop_notional: str = ""
+    stop_place_result: OrderAck | None = None
+    stop_place_latency_ms: float = 0.0
+    stop_client_order_id_sent: str = ""
+    stop_venue_order_id: str = ""
+    stop_orderFilter: str = ""
+    stop_trigger_price_echo: str = ""
+    stop_orderLinkId: str = ""
+    stop_orderLinkId_match: bool | None = None
+    stop_cancel_ok: bool = False
+    stop_cancel_latency_ms: float = 0.0
+    stop_cancel_error: str | None = None
+    stop_open_conditional_count: int = -1
+    tier2_error: str | None = None
+
     error: str | None = None
 
 
@@ -141,6 +170,37 @@ def _compute_tier1_order(
     return qty, price
 
 
+def _compute_stop_order(
+    *,
+    ref_price: Decimal,
+    notional_target: Decimal,
+    min_cost: Decimal,
+    min_amount: Decimal,
+    trigger_factor: Decimal = Decimal("1.25"),
+    limit_slip: Decimal = Decimal("1.001"),
+) -> tuple[Decimal, Decimal, Decimal]:
+    """Compute untriggered STOP_LIMIT BUY params (trigger, limit, qty).
+
+    trigger = ref * trigger_factor (above market → untriggered).
+    limit   = trigger * limit_slip  (slightly above trigger).
+    qty     = notional / limit, bumped to min_amount and min_cost.
+
+    Precision is NOT applied here; caller applies venue precision via
+    ``price_to_precision`` / ``amount_to_precision`` (same pattern as
+    ``_compute_tier1_order``).
+
+    All pure Decimal; no network calls.
+    """
+    trigger = ref_price * trigger_factor
+    lim_price = trigger * limit_slip
+    floor_cost = max(min_cost, notional_target)
+    qty = floor_cost / lim_price
+    qty = max(qty, min_amount)
+    if qty * lim_price < floor_cost:
+        qty = floor_cost / lim_price
+    return trigger, lim_price, qty
+
+
 async def _run() -> SmokeEvidence:
     ev = SmokeEvidence()
     creds = _env()
@@ -187,15 +247,16 @@ async def _run() -> SmokeEvidence:
 
         # -- Tier 1: round-trip order (opt-in) --
         ev.tier1_enabled = os.environ.get("CLAY_BYBIT_SMOKE_PLACE_ORDER", "") == "1"
-        if not ev.tier1_enabled:
+        # -- Tier 2: STOP_LIMIT round-trip (opt-in) --
+        ev.tier2_enabled = os.environ.get("CLAY_BYBIT_SMOKE_STOP_ORDER", "") == "1"
+
+        if not ev.tier1_enabled and not ev.tier2_enabled:
             return ev
 
+        # Common setup: symbol, ref_price, market constraints.
         symbol = os.environ.get("CLAY_BYBIT_SMOKE_SYMBOL", "BTC/USDT")
         ev.symbol = symbol
-        client_order_id = f"smoke-demo-{int(time.time() * 1000)}"
-        ev.client_order_id_sent = client_order_id
 
-        # Determine ref_price from ticker (last → ask → bid).
         ref_price = Decimal("0")
         try:
             ticker = await adapter._client.fetch_ticker(symbol)
@@ -203,95 +264,188 @@ async def _run() -> SmokeEvidence:
                 str(ticker.get("last") or ticker.get("ask") or ticker.get("bid") or 0)
             )
         except Exception as exc:  # noqa: BLE001
-            ev.tier1_error = f"fetch_ticker: {type(exc).__name__}: {exc}"
+            ev.error = f"fetch_ticker: {type(exc).__name__}: {exc}"
             return ev
 
-        ev.ref_price = str(ref_price)
-
-        # Market constraints from loaded markets.
         m = adapter._client.market(symbol)
         cost_limits: dict[str, Any] = (m.get("limits") or {}).get("cost") or {}
         amount_limits: dict[str, Any] = (m.get("limits") or {}).get("amount") or {}
         min_cost = Decimal(str(cost_limits.get("min") or "5"))
         min_amount = Decimal(str(amount_limits.get("min") or "0"))
 
-        # Compute or override qty / price.
-        explicit_price = os.environ.get("CLAY_BYBIT_SMOKE_PRICE", "")
-        explicit_qty = os.environ.get("CLAY_BYBIT_SMOKE_QTY", "")
+        # -- Tier 1 execution --
+        if ev.tier1_enabled:
+            client_order_id = f"smoke-demo-{int(time.time() * 1000)}"
+            ev.client_order_id_sent = client_order_id
+            ev.ref_price = str(ref_price)
 
-        if explicit_price and explicit_qty:
-            price = Decimal(explicit_price)
-            qty = Decimal(explicit_qty)
-        else:
-            notional_target = Decimal(os.environ.get("CLAY_BYBIT_SMOKE_NOTIONAL", "10"))
-            price_factor = Decimal(
-                os.environ.get("CLAY_BYBIT_SMOKE_PRICE_FACTOR", "0.5")
+            explicit_price = os.environ.get("CLAY_BYBIT_SMOKE_PRICE", "")
+            explicit_qty = os.environ.get("CLAY_BYBIT_SMOKE_QTY", "")
+
+            if explicit_price and explicit_qty:
+                price = Decimal(explicit_price)
+                qty = Decimal(explicit_qty)
+            else:
+                notional_target = Decimal(
+                    os.environ.get("CLAY_BYBIT_SMOKE_NOTIONAL", "10")
+                )
+                price_factor = Decimal(
+                    os.environ.get("CLAY_BYBIT_SMOKE_PRICE_FACTOR", "0.5")
+                )
+                qty, price = _compute_tier1_order(
+                    ref_price=ref_price,
+                    notional_target=notional_target,
+                    price_factor=price_factor,
+                    min_cost=min_cost,
+                    min_amount=min_amount,
+                )
+
+            price = Decimal(str(adapter._client.price_to_precision(symbol, price)))
+            qty = Decimal(str(adapter._client.amount_to_precision(symbol, qty)))
+
+            ev.order_price = str(price)
+            ev.order_qty = str(qty)
+            ev.order_notional = str(qty * price)
+
+            req = OrderRequest(
+                symbol=symbol,
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=qty,
+                time_in_force=TimeInForce.GTC,
+                client_order_id=client_order_id,
+                price=price,
             )
-            qty, price = _compute_tier1_order(
+
+            try:
+                t0 = time.perf_counter()
+                ev.place_result = await adapter.place_order(req)
+                ev.place_latency_ms = (time.perf_counter() - t0) * 1000
+                ev.venue_order_id_returned = ev.place_result.venue_order_id
+
+                try:
+                    snap = await adapter.get_order(symbol, ev.venue_order_id_returned)
+                    ev.snapshot_client_order_id = snap.client_order_id
+
+                    raw = await adapter._client.fetch_order(
+                        id=ev.venue_order_id_returned,
+                        symbol=symbol,
+                        params={"acknowledged": True},
+                    )
+                    info = raw.get("info") or {}
+                    ev.raw_orderLinkId = str(info.get("orderLinkId", ""))
+
+                    ev.orderLinkId_match = ev.client_order_id_sent == ev.raw_orderLinkId
+                except Exception as exc:  # noqa: BLE001
+                    ev.tier1_error = f"snapshot: {type(exc).__name__}: {exc}"
+
+                t0 = time.perf_counter()
+                await adapter.cancel_order(
+                    symbol=symbol, venue_order_id=ev.venue_order_id_returned
+                )
+                ev.cancel_latency_ms = (time.perf_counter() - t0) * 1000
+                ev.cancel_ok = True
+            except Exception as exc:  # noqa: BLE001
+                ev.tier1_error = f"{type(exc).__name__}: {exc}"
+                if ev.venue_order_id_returned:
+                    try:
+                        await adapter.cancel_order(
+                            symbol=symbol,
+                            venue_order_id=ev.venue_order_id_returned,
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
+
+        # -- Tier 2 execution --
+        if ev.tier2_enabled:
+            stop_cid = f"smoke-stop-{int(time.time() * 1000)}"
+            ev.stop_client_order_id_sent = stop_cid
+
+            # triggerPrice above market → untriggered; limit slightly above trigger.
+            stop_notional_target = Decimal(
+                os.environ.get("CLAY_BYBIT_SMOKE_NOTIONAL", "10")
+            )
+            trigger, lim_price, qty2 = _compute_stop_order(
                 ref_price=ref_price,
-                notional_target=notional_target,
-                price_factor=price_factor,
+                notional_target=stop_notional_target,
                 min_cost=min_cost,
                 min_amount=min_amount,
             )
 
-        # Apply venue precision.
-        price = Decimal(str(adapter._client.price_to_precision(symbol, price)))
-        qty = Decimal(str(adapter._client.amount_to_precision(symbol, qty)))
-
-        ev.order_price = str(price)
-        ev.order_qty = str(qty)
-        ev.order_notional = str(qty * price)
-
-        req = OrderRequest(
-            symbol=symbol,
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=qty,
-            time_in_force=TimeInForce.GTC,
-            client_order_id=client_order_id,
-            price=price,
-        )
-
-        try:
-            t0 = time.perf_counter()
-            ev.place_result = await adapter.place_order(req)
-            ev.place_latency_ms = (time.perf_counter() - t0) * 1000
-            ev.venue_order_id_returned = ev.place_result.venue_order_id
-
-            # Fetch order snapshot to compare clientOrderId vs orderLinkId.
-            try:
-                snap = await adapter.get_order(symbol, ev.venue_order_id_returned)
-                ev.snapshot_client_order_id = snap.client_order_id
-
-                # Raw info.orderLinkId from the venue response.
-                raw = await adapter._client.fetch_order(
-                    id=ev.venue_order_id_returned, symbol=symbol
-                )
-                info = raw.get("info") or {}
-                ev.raw_orderLinkId = str(info.get("orderLinkId", ""))
-
-                ev.orderLinkId_match = ev.client_order_id_sent == ev.raw_orderLinkId
-            except Exception as exc:  # noqa: BLE001
-                ev.tier1_error = f"snapshot: {type(exc).__name__}: {exc}"
-
-            # Cancel the order.
-            t0 = time.perf_counter()
-            await adapter.cancel_order(
-                symbol=symbol, venue_order_id=ev.venue_order_id_returned
+            # Apply venue precision.
+            lim_price = Decimal(
+                str(adapter._client.price_to_precision(symbol, lim_price))
             )
-            ev.cancel_latency_ms = (time.perf_counter() - t0) * 1000
-            ev.cancel_ok = True
-        except Exception as exc:  # noqa: BLE001
-            ev.tier1_error = f"{type(exc).__name__}: {exc}"
-            # Attempt cancel on best-effort basis.
-            if ev.venue_order_id_returned:
+            trigger = Decimal(str(adapter._client.price_to_precision(symbol, trigger)))
+            qty2 = Decimal(str(adapter._client.amount_to_precision(symbol, qty2)))
+
+            ev.stop_trigger_price = str(trigger)
+            ev.stop_limit_price = str(lim_price)
+            ev.stop_order_qty = str(qty2)
+            ev.stop_notional = str(qty2 * lim_price)
+
+            stop_req = OrderRequest(
+                symbol=symbol,
+                side=OrderSide.BUY,
+                order_type=OrderType.STOP_LIMIT,
+                quantity=qty2,
+                price=lim_price,
+                stop_price=trigger,
+                time_in_force=TimeInForce.GTC,
+                client_order_id=stop_cid,
+            )
+
+            try:
+                t0 = time.perf_counter()
+                ev.stop_place_result = await adapter.place_order(stop_req)
+                ev.stop_place_latency_ms = (time.perf_counter() - t0) * 1000
+                ev.stop_venue_order_id = ev.stop_place_result.venue_order_id
+
+                # Verify triggerPrice echo, orderFilter, orderLinkId.
                 try:
-                    await adapter.cancel_order(
-                        symbol=symbol, venue_order_id=ev.venue_order_id_returned
+                    raw2 = await adapter._client.fetch_order(
+                        id=ev.stop_venue_order_id,
+                        symbol=symbol,
+                        params={"acknowledged": True},
+                    )
+                    info2 = raw2.get("info") or {}
+                    ev.stop_orderFilter = str(info2.get("orderFilter", ""))
+                    ev.stop_trigger_price_echo = str(info2.get("triggerPrice", ""))
+                    ev.stop_orderLinkId = str(info2.get("orderLinkId", ""))
+                    ev.stop_orderLinkId_match = (
+                        ev.stop_client_order_id_sent == ev.stop_orderLinkId
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    ev.tier2_error = f"snapshot: {type(exc).__name__}: {exc}"
+
+                # Cancel the stop order.
+                t0 = time.perf_counter()
+                await adapter.cancel_order(
+                    symbol=symbol, venue_order_id=ev.stop_venue_order_id
+                )
+                ev.stop_cancel_latency_ms = (time.perf_counter() - t0) * 1000
+                ev.stop_cancel_ok = True
+
+                # Verify 0 open conditional orders (best-effort).
+                try:
+                    open_all = await adapter._client.fetch_open_orders(symbol)
+                    ev.stop_open_conditional_count = sum(
+                        1
+                        for o in open_all
+                        if (o.get("info") or {}).get("orderFilter") == "StopOrder"
                     )
                 except Exception:  # noqa: BLE001
-                    pass
+                    ev.stop_open_conditional_count = -1
+
+            except Exception as exc:  # noqa: BLE001
+                ev.tier2_error = f"{type(exc).__name__}: {exc}"
+                if ev.stop_venue_order_id:
+                    try:
+                        await adapter.cancel_order(
+                            symbol=symbol, venue_order_id=ev.stop_venue_order_id
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
     finally:
         await adapter.close()
 
@@ -333,6 +487,28 @@ def _evidence_to_dict(ev: SmokeEvidence) -> dict[str, Any]:
                 "place_latency_ms": round(ev.place_latency_ms, 2),
                 "cancel_latency_ms": round(ev.cancel_latency_ms, 2),
                 "tier1_error": ev.tier1_error,
+            }
+        )
+    d["tier2"] = {"enabled": ev.tier2_enabled}
+    if ev.tier2_enabled:
+        d["tier2"].update(
+            {
+                "trigger_price": ev.stop_trigger_price,
+                "limit_price": ev.stop_limit_price,
+                "qty": ev.stop_order_qty,
+                "notional": ev.stop_notional,
+                "client_order_id_sent": ev.stop_client_order_id_sent,
+                "venue_order_id": ev.stop_venue_order_id,
+                "orderFilter": ev.stop_orderFilter,
+                "trigger_price_echo": ev.stop_trigger_price_echo,
+                "orderLinkId": ev.stop_orderLinkId,
+                "orderLinkId_match": ev.stop_orderLinkId_match,
+                "cancel_ok": ev.stop_cancel_ok,
+                "cancel_error": ev.stop_cancel_error,
+                "open_conditional_count": ev.stop_open_conditional_count,
+                "place_latency_ms": round(ev.stop_place_latency_ms, 2),
+                "cancel_latency_ms": round(ev.stop_cancel_latency_ms, 2),
+                "tier2_error": ev.tier2_error,
             }
         )
     return d
