@@ -1,10 +1,10 @@
-"""Tests for smoke_bybit_demo._compute_tier1_order (pure, no network)."""
+"""Tests for smoke_bybit_demo._compute_tier1_order and _compute_stop_order (pure, no network)."""
 
 from __future__ import annotations
 
 from decimal import Decimal
 
-from scripts.smoke_bybit_demo import _compute_tier1_order
+from scripts.smoke_bybit_demo import _compute_stop_order, _compute_tier1_order
 
 
 class TestComputeTier1Order:
@@ -68,3 +68,57 @@ class TestComputeTier1Order:
         )
         assert price == Decimal("500")
         assert qty * price >= Decimal("5")
+
+
+class TestComputeStopOrder:
+    def test_untriggered_above_market(self) -> None:
+        """ref=64000 → trigger=80000 (above market), limit slightly above trigger."""
+        trigger, lim, qty = _compute_stop_order(
+            ref_price=Decimal("64000"),
+            notional_target=Decimal("10"),
+            min_cost=Decimal("5"),
+            min_amount=Decimal("0"),
+        )
+        # trigger > ref → untriggered
+        assert trigger > Decimal("64000")
+        assert trigger == Decimal("80000")
+        # limit > trigger
+        assert lim > trigger
+        assert lim == Decimal("80080")
+        # notional >= target
+        assert qty * lim >= Decimal("10")
+
+    def test_min_amount_bump(self) -> None:
+        """min_amount=0.001 forces qty up."""
+        trigger, lim, qty = _compute_stop_order(
+            ref_price=Decimal("64000"),
+            notional_target=Decimal("10"),
+            min_cost=Decimal("5"),
+            min_amount=Decimal("0.001"),
+        )
+        assert qty >= Decimal("0.001")
+        assert qty * lim >= Decimal("5")
+
+    def test_min_cost_floor(self) -> None:
+        """min_cost=50 > notional_target=10 → floor_cost=50."""
+        trigger, lim, qty = _compute_stop_order(
+            ref_price=Decimal("64000"),
+            notional_target=Decimal("10"),
+            min_cost=Decimal("50"),
+            min_amount=Decimal("0"),
+        )
+        assert qty * lim >= Decimal("50")
+
+    def test_custom_factors(self) -> None:
+        """Custom trigger_factor and limit_slip."""
+        trigger, lim, qty = _compute_stop_order(
+            ref_price=Decimal("3500"),
+            notional_target=Decimal("10"),
+            min_cost=Decimal("5"),
+            min_amount=Decimal("0"),
+            trigger_factor=Decimal("1.50"),
+            limit_slip=Decimal("1.005"),
+        )
+        assert trigger == Decimal("5250")
+        assert lim == Decimal("5276.25")
+        assert qty * lim >= Decimal("10")
