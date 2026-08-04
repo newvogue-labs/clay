@@ -267,7 +267,7 @@ class TestConstructor:
         adapter = _adapter()
         assert OrderType.MARKET in adapter.supported_order_types
         assert OrderType.LIMIT in adapter.supported_order_types
-        assert OrderType.STOP_LIMIT not in adapter.supported_order_types
+        assert OrderType.STOP_LIMIT in adapter.supported_order_types
 
     def test_supported_tif(self) -> None:
         adapter = _adapter()
@@ -477,15 +477,64 @@ class TestPlaceOrder:
         with pytest.raises(ConfigError):
             await adapter.place_order(_make_request())
 
+
+class TestStopLimit:
+    """D-6x: Bybit spot STOP_LIMIT — эмуляция через unified triggerPrice.
+
+    ccxt для spot сам ставит orderFilter='StopOrder' при наличии
+    triggerPrice (ccxt/bybit.py:4040-4041, 4111); triggerDirection для
+    spot не поддерживается (4104-4106).
+    """
+
     @pytest.mark.anyio
-    async def test_stop_limit_not_supported(self) -> None:
-        """Bybit не поддерживает STOP_LIMIT → InvalidOrderError, сеть не вызвана."""
+    async def test_stop_limit_with_price(self) -> None:
+        """STOP_LIMIT → type='limit', params['triggerPrice']=str(stop_price)."""
         client = FakeBybitClient()
         adapter = _adapter(client)
-        req = _make_request(order_type=OrderType.STOP_LIMIT)
+        req = _make_request(
+            order_type=OrderType.STOP_LIMIT,
+            price="51000",
+            stop_price="49000",
+            client_order_id="stop-001",
+        )
 
-        with pytest.raises(InvalidOrderError, match="does not support"):
+        ack = await adapter.place_order(req)
+
+        assert ack.client_order_id == "stop-001"
+        assert client._last_params["clientOrderId"] == "stop-001"
+        assert client._last_params["triggerPrice"] == "49000"
+
+    @pytest.mark.anyio
+    async def test_stop_limit_without_price(self) -> None:
+        """STOP_LIMIT без stop_price → InvalidOrderError, сеть не вызвана."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+        req = _make_request(order_type=OrderType.STOP_LIMIT, price="51000")
+
+        with pytest.raises(InvalidOrderError, match="stop_price"):
             await adapter.place_order(req)
+        assert client._all_orders == []
+
+    @pytest.mark.anyio
+    async def test_stop_price_is_string_not_float(self) -> None:
+        """Stop-цена уходит строкой (не float) — не теряем точность Decimal."""
+        client = FakeBybitClient()
+        adapter = _adapter(client)
+        req = _make_request(
+            order_type=OrderType.STOP_LIMIT,
+            price="51000.0000000001",
+            stop_price="49000.1234567890123456789",
+        )
+
+        await adapter.place_order(req)
+
+        assert client._last_params["triggerPrice"] == "49000.1234567890123456789"
+        assert isinstance(client._last_params["triggerPrice"], str)
+
+    def test_stop_limit_in_supported_order_types(self) -> None:
+        """STOP_LIMIT входит в supported_order_types."""
+        adapter = _adapter()
+        assert OrderType.STOP_LIMIT in adapter.supported_order_types
 
 
 # ---------------------------------------------------------------------------

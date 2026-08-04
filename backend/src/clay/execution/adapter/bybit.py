@@ -14,13 +14,14 @@ Bybit-specific notes:
 - ``defaultType='spot'`` must be set explicitly (default is ``'swap'``).
 - ``enable_demo_trading`` and ``set_sandbox_mode`` are mutually exclusive.
 - ``limits.price`` is ``None`` for spot markets (price validation guard).
-- STOP_LIMIT on Bybit spot = ``orderFilter='StopOrder'`` + ``triggerPrice``,
-  not a separate order type -> ``supported_order_types`` omits STOP_LIMIT.
+- STOP_LIMIT on Bybit spot = unified ``triggerPrice`` (ccxt sets
+  ``orderFilter='StopOrder'`` for spot automatically); ``triggerDirection``
+  is NOT supported for spot by ccxt (raises NotSupported).
 """
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import ccxt.async_support as ccxt
 
@@ -91,7 +92,7 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
     """
 
     supported_order_types: ClassVar[frozenset[OrderType]] = frozenset(
-        {OrderType.MARKET, OrderType.LIMIT}
+        {OrderType.MARKET, OrderType.LIMIT, OrderType.STOP_LIMIT}
     )
     supported_tif: ClassVar[frozenset[TimeInForce]] = frozenset(
         {TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK}
@@ -144,12 +145,29 @@ class BybitExecutionAdapter(CcxtExchangeAdapter):
     def _is_duplicate_cid(self, exc: Exception) -> bool:
         return _is_duplicate_cid(exc)
 
+    def _venue_order_type(
+        self, req: OrderRequest
+    ) -> tuple[Literal["limit", "market"], dict[str, Any]]:
+        match req.order_type:
+            case OrderType.MARKET:
+                return "market", {}
+            case OrderType.LIMIT:
+                return "limit", {}
+            case OrderType.STOP_LIMIT:
+                if req.stop_price is None:
+                    raise InvalidOrderError("STOP_LIMIT requires stop_price to be set")
+                # Bybit spot conditional order: ccxt encodes unified triggerPrice
+                # as orderFilter='StopOrder' + triggerPrice for spot markets
+                # (ccxt/bybit.py:4040-4041, 4111). triggerDirection is NOT
+                # supported for spot by ccxt (raises NotSupported).
+                return "limit", {"triggerPrice": str(req.stop_price)}
+
     def _build_order_params(self, req: OrderRequest) -> dict[str, Any]:
         """Bybit spot: ``clientOrderId`` -> ``orderLinkId`` (ccxt unified).
 
-        Bybit spot has no separate STOP_LIMIT order type; stop orders use
-        ``orderFilter='StopOrder'`` + ``triggerPrice``, so ``stopPrice``
-        is NOT added here.
+        Stop-цена для STOP_LIMIT не добавляется здесь — она уходит через
+        ``_venue_order_type`` (unified ``triggerPrice``), иначе была бы
+        дублирована.
         """
         return {"clientOrderId": req.client_order_id}
 
