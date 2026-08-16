@@ -477,6 +477,11 @@ class SoakHarness:
 
     ``clock`` и ``sleep_fn`` инъектируемы (фейковые часы в юнит-тестах;
     live — ``SystemClock`` + ``time.sleep``).
+
+    Период сэмплирования привязан к абсолютной сетке от ``start``: между
+    сэмплами спится не полный интервал, а остаток до следующей отметки сетки.
+    Время опроса health-эндпоинта при этом не накапливается в дрейф и не
+    теряет хвостовые сэмплы на длинных прогонах.
     """
 
     def __init__(
@@ -509,10 +514,19 @@ class SoakHarness:
             end = _parse_ts(existing[0].ts) + timedelta(seconds=self._duration)
         else:
             end = start + timedelta(seconds=self._duration)
+        next_at = start
         while self._clock.now() < end:
             sample = self._health_source.sample(self._clock.now())
             self._log.append(sample)
-            self._sleep(self._interval)
+            next_at += timedelta(seconds=self._interval)
+            now = self._clock.now()
+            delay = (next_at - now).total_seconds()
+            if delay <= 0.0:
+                # опоздание больше интервала: пересинхронизируем расписание,
+                # чтобы не догонять его busy-loop'ом
+                next_at = now
+                continue
+            self._sleep(delay)
         return evaluate_soak(
             self._log.read(),
             required_duration=self._duration,

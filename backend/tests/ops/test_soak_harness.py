@@ -47,6 +47,28 @@ class FakeHealthSource:
         )
 
 
+class DriftingHealthSource:
+    """Источник, имитирующий стоимость HTTP-опроса: двигает часы на ``latency_s``."""
+
+    def __init__(
+        self, clock: VirtualClock, latency_s: float, status: str = "healthy"
+    ) -> None:
+        self._clock = clock
+        self._latency = latency_s
+        self.calls = 0
+        self._status = status
+
+    def sample(self, now: datetime) -> HealthSample:
+        self._clock.tick(timedelta(seconds=self._latency))
+        self.calls += 1
+        return HealthSample(
+            ts=now.isoformat(),
+            overall_status="healthy",
+            components={"runtime-stability": self._status},
+            classification="healthy",
+        )
+
+
 class InterruptingSource:
     """Источник, эмулирующий прерывание харнесса после N сэмплов."""
 
@@ -169,6 +191,58 @@ class TestD1HarnessSampler:
         verdict = harness.run()
         assert verdict.min_samples == 3
         assert verdict.verdict == PASS
+
+    def test_no_drift_over_24h_with_polling_cost(self, tmp_path: Path) -> None:
+        """Опрос со стоимостью 5с не теряет 144-й сэмпл за 24ч (регрессия дрейфа).
+
+        На старом цикле период = interval + время опроса, поэтому за 24ч
+        собиралось 143 сэмпла при пороге 144 — вердикт FAIL без реальной
+        деградации. Сон по абсолютной сетке обязан дать ровно 144 сэмпла.
+        """
+        clock = VirtualClock(START)
+        source = DriftingHealthSource(clock, latency_s=5.0)
+        log = SoakLogFile(tmp_path / "soak" / "run.jsonl")
+
+        def fake_sleep(delta: float) -> None:
+            clock.tick(timedelta(seconds=delta))
+
+        harness = SoakHarness(
+            health_source=source,
+            log=log,
+            interval=600.0,
+            duration=86_400.0,
+            clock=clock,
+            sleep_fn=fake_sleep,
+        )
+        verdict = harness.run()
+
+        samples = log.read()
+        assert len(samples) == 144
+        assert source.calls == 144
+        assert verdict.verdict == PASS
+
+    def test_slow_poll_does_not_hang(self, tmp_path: Path) -> None:
+        """Опрос дороже интервала: цикл не зависает и не догоняет busy-loop'ом."""
+        clock = VirtualClock(START)
+        source = DriftingHealthSource(clock, latency_s=700.0)  # > interval 600
+        log = SoakLogFile(tmp_path / "soak" / "run.jsonl")
+
+        def fake_sleep(delta: float) -> None:
+            clock.tick(timedelta(seconds=delta))
+
+        harness = SoakHarness(
+            health_source=source,
+            log=log,
+            interval=600.0,
+            duration=86_400.0,
+            clock=clock,
+            sleep_fn=fake_sleep,
+        )
+        harness.run()
+
+        samples = log.read()
+        assert 1 <= len(samples) < 1_000  # конечно, но не без сэмплов
+        assert source.calls == len(samples)
 
 
 class TestD2Verdict:
