@@ -205,7 +205,7 @@ Holdout:
 ## 10. Привязка к прогону надёжности
 
 - soak_run_id: soak-2026-08-17
-- soak_status: pending
+- soak_status: pass
 
 D5-only update меняет только soak_status и ссылку на файл вердикта; другие разделы этим
 коммитом не затрагиваются. Пока документ остаётся Draft, отдельные review-коммиты могут
